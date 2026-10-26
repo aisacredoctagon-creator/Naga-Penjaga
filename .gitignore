@@ -1,0 +1,26 @@
+# dependensi & build (proyek ini statis, tetapi jaga-jaga)
+node_modules/
+dist/
+build/
+_site/
+
+# rahasia & lingkungan
+.env
+.env.*
+*.pem
+*.key
+
+# berkas sistem & editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# log & sementara
+*.log
+tmp/
+*.tmp
+
+# pengaturan lokal alat bantu
+.claude/
