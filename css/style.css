@@ -1,0 +1,193 @@
+:root {
+  --ink: #1b2a49;
+  --blue: #2f6fd6;
+  --blue-d: #1d4f9a;
+  --sun: #ffd23f;
+  --orange: #ff8a1f;
+  --good: #1f9d5c;
+  --bad: #e11d48;
+  --panel: #fffdf6;
+  --font: "Baloo 2", "Fredoka", "Trebuchet MS", "Comic Sans MS", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0; height: 100%; overflow: hidden;
+  background: #16386f; color: var(--ink);
+  font-family: var(--font);
+  overscroll-behavior: none;
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
+}
+
+#app { position: fixed; inset: 0; }
+#game { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+#ui { position: absolute; inset: 0; pointer-events: none; }
+
+/* ---------- layar ---------- */
+.screen {
+  position: absolute; inset: 0; display: none;
+  align-items: center; justify-content: center;
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  pointer-events: auto; overflow: hidden;
+}
+.screen.show { display: flex; animation: fadeIn .25s ease; }
+.screen.scroll { overflow-y: auto; touch-action: pan-y; align-items: flex-start; }
+.screen.scroll > .panel { margin: auto; }
+.screen.dim { background: rgba(10, 25, 60, .62); }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.menu-card, .panel {
+  width: min(94vw, 440px);
+  background: var(--panel);
+  border: 4px solid #fff;
+  border-radius: 28px;
+  box-shadow: 0 10px 0 rgba(0, 0, 0, .18), 0 18px 40px rgba(0, 0, 0, .3);
+  padding: 22px 22px 20px;
+  display: flex; flex-direction: column; gap: 12px; align-items: stretch; text-align: center;
+}
+.menu-card { background: linear-gradient(#fffdf6, #fff3cf); }
+.panel.wide { width: min(96vw, 860px); }
+.panel h2 { margin: 0; font-size: 30px; line-height: 1.1; }
+.panel h2.good { color: var(--good); }
+.panel h2.bad { color: var(--bad); }
+
+.logo { display: flex; flex-direction: column; line-height: .95; margin-bottom: 2px; }
+.logo .l1 { font-size: 30px; font-weight: 800; color: var(--blue-d); letter-spacing: 3px; }
+.logo .l2 {
+  font-size: 52px; font-weight: 800; color: var(--orange);
+  text-shadow: 0 3px 0 #fff, 0 6px 0 rgba(180, 80, 0, .35);
+}
+.tagline { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
+.stat { margin: 0; font-size: 16px; font-weight: 600; opacity: .85; }
+.stat b { color: var(--blue-d); }
+.eyebrow { margin: 0; font-size: 15px; font-weight: 800; color: var(--blue); text-transform: uppercase; letter-spacing: 1.5px; }
+.big-score { margin: 0; font-size: 26px; font-weight: 700; }
+.big-score b { font-size: 40px; color: var(--orange); }
+.row { display: flex; gap: 10px; }
+.row > .btn { flex: 1; }
+
+/* ---------- tombol ---------- */
+.btn {
+  font: inherit; font-size: 20px; font-weight: 800; color: var(--ink);
+  min-height: 52px; min-width: 52px; padding: 10px 18px;
+  background: #fff; border: 3px solid var(--ink); border-radius: 18px;
+  box-shadow: 0 5px 0 rgba(27, 42, 73, .55);
+  cursor: pointer; touch-action: manipulation;
+  transition: transform .08s, box-shadow .08s, filter .15s;
+}
+.btn:hover { filter: brightness(1.05); }
+.btn:active { transform: translateY(4px); box-shadow: 0 1px 0 rgba(27, 42, 73, .55); }
+.btn:focus-visible, .stage-btn:focus-visible { outline: 4px solid var(--blue); outline-offset: 2px; }
+.btn-primary { background: linear-gradient(#ffe36a, #ffb020); }
+.btn-danger { background: #ffe1e6; border-color: var(--bad); color: #8a0f2e; box-shadow: 0 5px 0 rgba(138, 15, 46, .45); }
+.btn-big { font-size: 26px; min-height: 64px; }
+.btn-small { font-size: 16px; min-height: 48px; padding: 8px 12px; }
+
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.panel-head h2 { flex: 1; }
+
+/* ---------- pilih level ---------- */
+#level-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; text-align: left; }
+.level-card {
+  --c: #3b82f6;
+  background: #fff; border: 3px solid var(--c); border-radius: 20px; padding: 12px;
+  box-shadow: 0 5px 0 color-mix(in srgb, var(--c) 55%, #000);
+}
+.lc-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.lc-head h3 { margin: 0; font-size: 20px; line-height: 1.1; }
+.lc-head p { margin: 2px 0 0; font-size: 14px; opacity: .75; font-weight: 600; }
+.lc-num {
+  width: 46px; height: 46px; flex: none; border-radius: 50%;
+  background: var(--c); color: #fff; font-size: 26px; font-weight: 800;
+  display: grid; place-items: center; border: 3px solid #fff; box-shadow: 0 0 0 3px var(--c);
+}
+.stage-row { display: flex; gap: 8px; }
+.stage-btn {
+  flex: 1; min-height: 64px; min-width: 52px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  font: inherit; color: var(--ink); background: #f3f6ff; border: 3px solid #c5d2f5; border-radius: 16px;
+  cursor: pointer; touch-action: manipulation; padding: 4px;
+}
+.stage-btn:not(:disabled):active { transform: translateY(2px); }
+.stage-btn.done { background: #e9fbe9; border-color: #7bd389; }
+.stage-btn.boss { background: #fff2d6; border-color: #f2b705; }
+.stage-btn:disabled { opacity: .5; cursor: not-allowed; }
+.sb-main { font-size: 24px; font-weight: 800; line-height: 1; }
+.sb-stars { font-size: 14px; line-height: 1; white-space: nowrap; }
+.star { color: #c9cfdf; }
+.star.on { color: #ffb400; text-shadow: 0 1px 0 #a86a00; }
+
+/* ---------- cara bermain ---------- */
+.howto { list-style: none; margin: 0; padding: 0; text-align: left; display: grid; gap: 10px; font-size: 17px; font-weight: 600; line-height: 1.3; }
+.howto li { background: #f3f6ff; border-radius: 14px; padding: 10px 14px; }
+.howto li b:first-child { display: block; color: var(--blue-d); font-size: 18px; }
+.howto li.legend { display: flex; align-items: center; gap: 12px; padding: 6px 14px; }
+.howto li.legend b:first-child { display: inline; font-size: 17px; }
+
+/* ---------- layar pembuka stage ---------- */
+.panel.intro { width: min(94vw, 520px); }
+.panel.intro h2 { font-size: 32px; }
+.chip { margin: 0 auto; background: var(--blue); color: #fff; font-weight: 800; font-size: 17px; padding: 4px 16px; border-radius: 999px; }
+.example { background: #fff; border: 3px dashed var(--sun); border-radius: 18px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.ex-label { font-size: 14px; font-weight: 800; color: var(--orange); text-transform: uppercase; letter-spacing: 1px; }
+.ex-text { font-size: 34px; font-weight: 800; }
+.hintline { margin: 0; font-size: 16px; font-weight: 600; }
+.legend-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; text-align: left; font-size: 15px; font-weight: 600; }
+.legend-list li { display: flex; align-items: center; gap: 10px; background: #f3f6ff; border-radius: 12px; padding: 4px 10px; }
+.startnote { margin: 0; font-size: 14px; font-weight: 600; opacity: .85; }
+
+/* ---------- hasil ---------- */
+.stars { font-size: 54px; line-height: 1; letter-spacing: 6px; }
+.stars .star { display: inline-block; opacity: 0; transform: scale(.2) rotate(-40deg); animation: starIn .5s cubic-bezier(.2, 1.6, .4, 1) forwards; animation-delay: calc(.25s + var(--i) * .3s); }
+@keyframes starIn { to { opacity: 1; transform: scale(1) rotate(0); } }
+
+/* ---------- hitung mundur ---------- */
+.countdown {
+  position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+  font-size: min(32vmin, 220px); font-weight: 800; color: #fff; pointer-events: none;
+  -webkit-text-stroke: 10px rgba(20, 30, 70, .85); paint-order: stroke fill;
+  text-shadow: 0 8px 0 rgba(20, 30, 70, .35);
+}
+.countdown.on { display: flex; }
+.countdown.pop { animation: pop .8s ease-out; }
+@keyframes pop { 0% { transform: scale(2.2); opacity: 0; } 25% { transform: scale(1); opacity: 1; } 85% { opacity: 1; } 100% { transform: scale(.85); opacity: .2; } }
+
+/* ---------- layar pendek (HP landscape) ---------- */
+@media (max-height: 520px) {
+  .menu-card, .panel { padding: 12px 16px 12px; gap: 7px; border-radius: 22px; }
+  .menu-card { width: min(94vw, 560px); display: grid; grid-template-columns: 1fr 1fr; column-gap: 14px; align-items: center; }
+  .menu-card .logo, .menu-card .tagline, .menu-card .stat { grid-column: 1 / -1; }
+  .logo .l1 { font-size: 20px; }
+  .logo .l2 { font-size: 34px; }
+  .tagline { font-size: 15px; margin: 0; }
+  .panel h2 { font-size: 24px; }
+  .btn { min-height: 48px; font-size: 18px; padding: 6px 12px; }
+  .btn-big { min-height: 52px; font-size: 22px; }
+  .ex-text { font-size: 26px; }
+  .stars { font-size: 40px; }
+  .big-score { font-size: 20px; } .big-score b { font-size: 30px; }
+  .panel.intro { width: min(94vw, 620px); }
+  .howto { font-size: 15px; gap: 6px; }
+  .howto li { padding: 6px 10px; }
+  .howto li b:first-child { font-size: 16px; }
+  #level-grid { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+  .stage-btn { min-height: 56px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .screen.show, .stars .star, .countdown.pop { animation: none; }
+  .stars .star { opacity: 1; transform: none; }
+}
+
+/* ---------- penyesuaian layar kecil: kartu pembuka ---------- */
+.legend-list { grid-template-columns: 1fr 1fr; gap: 6px; font-size: 14px; line-height: 1.15; }
+.legend-list li { padding: 4px 8px; gap: 8px; }
+.panel.intro { gap: 8px; }
+.panel.intro .btn-big { position: sticky; bottom: 4px; z-index: 2; }
+@media (max-width: 420px) {
+  .panel.intro { padding: 16px 14px 14px; }
+  .panel.intro h2 { font-size: 26px; }
+  .ex-text { font-size: 28px; }
+  .hintline, .startnote { font-size: 14px; }
+}
