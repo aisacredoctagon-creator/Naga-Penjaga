@@ -24,13 +24,16 @@
       const dragonR = opts.frogR || 40, K = 1 + ((opts.unit || 1) - 1) * 0.6; // rintangan ikut membesar sedikit
       const cx = this.cx, cy = this.cy;
       // geser mendekati naga sampai tidak menimpa alur
+      const bnd = opts.bounds;   // batas layar: rintangan di luar layar (penembak di tepi bawah) dicerminkan ke atas naga
       const place = function (list, extra) {
         return (list || []).map(function (r, i) {
-          const a = r.a * Math.PI / 180, rr = (r.r || 20) * K, pts = [];
+          const rr = (r.r || 20) * K, pts = [];
           for (let k = 0; k < 9; k++) pts.push(0.82 + ((Math.sin(i * 7.7 + k * 12.9898) * 43758.5453) % 1 + 1) % 1 * 0.3);
-          const lo = dragonR + rr + 10; let d = Math.max(r.dist * K, lo), best = d, bc = -1e9;
-          for (; d >= lo; d -= 3) { const c = clear(cx + Math.cos(a) * d, cy + Math.sin(a) * d); if (c > bc) { bc = c; best = d; } if (c >= rr + 4) { best = d; break; } }
-          return Object.assign({ x: cx + Math.cos(a) * best, y: cy + Math.sin(a) * best, r: rr, pts: pts, rot: i * 1.3, flash: 0 }, extra || {});
+          const lo = dragonR + rr + 10;
+          const fit = function (a) { let d = Math.max(r.dist * K, lo), best = d, bc = -1e9; for (; d >= lo; d -= 3) { const c = clear(cx + Math.cos(a) * d, cy + Math.sin(a) * d); if (c > bc) { bc = c; best = d; } if (c >= rr + 4) { best = d; break; } } return { x: cx + Math.cos(a) * best, y: cy + Math.sin(a) * best }; };
+          const a0 = r.a * Math.PI / 180; let pos = fit(a0);
+          if (bnd && (pos.y > bnd.y1 - rr - 6 || pos.y < bnd.y0 + rr + 6)) { const alt = fit(-a0); if (alt.y <= bnd.y1 - rr - 6 && alt.y >= bnd.y0 + rr + 6) pos = alt; }
+          return Object.assign({ x: pos.x, y: pos.y, r: rr, pts: pts, rot: i * 1.3, flash: 0 }, extra || {});
         });
       };
       this.rocks = place(cfg.rocks);

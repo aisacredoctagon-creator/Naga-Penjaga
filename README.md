@@ -114,6 +114,43 @@ Aksesibilitas: `role="dialog"`, fokus terkunci, Esc menutup konfirmasi dulu lalu
 `GA.game.startStep(n, true)` (n = 0..2), dan `GA.game.tick(dt, noRender)` untuk menjalankan waktu game secara manual
 (berguna di panel yang tidak menjalankan `requestAnimationFrame`).
 
+## UI & tema visual
+
+- **Token desain** di `Theme.ui` (js/theme.js): material kayu, emas, perkamen, batu, api, warna status, radius. `js/ui/skin.js` menerjemahkannya menjadi CSS variables (`--wood-*`, `--gold-*`, `--parch-*`, `--stone-*`, `--r-*`, `--font-*`) dan tekstur material prosedural (`--tex-wood`, `--tex-stone`, `--tex-parch`). HUD canvas memakai token yang sama, jadi mengubah `Theme.ui` mengubah seluruh UI. Opsi aset gambar: letakkan `assets/ui/wood.webp`, `stone.webp`, `parchment.webp` untuk menggantikan tekstur prosedural.
+- **Font**: judul `Cinzel Decorative` dan UI `Baloo 2` dimuat dari Google Fonts (`display=swap`); bila gagal dimuat, tumpukan cadangan (Palatino/Georgia dan Trebuchet/sistem) dipakai. Angka di bola tidak bergantung pada font eksternal untuk sprite.
+- `css/ui.css`: panel perkamen berbingkai kayu dengan paku emas, tombol kayu/emas (hover, tekan, nonaktif), kartu kategori dari batu, slot dan kesulitan dari kayu, transisi antar layar. `prefers-reduced-motion` mematikan animasi layar, kilau tombol, dan mengurangi getar/kilatan/goyangan dedaunan.
+- `js/ui/icons.js`: ikon SVG inline (garis 2,3 bulat) untuk tombol, kategori, dan status. `js/ui/hud.js`: HUD canvas (bingkai kayu bertrim emas di-cache; plakat skor odometer, plakat step permata, plakat soal perkamen dengan animasi ganti soal, bilah progres api, telur bercahaya, tombol Jeda).
+- Popup melayang bergaya `FX.pop(x, y, teks, 'score|combo|good|bad|info')`. Bunyi UI: ketuk (klik), denting (pilih), gema (kembali), fanfare kecil (konfirmasi) lewat Web Audio.
+
+## Kualitas grafis & performa
+
+- `js/quality.js`: tiga tingkat (**Tinggi / Sedang / Rendah**) dan mode **Otomatis** (Pengaturan → Grafik). Otomatis mengukur FPS saat bermain (bukan saat jeda/menu) dan menurunkan tingkat bila rata-rata di bawah ~50 FPS selama dua jendela 2 detik berturut-turut; ia hanya menurunkan, tidak menaikkan lagi. Pilihan disimpan di `localStorage`.
+- Yang diatur: efek atmosfer (kabut, berkas cahaya, riak, cahaya obor/lava, burung, goyangan dedaunan, partikel portal), kepadatan partikel pendek, batas `devicePixelRatio`, dan lapisan menyala (retakan lava, rune). `?debug=1` menampilkan FPS dan tingkat aktif di pojok kiri bawah.
+- Lapisan statis peta, sprite bola, dan bingkai HUD di-cache dan dibangun ulang hanya saat ukuran/orientasi/kualitas berubah (sekali, bisa terasa sebagai jeda singkat). Partikel memakai pool; tidak ada alokasi per frame di jalur panas.
+
+## Aset gambar opsional
+
+Gambar bawaan semuanya prosedural. Untuk memakai ilustrasi sendiri, daftarkan berkas di `assets/manifest.json` (sprite boss/rintangan/portal/sarang, latar peta per orientasi, tekstur UI). Lihat **`docs/ASSET_GUIDE.md`** untuk ukuran, format, arah cahaya, contoh deskripsi untuk generator gambar, dan daftar aset yang belum tersambung.
+
+## Jalur & peta (js/maps/)
+
+- `maps/paths.js`: **pustaka arketipe jalur** berbasis data. Tiap arketipe punya definisi LANDSCAPE dan PORTRAIT sendiri (titik kontrol ternormalisasi), posisi penembak/boss, dan opsional zona kecepatan. Step 1: `hook`, `serp3`, `s2`. Step 2: `zigzag`, `figure8` (persilangan dengan jembatan), `horseshoe`. Step 3: `bossU`, `bossU2`, `bossBowl`. Jalur dan peta dipilih acak per petualangan (`Levels.pick`), disimpan di `adv.picks` supaya Ulangi memakai yang sama.
+- Spline Catmull-Rom sentripetal, tabel panjang busur (`path.js`), jumlah bola mengikuti panjang jalur dan `BALL_RADIUS`.
+- **Validator** (otomatis tiap jalur dibangun): jarak antar-segmen ≥ 2,5R + 8, radius tikungan ≥ 1,15R, jalur di dalam layar, ruang penembak/boss bebas, deteksi persilangan. Tikungan tajam dilunakkan otomatis.
+- **Jembatan**: di persilangan, deck batu digambar di lapisan depan; bola di jalur bawah lewat di bawahnya, bola di jalur atas (`path.overWindows`) digambar setelahnya.
+- **Mode debug** `index.html?debug=1`: menampilkan jalur (cyan), titik kontrol bernomor, pelanggaran jarak (merah), tikungan tajam (oranye), persilangan (hijau), zona kecepatan (magenta), ruang penembak/boss, titik portal, dan laporan validator.
+- Peta (`GA.Maps`): `forest`, `grove` (Step 1); `volcano`, `crystal` (Step 2); `tower`, `tower2` (Step 3). Satu file data per tema berisi palet, jenis dasar (`moss|basalt|cave|flags`), komposisi dekorasi (`mix`), elemen depan (`front`: `leaf|stone|hall`), dan opsi efek. Untuk menambah peta: salin salah satu file, ubah palet/`mix`, lalu daftarkan idnya di `Levels` (`POOL`) dan `Theme.scenes`.
+- Zona kecepatan: `zones` pada arketipe (mis. `serp3`) mempercepat rantai di bagian jalur tertentu.
+
+## Render berlapis (js/render/, js/maps/)
+
+- `render/noise.js` + `render/textures.js`: RNG berbenih, noise fBm, Voronoi (retak batu), sisik, kayu, logam. Hasilnya di-cache sebagai kanvas kecil / CanvasPattern dan dipakai peta, bola, naga, dan portal.
+- `render/background.js`: peta statis dirender sekali per layout ke kanvas luar layar: dasar bertekstur → parit jalur terukir → kolam & altar → dekorasi → `front` (daun penutup depan + vignette, digambar setelah rantai). Data peta di `maps/*.js` (`GA.Maps`); peta tanpa data memakai `scenery.js` lama.
+- `render/effects.js`: efek dinamis. **Portal dimensi** di titik masuk (`Effects.openPortal()/closePortal()/pulse()`), riak kolam, berkas cahaya, kabut, kunang-kunang, burung. Kualitas: `GA.Effects.setQuality(0|1|2)`.
+- `render/balls.js`: bola sihir 3D (badan berputar + nebula + 8 motif rune, kilau tetap tegak, plakat angka, bayangan), sprite di-cache per radius × warna. Bola muncul dari portal: kecil, transparan, bercahaya, lalu membesar (`chain.entryD`).
+- `render/fire.js`: bola api (8 frame turbulensi, ekor, cahaya dinamis). `fx.js`: pecahan kristal, ledakan api, gelombang kejut, jelaga, muzzle flash.
+- `dragon.js`: naga bersegmen (leher dan ekor berpegas, sayap bertulang, sisik bertekstur).
+
 ## Deploy (GitHub Pages)
 
 Workflow `.github/workflows/deploy.yml` menyalin `index.html`, `css/`, `js/`, `assets/` ke Pages saat push ke `main`. Semua path relatif,

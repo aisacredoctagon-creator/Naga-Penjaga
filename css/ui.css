@@ -1,0 +1,160 @@
+/* ui.css — bahasa visual UI: fantasi kartun-realistis hangat. Material: kayu tua, batu berukir, perkamen, emas bertrim, rune bercahaya.
+ * Semua warna/tekstur berasal dari CSS variables yang dipasang js/ui/skin.js dari token Theme.ui (satu sumber dengan HUD canvas).
+ * Dimuat setelah style.css (menimpa tampilan lama). Popup Jeda memakai css/pause.css (desain Figma) dan tidak diubah. */
+
+:root {
+  --shadow-1: 0 6px 0 rgba(20, 8, 0, .5), 0 16px 34px rgba(0, 0, 0, .5);
+  --font-title: "Cinzel Decorative", "Cinzel", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --font-ui: "Baloo 2", "Fredoka", "Trebuchet MS", system-ui, sans-serif;
+  --tex-wood: linear-gradient(#8a5a2a, #5a3418);
+  --tex-wood-dark: linear-gradient(#5a3418, #2a160a);
+  --tex-stone: linear-gradient(#605a84, #2a2648);
+  --tex-parch: linear-gradient(#fdf3d6, #ecd9a6);
+}
+
+html, body { background: #120a24; font-family: var(--font-ui); }
+.ic { width: 1.15em; height: 1.15em; vertical-align: -0.2em; flex: none; }
+.ic-inline { width: 1em; height: 1em; vertical-align: -0.14em; color: #b07a1a; }
+
+/* ---------- layar & transisi ---------- */
+.screen.dim { background: radial-gradient(ellipse at 50% 40%, rgba(24, 12, 56, .5), rgba(6, 2, 20, .86)); }
+.screen.show { animation: scrIn .34s cubic-bezier(.2, .9, .3, 1) both; }
+@keyframes scrIn { from { opacity: 0; transform: translateY(16px) scale(.97); } to { opacity: 1; transform: none; } }
+
+/* ---------- panel: perkamen berbingkai kayu + paku emas ---------- */
+.menu-card, .panel {
+  position: relative; color: var(--ink);
+  background: var(--tex-parch) padding-box, var(--tex-wood) border-box;
+  background-color: var(--parch-2);
+  border: 10px solid transparent; border-radius: var(--r-l);
+  box-shadow: 0 0 0 3px #1c0e05, inset 0 0 0 2px var(--gold-2), inset 0 10px 22px rgba(90, 50, 10, .28), var(--shadow-1);
+}
+.menu-card::before, .panel::before {
+  content: ""; position: absolute; inset: -10px; border-radius: inherit; pointer-events: none;
+  background:
+    radial-gradient(circle at 9px 9px, var(--gold-1) 0 2px, var(--gold-2) 3px, var(--gold-3) 5px, transparent 5.5px) top left / 100% 100% no-repeat,
+    radial-gradient(circle at calc(100% - 9px) 9px, var(--gold-1) 0 2px, var(--gold-2) 3px, var(--gold-3) 5px, transparent 5.5px) top left / 100% 100% no-repeat,
+    radial-gradient(circle at 9px calc(100% - 9px), var(--gold-1) 0 2px, var(--gold-2) 3px, var(--gold-3) 5px, transparent 5.5px) top left / 100% 100% no-repeat,
+    radial-gradient(circle at calc(100% - 9px) calc(100% - 9px), var(--gold-1) 0 2px, var(--gold-2) 3px, var(--gold-3) 5px, transparent 5.5px) top left / 100% 100% no-repeat;
+}
+.menu-card { background-color: var(--parch-2); }
+.panel h2, .menu-panel h2 {
+  font-family: var(--font-title); font-weight: 700; letter-spacing: .04em; color: #4a2a10;
+  text-shadow: 0 1px 0 rgba(255, 240, 200, .8), 0 2px 3px rgba(80, 40, 10, .3);
+}
+.panel h2.good { color: #1f7a42; } .panel h2.bad { color: #a82640; }
+.eyebrow { font-family: var(--font-title); color: #7a4a1a; letter-spacing: .12em; }
+.stat, .hintline, .st-text, .m-help { color: #3a2410; }
+.stat b { color: #7a3a10; }
+.big-score b { color: #c0560a; text-shadow: 0 2px 0 rgba(255, 240, 200, .9); }
+
+/* ---------- logo judul ---------- */
+.logo .l1, .logo .l2 {
+  font-family: var(--font-title); background: linear-gradient(#fff3b0, #e8a020 55%, #9a5a10); -webkit-background-clip: text; background-clip: text; color: transparent;
+  -webkit-text-stroke: 1.5px #3a1e08; paint-order: stroke fill; text-shadow: none; filter: drop-shadow(0 3px 0 rgba(40, 16, 2, .55));
+}
+.logo .l1 { font-size: 26px; letter-spacing: .3em; }
+.logo .l2 { font-size: 46px; letter-spacing: .04em; }
+.tagline { color: #4a2a10; }
+
+/* ---------- tombol: kayu bertrim; utama = emas ---------- */
+.btn {
+  font-family: var(--font-ui); font-weight: 800; color: #fff3d0; text-shadow: 0 2px 0 rgba(30, 12, 2, .75);
+  background: linear-gradient(#b27640, #6e3f1a 55%, #5a3214); border: 3px solid #2a160a; border-radius: var(--r-m);
+  box-shadow: inset 0 2px 0 rgba(255, 224, 160, .5), inset 0 -4px 0 rgba(0, 0, 0, .28), 0 5px 0 #1c0e05, 0 9px 14px rgba(0, 0, 0, .4);
+  display: inline-flex; align-items: center; justify-content: center; gap: .45em; text-align: center;
+}
+.btn:hover { filter: brightness(1.1); }
+.btn:active { transform: translateY(4px); box-shadow: inset 0 2px 0 rgba(255, 224, 160, .4), inset 0 -2px 0 rgba(0, 0, 0, .25), 0 1px 0 #1c0e05; }
+.btn:focus-visible, .slot:focus-visible, .cat:focus-visible, .diff:focus-visible, .chip-btn:focus-visible { outline: 4px solid var(--rune); outline-offset: 3px; }
+.btn:disabled, .btn[aria-disabled="true"] { filter: grayscale(.9) brightness(.8); cursor: not-allowed; transform: none; }
+.btn-primary {
+  color: #3a1c06; text-shadow: 0 1px 0 rgba(255, 245, 200, .85); border-color: #4a2a08;
+  background: linear-gradient(#fff0a8, #ffc84a 45%, #e8921a); position: relative; overflow: hidden;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, .7), inset 0 -4px 0 rgba(150, 70, 0, .35), 0 5px 0 #3a1c06, 0 9px 18px rgba(255, 160, 30, .35);
+}
+.btn-primary::after { content: ""; position: absolute; top: 0; bottom: 0; width: 46%; left: -60%; background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .6), transparent); transform: skewX(-18deg); animation: sheen 3.6s ease-in-out infinite; }
+@keyframes sheen { 0%, 70% { left: -60%; } 100% { left: 130%; } }
+.btn-danger { background: linear-gradient(#d05a58, #8a2430 60%, #6a1a24); color: #ffeaea; border-color: #3a0c14; }
+
+/* ---------- Main Menu ---------- */
+.menu-panel .panel-head h2 { font-size: 24px; }
+.slot {
+  font-family: var(--font-ui); color: #f3e6c4; background: var(--tex-wood-dark), #3a2010; border: 3px solid #1c0e05; border-radius: var(--r-m);
+  box-shadow: inset 0 3px 8px rgba(0, 0, 0, .55), inset 0 -2px 0 rgba(255, 220, 160, .15);
+}
+.slot .sl-tag { color: #e8c060; font-family: var(--font-title); } .slot .sl-place { color: #d8c8a0; }
+.slot .sl-cat { color: #fff; text-shadow: 0 1px 0 rgba(0, 0, 0, .6); }
+.slot.on { border-color: var(--gold-2); box-shadow: inset 0 3px 8px rgba(0, 0, 0, .55), 0 0 0 3px rgba(232, 184, 74, .45), 0 0 18px rgba(255, 190, 70, .45); }
+.chip-btn { font-family: var(--font-ui); color: #f3e6c4; background: var(--tex-wood-dark), #3a2010; border: 3px solid #1c0e05; box-shadow: inset 0 2px 5px rgba(0, 0, 0, .5); }
+.chip-btn.on { color: #3a1c06; background: linear-gradient(#fff0a8, #ffc84a); border-color: #4a2a08; box-shadow: 0 0 14px rgba(255, 190, 70, .5); }
+
+.cat {
+  color: #f3ecff; background: var(--tex-stone), #3a3560; background-blend-mode: normal; border: 3px solid #14102c; border-radius: var(--r-m);
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, .28), inset 0 -4px 0 rgba(0, 0, 0, .35), 0 4px 0 #0c0820;
+  transition: transform .12s, box-shadow .12s;
+}
+.cat:hover { transform: translateY(-2px); }
+.cat .cat-name { color: #fff; text-shadow: 0 2px 0 rgba(0, 0, 0, .6); font-weight: 800; }
+.cat .cat-ex { color: #d8d0f0; opacity: .9; }
+.cat .cat-ico {
+  width: 42px; height: 42px; color: #fff; background: radial-gradient(circle at 35% 28%, rgba(255, 255, 255, .55), var(--c) 45%, color-mix(in srgb, var(--c) 55%, #000));
+  border: 3px solid #14102c; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .25), 0 3px 6px rgba(0, 0, 0, .5); font-size: 22px;
+}
+.cat .cat-ico .ic { width: 24px; height: 24px; filter: drop-shadow(0 1px 0 rgba(0, 0, 0, .5)); }
+.cat.on { border-color: var(--gold-2); background-color: color-mix(in srgb, var(--c) 30%, #3a3560); box-shadow: inset 0 2px 0 rgba(255, 255, 255, .35), 0 0 0 3px rgba(232, 184, 74, .55), 0 0 20px color-mix(in srgb, var(--c) 60%, transparent); }
+.cat .mfrac, .cat-ex .mfrac { color: inherit; }
+
+.diff { font-family: var(--font-title); letter-spacing: .06em; color: #fff; text-shadow: 0 2px 0 rgba(0, 0, 0, .6); border: 3px solid #1c0e05; border-radius: var(--r-m); background: var(--tex-wood-dark), #3a2010; box-shadow: inset 0 3px 7px rgba(0, 0, 0, .5), 0 4px 0 #120804; }
+.diff.d-mudah.on { background: linear-gradient(#7ee09a, #2a9a52); } .diff.d-sedang.on { background: linear-gradient(#ffe27a, #e8a020); color: #3a1c06; text-shadow: none; } .diff.d-sulit.on { background: linear-gradient(#ff8a8a, #c02a3a); }
+.diff.on { border-color: #4a2a08; box-shadow: inset 0 2px 0 rgba(255, 255, 255, .5), 0 4px 0 #120804, 0 0 16px rgba(255, 200, 90, .4); }
+.m-diffnote { color: #3a2410; }
+.m-summary { background: rgba(120, 70, 20, .12); border: 2px solid rgba(120, 70, 20, .35); box-shadow: inset 0 2px 6px rgba(90, 50, 10, .25); color: #3a2410; }
+.m-summary b { color: #6a3a10; }
+
+/* ---------- intro step, cerita, hasil ---------- */
+.chip { font-family: var(--font-title); background: linear-gradient(#7a5ad8, #4a2a98); border: 2px solid #1c0e50; box-shadow: inset 0 2px 0 rgba(255, 255, 255, .35); color: #fff; }
+.example { background: rgba(255, 255, 255, .45); border: 3px solid var(--gold-2); box-shadow: inset 0 3px 8px rgba(90, 50, 10, .25); }
+.ex-label { font-family: var(--font-title); color: #8a4a10; }
+.ex-text { color: #2a1a3a; }
+.legend-list li, .obst-list { background: transparent; }
+.legend-list li { background: rgba(120, 70, 20, .1); border: 1px solid rgba(120, 70, 20, .25); }
+.startnote { color: #4a2a10; }
+.st-art { border: 4px solid #3a200a; box-shadow: 0 0 0 2px var(--gold-2), 0 6px 14px rgba(0, 0, 0, .45); }
+.st-dots i { background: #c9a870; } .st-dots i.on { background: #a0381a; box-shadow: 0 0 6px rgba(255, 140, 50, .8); }
+
+.stars .star { color: #6a5a40; text-shadow: 0 2px 0 rgba(0, 0, 0, .3); }
+.stars .star.on { color: #ffcb2e; text-shadow: 0 0 10px rgba(255, 190, 40, .85), 0 2px 0 #7a4a00; }
+.star.on { color: #e8a010; text-shadow: 0 1px 0 #7a4a00; }
+.egg { border-color: #fff; } .egg.on { box-shadow: 0 0 10px rgba(255, 200, 90, .9); }
+.step-stars li { background: rgba(120, 70, 20, .12); border: 1px solid rgba(120, 70, 20, .3); }
+
+/* ---------- cara bermain ---------- */
+.howto li { background: rgba(120, 70, 20, .1); border: 1px solid rgba(120, 70, 20, .28); color: #2a1a10; }
+.howto li b:first-child { color: #7a3a10; font-family: var(--font-title); }
+.howto li.legend b:first-child { font-family: var(--font-ui); }
+
+/* ---------- hitung mundur ---------- */
+.countdown { font-family: var(--font-title); background: none; -webkit-text-stroke: 0; color: #ffe27a; text-shadow: 0 0 0 transparent; paint-order: normal;
+  -webkit-text-stroke: 8px rgba(40, 16, 2, .92); text-shadow: 0 6px 0 rgba(40, 16, 2, .5), 0 0 36px rgba(255, 170, 40, .7); }
+
+/* ---------- pengurangan gerak ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .screen.show, .btn-primary::after, .cat { animation: none; transition: none; }
+}
+
+/* ---------- layar sangat sempit ---------- */
+@media (max-width: 420px) {
+  .menu-card, .panel { border-width: 8px; }
+  .menu-card::before, .panel::before { inset: -8px; }
+  .logo .l2 { font-size: 40px; }
+}
+
+/* tekstur diregangkan satu kali (tanpa sambungan ubin yang terlihat) */
+.menu-card, .panel { background-size: 100% 100%, 100% 100%; }
+.slot, .chip-btn, .diff { background-size: cover; }
+.cat { background-size: cover; }
+
+/* target sentuh minimal 44px (juga di lanskap pendek) */
+.chip-btn, .btn-small, .slot, .diff, .cat { min-height: 44px; }
+@media (max-height: 520px) { .chip-btn { min-height: 44px; } .diff { min-height: 44px; } }

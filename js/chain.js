@@ -82,10 +82,11 @@
   }
 
   /** Gambar bola (orb sihir atau, bila ci < 0, bola api) + teks. px = piksel perangkat per unit logis. */
-  function drawBall(ctx, x, y, r, ci, text, px, sx) {
+  function drawBall(ctx, x, y, r, ci, text, px, sx, rot, t) {
     const img = Theme.sprite('ball');
     if (sx !== undefined && sx !== 1) { ctx.save(); ctx.translate(x, y); ctx.scale(sx, 1); x = 0; y = 0; }
     if (img) ctx.drawImage(img, x - r, y - r, r * 2, r * 2);
+    else if (ci >= 0 && GA.Balls) GA.Balls.drawOrb(ctx, x, y, r, ci, rot || 0, px || 1, !!text, t);
     else {
       const s = getSprite(ci, r, px || 1);
       const k = r / s.qr, d = (s.qr * 2 + 8) * k;   // sprite terdekat diskalakan ke radius sebenarnya
@@ -115,8 +116,7 @@
   /** Bola khusus: 'curse' (kutukan, jangan ditembak) | 'frost' (beku, rantai melambat) | 'egg' (telur emas, pulihkan telur) */
   function drawSpecial(ctx, kind, x, y, r, t) {
     const lw = Math.max(1.5, r * 0.06);
-    ctx.fillStyle = 'rgba(0,0,20,0.25)';
-    ctx.beginPath(); ctx.ellipse(x + r * 0.05, y + r * 0.2, r, r * 0.92, 0, 0, 6.283); ctx.fill();
+    GA.Balls.layer(ctx, 'shadow', x, y, r);
     const gr = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r * 1.05);
     if (kind === 'curse') {
       const gl = ctx.createRadialGradient(x, y, r * 0.8, x, y, r * 1.3); gl.addColorStop(0, 'rgba(120,255,120,' + (0.35 + 0.15 * Math.sin(t * 5)).toFixed(2) + ')'); gl.addColorStop(1, 'rgba(120,255,120,0)');
@@ -144,6 +144,7 @@
       ctx.fillStyle = 'rgba(255,255,255,' + (0.5 + 0.5 * Math.sin(t * 7)).toFixed(2) + ')'; const sx = x + r * 0.55, sy = y - r * 0.5;
       ctx.beginPath(); ctx.moveTo(sx, sy - r * 0.2); ctx.lineTo(sx + r * 0.06, sy - r * 0.06); ctx.lineTo(sx + r * 0.2, sy); ctx.lineTo(sx + r * 0.06, sy + r * 0.06); ctx.lineTo(sx, sy + r * 0.2); ctx.lineTo(sx - r * 0.06, sy + r * 0.06); ctx.lineTo(sx - r * 0.2, sy); ctx.lineTo(sx - r * 0.06, sy - r * 0.06); ctx.closePath(); ctx.fill();
     }
+    GA.Balls.layer(ctx, 'gloss', x, y, r);   // kilau, rim light, dan sisi gelap yang sama dengan orb
   }
 
   /* ---------- rantai ---------- */
@@ -151,6 +152,8 @@
 
   class Chain {
     constructor(path, opts) {
+      this.zones = null; this.overWindows = null;   // zona kecepatan; jendela jembatan (bola di sini digambar di atas jembatan)
+      this.entryD = 0; this.onEmerge = null;   // jarak titik portal; bola yang melewatinya "keluar" dari portal
       this.path = path;
       this.r = opts.r;
       this.D = this.r * 2 + 1;
@@ -176,7 +179,7 @@
     }
 
     makeBall(d) {
-      const b = { id: this.nextId++, d: d, kind: 'num', value: 0, text: '', ci: 0, x: 0, y: 0, a: 0, flipT: 0, nv: null, nt: null, wob: 0, red: 0, fog: 0, fogAge: 0 };
+      const b = { id: this.nextId++, d: d, kind: 'num', value: 0, text: '', ci: 0, x: 0, y: 0, a: 0, flipT: 0, nv: null, nt: null, wob: 0, red: 0, fog: 0, fogAge: 0, out: d >= this.entryD, rot: 0 };
       this.lastCi = b.ci = (this.lastCi + 1 + Math.floor(Math.random() * 7)) % 8;
       this.labeler(b);
       return b;
@@ -199,7 +202,7 @@
       }
     }
 
-    visible(b) { return b.d >= 0 && b.d <= this.path.length; }
+    visible(b) { return b.d >= this.entryD && b.d <= this.path.length; }
 
     update(dt) {
       if (this.slowT > 0) this.slowT -= dt;
@@ -208,6 +211,7 @@
       let mul = this.speedMul;
       if (this.slowT > 0) mul *= 0.3;
       if (this.fastT > 0) mul *= 2.3;
+      if (this.zones && this.balls.length) { const f = this.balls[0].d; for (let z = 0; z < this.zones.length; z++) if (f >= this.zones[z].from && f <= this.zones[z].to) mul *= this.zones[z].mul; }   // zona kecepatan jalur
       const v = (this.paused || this.hold > 0) ? 0 : this.speed * mul;
 
       let shift = 0;
@@ -241,6 +245,7 @@
         if (b.fog > 0) { b.fog -= dt; b.fogAge += dt; } else b.fogAge = 0;
         this.path.at(b.d, tmp);
         b.x = tmp.x; b.y = tmp.y; b.a = tmp.a;
+        if (!b.out && b.d >= this.entryD) { b.out = true; if (this.onEmerge) this.onEmerge(b); }   // keluar dari portal
       }
       this.spawnMore();
     }
@@ -263,7 +268,7 @@
       let best = null, bd = 1e9;
       for (let i = 0; i < bs.length; i++) {
         const b = bs[i];
-        if (b.d < 0 || b.d > this.path.length) continue;
+        if (b.d < this.entryD || b.d > this.path.length) continue;
         const dx = b.x - x, dy = b.y - y, d2 = dx * dx + dy * dy;
         if (d2 < rr * rr && d2 < bd) { bd = d2; best = b; }
       }
@@ -294,25 +299,38 @@
       }
     }
 
-    draw(ctx, t, px) {
+    /** pass: 0 = semua kecuali bola di atas jembatan, 1 = hanya bola di atas jembatan (digambar setelah penutup depan). */
+    isOver(b) { const w = this.overWindows; if (!w) return false; for (let i = 0; i < w.length; i++) if (b.d >= w[i][0] && b.d <= w[i][1]) return true; return false; }
+    drawOver(ctx, t, px) { if (this.overWindows && this.overWindows.length) this.draw(ctx, t, px, 1); }
+
+    draw(ctx, t, px, pass) {
       const r = this.r, bs = this.balls, len = this.path.length;
       const aura = this.slowT > 0 ? 'rgba(120,210,255,0.55)' : (this.fastT > 0 ? 'rgba(255,150,50,0.55)' : null);
       for (let i = bs.length - 1; i >= 0; i--) {
         const b = bs[i];
-        if (b.d < -r || b.d > len + r * 2) continue;
-        let x = b.x, y = b.y, rr = r;
+        if (this.overWindows && this.overWindows.length && this.isOver(b) !== (pass === 1)) continue;
+        if (b.d < this.entryD - r * 0.6 || b.d > len + r * 2) continue;
+        let x = b.x, y = b.y, rr = r, alpha = 1;
+        const em = Math.max(0, Math.min(1, (b.d - this.entryD) / (this.D * 1.7)));   // animasi keluar portal: kecil, transparan, bercahaya → ukuran penuh
+        if (em < 1) { const k = em * em * (3 - 2 * em); rr = r * (0.34 + 0.66 * k); alpha = Math.min(1, em * 2.4 + 0.05); }
         if (b.d > len - r * 0.2) rr = Math.max(0.2, r * (1 - (b.d - (len - r * 0.2)) / (r * 2))); // jatuh ke lubang
         if (b.wob > 0) x += Math.sin(t * 70) * 4 * (b.wob / 0.5);
         if (aura) { ctx.fillStyle = aura; ctx.beginPath(); ctx.arc(x, y, rr + 5, 0, 6.283); ctx.fill(); }
+        if (em < 1) {
+          const gl = ctx.createRadialGradient(x, y, 0, x, y, rr * 2.1); gl.addColorStop(0, 'rgba(255,235,255,' + (0.85 * (1 - em)).toFixed(2) + ')'); gl.addColorStop(1, 'rgba(180,120,255,0)');
+          ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x, y, rr * 2.1, 0, 6.283); ctx.fill(); ctx.globalCompositeOperation = 'source-over';
+        }
+        if (alpha < 1) ctx.globalAlpha = alpha;
         if (b.kind === 'num') {
           let sx = 1;
           if (b.flipT > 0) sx = Math.max(0.05, Math.abs(Math.cos(Math.PI * (1 - b.flipT / 0.36))));
-          drawBall(ctx, x, y, rr, b.ci, b.text, px, sx);
+          drawBall(ctx, x, y, rr, b.ci, b.text, px, sx, b.d / r * 0.85, t);
           if (b.red > 0) { ctx.fillStyle = 'rgba(255,40,60,' + (0.55 * b.red / 0.5).toFixed(2) + ')'; ctx.beginPath(); ctx.arc(x, y, rr, 0, 6.283); ctx.fill(); }
           if (b.fog > 0) drawFog(ctx, x, y, rr, t, Math.min(1, b.fogAge * 4, b.fog * 3));
         } else {
           drawSpecial(ctx, b.kind, x, y, rr, t);
         }
+        if (alpha < 1) ctx.globalAlpha = 1;
       }
     }
   }

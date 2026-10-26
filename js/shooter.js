@@ -13,22 +13,7 @@
   }
 
   /** Bola api: orb oranye-merah dengan nyala. dir = arah gerak (radian) agar nyala di belakang; null = nyala ke atas. */
-  function drawAmmo(ctx, x, y, r, ammo, px, t, dir) {
-    const back = dir == null ? -Math.PI / 2 : dir + Math.PI;     // nyala ke belakang arah gerak
-    const k = MULT_FLAME[ammo.mult] || 1;
-    for (let i = 0; i < 5; i++) {
-      const a = back + (i - 2) * 0.42, len = r * (0.95 + 0.35 * Math.sin(t * 14 + i * 1.7)) * k * (i === 2 ? 1.25 : 0.9);
-      const bx = x + Math.cos(a) * r * 0.7, by = y + Math.sin(a) * r * 0.7, tx = x + Math.cos(a) * (r + len), ty = y + Math.sin(a) * (r + len);
-      const nx = -Math.sin(a) * r * 0.42, ny = Math.cos(a) * r * 0.42;
-      const g = ctx.createLinearGradient(bx, by, tx, ty); g.addColorStop(0, 'rgba(255,170,40,0.95)'); g.addColorStop(1, 'rgba(255,60,20,0)');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(bx + nx, by + ny);
-      ctx.quadraticCurveTo(bx + Math.cos(a) * len * 0.6 + nx * 0.4, by + Math.sin(a) * len * 0.6 + ny * 0.4, tx, ty);
-      ctx.quadraticCurveTo(bx + Math.cos(a) * len * 0.6 - nx * 0.4, by + Math.sin(a) * len * 0.6 - ny * 0.4, bx - nx, by - ny);
-      ctx.closePath(); ctx.fill();
-    }
-    GA.Chain.drawBall(ctx, x, y, r, -1, null, px);
-    GA.Chain.drawLabel(ctx, '×' + ammo.mult, x, y, r * 0.95);
-  }
+  function drawAmmo(ctx, x, y, r, ammo, px, t, dir) { GA.Fire.drawBall(ctx, x, y, r, ammo, px, t, dir); }
 
   class Shooter {
     constructor() {
@@ -94,6 +79,16 @@
       if (this.swapT > 0) this.swapT -= dt;
       this.dragon.setAim(this.angle);
       this.dragon.update(dt, this.reload <= 0);
+      const FX = GA.FX, ex = this.dragon.expr;
+      if (!this.quiet) {
+        const m = this.muzzle(this._m || (this._m = { x: 0, y: 0 }));
+        if (this.reload > 0 && Math.random() < dt * 40) {            // api berkumpul di mulut saat bola dimuat
+          const a = Math.random() * 6.283, d = this.ammoR * (1.1 + Math.random() * 0.9);
+          FX.spawn(m.x + Math.cos(a) * d, m.y + Math.sin(a) * d, -Math.cos(a) * d * 3.2, -Math.sin(a) * d * 3.2, 0.22 + Math.random() * 0.12, this.ammoR * 0.2, '#ffb02e', 5, 0);
+        }
+        if (ex === 'cheer' && Math.random() < dt * 60) FX.spawn(m.x + (Math.random() - 0.5) * this.ammoR, m.y, (Math.random() - 0.5) * 90, -260 - Math.random() * 160, 0.5 + Math.random() * 0.4, this.ammoR * (0.3 + Math.random() * 0.3), Math.random() < 0.5 ? '#ffd27a' : '#ff7a2a', 5, -60);
+        if (ex === 'happy' && this.dragon.exprT > 0.85) FX.embers(m.x, m.y, Math.cos(this.angle) * 140, Math.sin(this.angle) * 140, 3, this.ammoR * 0.5);
+      }
     }
 
     draw(ctx, t, px) {
@@ -149,6 +144,7 @@
         for (let s = 0; s < steps; s++) {
           b.px = b.x; b.py = b.y;
           b.x += b.vx * sd; b.y += b.vy * sd;
+          if ((b.trail = (b.trail || 0) + sd) > 0.012) { b.trail = 0; GA.FX.embers(b.x - b.vx * 0.012, b.y - b.vy * 0.012, -b.vx * 0.1, -b.vy * 0.1, 1, this.chainR * 0.55); }
           if (onStep(b)) { b.on = false; break; }
           if (b.x < -60 || b.x > W + 60 || b.y < -60 || b.y > H + 60) { b.on = false; break; }
         }
@@ -157,11 +153,8 @@
     draw: function (ctx, px, t) {
       for (let i = 0; i < this.list.length; i++) {
         const b = this.list[i]; if (!b.on) continue;
-        const rad = this.chainR, a = Math.atan2(b.vy, b.vx), tl = rad * 3.0;
-        const g = ctx.createLinearGradient(b.x, b.y, b.x - Math.cos(a) * tl, b.y - Math.sin(a) * tl);
-        g.addColorStop(0, 'rgba(255,200,80,0.75)'); g.addColorStop(0.5, 'rgba(255,90,30,0.35)'); g.addColorStop(1, 'rgba(255,60,20,0)');
-        ctx.strokeStyle = g; ctx.lineWidth = rad * 1.3; ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - Math.cos(a) * tl, b.y - Math.sin(a) * tl); ctx.stroke();
+        const rad = this.chainR, a = Math.atan2(b.vy, b.vx);
+        GA.Fire.drawTrail(ctx, b.x, b.y, rad, a, t + i, 1);
         drawAmmo(ctx, b.x, b.y, rad, b.ammo, px, t, a);
       }
     }

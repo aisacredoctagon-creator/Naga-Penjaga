@@ -6,7 +6,16 @@
 
   const Theme = {
     fonts: {
-      ui: '"Baloo 2","Fredoka","Trebuchet MS","Comic Sans MS",system-ui,sans-serif'
+      ui: '"Baloo 2","Fredoka","Trebuchet MS","Comic Sans MS",system-ui,sans-serif',
+      title: '"Cinzel Decorative","Cinzel","Palatino Linotype","Book Antiqua",Georgia,serif'   // judul fantasi; angka tetap memakai ui
+    },
+
+    /* ---- token desain UI (satu sumber untuk HUD canvas dan CSS variables; lihat js/ui/skin.js) ----
+     * Material: kayu tua, batu berukir, perkamen, emas bertrim, api. Semua panel memakai bevel + inner shadow + butiran halus. */
+    ui: {
+      wood: ['#8a5a2a', '#5a3418', '#2a160a'], gold: ['#fff0b0', '#e8b84a', '#9a6a14'], parchment: ['#fdf3d6', '#ecd9a6', '#c9ac6a'],
+      stone: ['#9a94c0', '#605a84', '#2a2648'], ink: '#2a1a3a', rune: '#b890ff', fire: ['#fff3a0', '#ff9a3c', '#d9361a'],
+      ok: '#3fbf6a', bad: '#e0405a', radius: { s: 10, m: 16, l: 24 }
     },
 
     colors: {
@@ -92,7 +101,7 @@
     // Ganti null dengan URL gambar untuk menimpa gambar placeholder.
     // ball: gambar bola kosong (angka tetap digambar di atasnya)
     sprites: {
-      ball: null, shooter: null, boss: null, rock: null, mover: null, hole: null, background: null
+      ball: null, boss: null, rock: null, mover: null, portal: null, nest: null
     },
 
     _imgs: {},
@@ -111,6 +120,9 @@
       return img && img.complete && img.naturalWidth > 0 ? img : null;
     }
   };
+
+  // varian peta memakai warna dasar adegan induknya (jalur, sarang, penanda)
+  Theme.scenes.grove = Theme.scenes.forest; Theme.scenes.crystal = Theme.scenes.volcano; Theme.scenes.tower2 = Theme.scenes.tower;
 
   GA.Theme = Theme;
 })(window.GA = window.GA || {});

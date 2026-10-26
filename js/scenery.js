@@ -89,9 +89,12 @@
   }
 
   const Scenery = {
+    mode: "legacy",
     /** Bangun lapisan untuk layout L (canvas = canvas utama) dan scene tertentu. path/R: gambar alur di lapisan terakhir. */
     build: function (canvas, L, sceneId, path, R) {
       Theme.setScene(sceneId);
+      if (GA.Background && GA.Background.has(sceneId)) { this.mode = "map"; GA.Background.build(canvas, L, GA.Maps[sceneId], path, R); S.L = L; return; }
+      this.mode = "legacy";
       const C = Theme.sceneColors(), id = Theme.scene;
       S.L = L; S.scene = id; S.ambient = C.ambient;
       S.layers = [baseLayer(canvas, L, C, id), farLayer(canvas, L, C, id), nearLayer(canvas, L, C, id)];
@@ -102,6 +105,7 @@
 
     /** Gambar lapisan latar (ruang piksel). Siluet bergoyang pelan: parallax halus. */
     drawBack: function (ctx, t) {
+      if (this.mode === "map") { GA.Background.drawBack(ctx); GA.Background.drawGlow(ctx, t); return; }
       const L = S.L, k = L.px;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.drawImage(S.layers[0], 0, 0);
@@ -112,6 +116,7 @@
 
     /** Partikel ambient (ruang logis). */
     drawAmbient: function (ctx, t, dt) {
+      if (this.mode === "map") { GA.Effects.drawUnder(ctx, t, dt); return; }
       const L = S.L, kind = S.ambient;
       for (let i = 0; i < S.parts.length; i++) {
         const p = S.parts[i];
@@ -123,7 +128,12 @@
         else if (kind === 'ember') { ctx.fillStyle = 'rgba(255,' + (120 + tw * 100 | 0) + ',40,' + (0.35 + 0.5 * tw).toFixed(2) + ')'; ctx.beginPath(); ctx.arc(p.x, p.y, 1.6 * p.s, 0, TAU); ctx.fill(); }
         else { ctx.fillStyle = 'rgba(210,180,255,' + (0.15 + 0.6 * tw).toFixed(2) + ')'; const s = 2 * p.s; ctx.beginPath(); ctx.moveTo(p.x, p.y - s * 1.6); ctx.lineTo(p.x + s * 0.5, p.y); ctx.lineTo(p.x, p.y + s * 1.6); ctx.lineTo(p.x - s * 0.5, p.y); ctx.closePath(); ctx.fill(); }
       }
-    }
+    },
+
+    /** Penutup depan peta (daun, vignette): digambar setelah rantai. ox/oy = gesekan getar dalam piksel kanvas. */
+    drawFront: function (ctx, ox, oy, t) { if (this.mode === "map") GA.Background.drawFront(ctx, ox, oy, t); },
+    /** Efek paling atas (kunang-kunang). */
+    drawOver: function (ctx, t, dt) { if (this.mode === "map") GA.Effects.drawOver(ctx, t, dt); }
   };
 
   GA.Scenery = Scenery;

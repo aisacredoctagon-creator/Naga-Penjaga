@@ -78,6 +78,10 @@
 
   const MAX_EGGS = 6, START_EGGS = 5;
 
+  // pilihan acak jalur & peta per step (id arketipe di maps/paths.js, id peta di GA.Maps)
+  const POOL = [{ paths: ['hook', 'serp3', 's2'], maps: ['forest', 'grove'] }, { paths: ['zigzag', 'figure8', 'horseshoe'], maps: ['volcano', 'crystal'] }, { paths: ['bossU', 'bossU2', 'bossBowl'], maps: ['tower', 'tower2'] }];
+  function pick(step) { const p = POOL[step]; return { path: p.paths[Math.floor(Math.random() * p.paths.length)], map: p.maps[Math.floor(Math.random() * p.maps.length)] }; }
+
   /** Pecah pilihan menu jadi tiga kategori. sel = { slots, same, random, diff } */
   function resolveCats(sel) {
     const ids = GA.Questions.CATEGORIES.map(function (c) { return c.id; });
@@ -132,7 +136,7 @@
     DIFFS: DIFFS, DIFF_NAMES: DIFF_NAMES, DIFF_NOTES: DIFF_NOTES, STEPS: STEPS, TUNE: TUNE,
     MAX_EGGS: MAX_EGGS, START_EGGS: START_EGGS,
     count: STEPS.length,
-    resolveCats: resolveCats, build: build, describe: describe,
+    resolveCats: resolveCats, build: build, describe: describe, pick: pick, POOL: POOL,
     catName: function (id) { return GA.Questions.categoryById(id).name; }
   };
 

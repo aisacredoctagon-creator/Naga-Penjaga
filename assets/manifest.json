@@ -1,0 +1,7 @@
+{
+  "_catatan": "Daftar aset gambar buatan sendiri. Path relatif terhadap folder assets/. Kosongkan/hapus entri untuk kembali ke gambar prosedural bawaan. Lihat docs/ASSET_GUIDE.md.",
+  "version": 1,
+  "sprites": {},
+  "maps": {},
+  "ui": {}
+}

@@ -4,12 +4,16 @@
 
   const STEP = 2; // jarak antar sampel (px logis)
 
-  function catmull(p0, p1, p2, p3, t) {
-    const t2 = t * t, t3 = t2 * t;
-    return [
-      0.5 * ((2 * p1[0]) + (-p0[0] + p2[0]) * t + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2 + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3),
-      0.5 * ((2 * p1[1]) + (-p0[1] + p2[1]) * t + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3)
-    ];
+  /** Catmull-Rom sentripetal (alpha 0,5, algoritma Barry-Goldman): tidak melenceng/berputar pada titik kontrol yang jaraknya tidak merata. */
+  function catmull(p0, p1, p2, p3, u) {
+    const k = function (a, b) { return Math.max(1e-3, Math.sqrt(Math.hypot(b[0] - a[0], b[1] - a[1]))); };
+    const t0 = 0, t1 = t0 + k(p0, p1), t2 = t1 + k(p1, p2), t3 = t2 + k(p2, p3), t = t1 + (t2 - t1) * u, o = [0, 0];
+    for (let c = 0; c < 2; c++) {
+      const a1 = (t1 - t) / (t1 - t0) * p0[c] + (t - t0) / (t1 - t0) * p1[c], a2 = (t2 - t) / (t2 - t1) * p1[c] + (t - t1) / (t2 - t1) * p2[c], a3 = (t3 - t) / (t3 - t2) * p2[c] + (t - t2) / (t3 - t2) * p3[c];
+      const b1 = (t2 - t) / (t2 - t0) * a1 + (t - t0) / (t2 - t0) * a2, b2 = (t3 - t) / (t3 - t1) * a2 + (t - t1) / (t3 - t1) * a3;
+      o[c] = (t2 - t) / (t2 - t1) * b1 + (t - t1) / (t2 - t1) * b2;
+    }
+    return o;
   }
 
   class Path {
@@ -18,7 +22,8 @@
       const dense = [];
       const n = points.length;
       for (let i = 0; i < n - 1; i++) {
-        const p0 = points[Math.max(0, i - 1)], p1 = points[i], p2 = points[i + 1], p3 = points[Math.min(n - 1, i + 2)];
+        const p1 = points[i], p2 = points[i + 1];
+        const p0 = i > 0 ? points[i - 1] : [2 * p1[0] - p2[0], 2 * p1[1] - p2[1]], p3 = i + 2 < n ? points[i + 2] : [2 * p2[0] - p1[0], 2 * p2[1] - p1[1]];
         const span = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
         const k = Math.max(4, Math.ceil(span / 6));
         for (let j = 0; j < k; j++) dense.push(catmull(p0, p1, p2, p3, j / k));
@@ -122,10 +127,12 @@
   };
 
   /** Bangun jalur untuk layout tertentu. layout.play = {x,y,w,h}, layout.portrait */
-  function forLayout(presetId, layout) {
-    const pr = presets[presetId] || presets.arc;
+  function forLayout(presetId, layout, R) {
+    R = R || layout.ballR || 32;
+    const def = GA.Paths && GA.Paths.resolve(presetId, layout.portrait, layout);   // arketipe jalur (maps/paths.js): sudah dipilah landscape/portrait
+    const pr = def || presets[presetId] || presets.arc;
     const pl = layout.play;
-    const tr = layout.portrait && pr.mode === 'transpose';
+    const tr = !def && layout.portrait && pr.mode === 'transpose';
     const pad = layout.pad == null ? 40 : layout.pad; // jarak jalur dari tepi area main
     const iw = pl.w - pad * 2, ih = pl.h - pad * 2;
     const map = function (p) {
@@ -137,7 +144,8 @@
     path.shooter = { x: sh[0], y: sh[1] };
     path.boss = pr.boss ? (function () { const b = map(pr.boss); return { x: b[0], y: b[1] }; })() : null;
     path.presetId = presetId; path.play = pl;
-    return path;
+    path.ctrl = pr.pts.map(map);
+    return GA.Paths && def ? GA.Paths.refine(path, R, layout, def) : path;
   }
 
   /* ---------- gambar alur, lubang, START & FINISH ---------- */
@@ -159,26 +167,34 @@
   const EGG_TINTS = [['#fff3c4', '#f2c75c'], ['#ffd6ea', '#e88ab8'], ['#d2f3ff', '#6cc3ea'], ['#e2ffd2', '#7dcf5a'], ['#e8d9ff', '#a98af0']];
 
   /** Sarang telur di ujung jalur: jerami, cahaya, dan telur naga (satu per nyawa). lost = telur terakhir yang hilang berayun. */
-  function drawNest(ctx, path, r, t, eggs, maxEggs, shake) {
+  /** threat 0..1: seberapa dekat bola sihir ke sarang. Telur bergetar, retak, dan sarang berpendar merah saat terancam. */
+  function drawNest(ctx, path, r, t, eggs, maxEggs, shake, threat) {
+    threat = threat || 0;
     const p = holeXY(path), R = r * 2.1, C = GA.Theme.sceneColors(), N = maxEggs || 5, have = eggs == null ? N : eggs;
     ctx.save(); ctx.translate(p.x + (shake > 0 ? Math.sin(t * 70) * 3 : 0), p.y);
     const pulse = 0.55 + 0.25 * Math.sin(t * 2.2);
     const gl = ctx.createRadialGradient(0, 0, R * 0.5, 0, 0, R * 1.9); gl.addColorStop(0, C.glow); gl.addColorStop(1, 'rgba(255,220,120,0)');
     ctx.globalAlpha = pulse * 0.7; ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(0, 0, R * 1.9, 0, 6.283); ctx.fill(); ctx.globalAlpha = 1;
+    if (threat > 0.15) { const rg = ctx.createRadialGradient(0, 0, R * 0.4, 0, 0, R * 1.8); rg.addColorStop(0, 'rgba(255,60,40,0.5)'); rg.addColorStop(1, 'rgba(255,60,40,0)'); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = threat * (0.5 + 0.5 * Math.sin(t * 9)); ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(0, 0, R * 1.8, 0, 6.283); ctx.fill(); ctx.restore(); }
+    const nestImg = GA.Theme.sprite('nest');
+    if (nestImg) ctx.drawImage(nestImg, -R * 1.15, -R * 1.15, R * 2.3, R * 2.3);
+    else {
     ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(0, R * 0.12, R * 1.0, R * 0.9, 0, 0, 6.283); ctx.fill();
     const ng = ctx.createRadialGradient(0, 0, R * 0.2, 0, 0, R); ng.addColorStop(0, '#7a5214'); ng.addColorStop(0.6, '#c99b4c'); ng.addColorStop(1, '#8d6420');
     ctx.fillStyle = ng; ctx.beginPath(); ctx.arc(0, 0, R, 0, 6.283); ctx.fill();
     ctx.strokeStyle = 'rgba(90,55,10,0.6)'; ctx.lineWidth = Math.max(1.5, r * 0.06); ctx.lineCap = 'round';
     for (let i = 0; i < 26; i++) { const a = i * 0.6, rr = R * (0.72 + ((i * 37) % 30) / 100); ctx.beginPath(); ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr); ctx.lineTo(Math.cos(a + 0.5) * (rr + R * 0.22), Math.sin(a + 0.5) * (rr + R * 0.22)); ctx.stroke(); }
+    }
     // telur: satu slot per telur, melingkar di dalam sarang
     for (let i = 0; i < N; i++) {
-      const a = -Math.PI / 2 + i * 6.283 / N, ex = Math.cos(a) * R * 0.48, ey = Math.sin(a) * R * 0.48 + R * 0.05, w = r * 0.5, h = r * 0.66;
+      const a = -Math.PI / 2 + i * 6.283 / N, jx = Math.sin(t * 34 + i * 1.7) * threat * 1.6, jy = Math.cos(t * 29 + i) * threat * 1.2, ex = Math.cos(a) * R * 0.48 + jx, ey = Math.sin(a) * R * 0.48 + R * 0.05 + jy, w = r * 0.5, h = r * 0.66;
       if (i >= have) { ctx.fillStyle = 'rgba(60,35,5,0.45)'; ctx.beginPath(); ctx.ellipse(ex, ey + h * 0.35, w * 0.8, h * 0.4, 0, 0, 6.283); ctx.fill(); continue; }
       const tint = EGG_TINTS[i % EGG_TINTS.length], bob = Math.sin(t * 2 + i) * 1.2;
       const g = ctx.createRadialGradient(ex - w * 0.3, ey - h * 0.4 + bob, 1, ex, ey + bob, h * 1.1); g.addColorStop(0, '#fff'); g.addColorStop(0.35, tint[0]); g.addColorStop(1, tint[1]);
       ctx.fillStyle = g; ctx.strokeStyle = 'rgba(80,40,10,0.55)'; ctx.lineWidth = Math.max(1.5, r * 0.05);
       GA.Chain.eggPath(ctx, ex, ey + bob, w, h); ctx.fill(); ctx.stroke();
       ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.beginPath(); ctx.ellipse(ex - w * 0.3, ey - h * 0.35 + bob, w * 0.18, h * 0.22, -0.4, 0, 6.283); ctx.fill();
+      if (threat > 0.55) { ctx.strokeStyle = 'rgba(70,30,10,0.85)'; ctx.lineWidth = Math.max(1, r * 0.04); ctx.beginPath(); ctx.moveTo(ex - w * 0.55, ey - h * 0.05 + bob); ctx.lineTo(ex - w * 0.1, ey + h * 0.18 + bob); ctx.lineTo(ex + w * 0.15, ey - h * 0.08 + bob); ctx.lineTo(ex + w * 0.6, ey + h * 0.12 + bob); ctx.stroke(); }
     }
     ctx.restore();
   }
@@ -225,9 +241,10 @@
   function drawMarkers(ctx, path, r, t, center, size) {
     const tmp = { x: 0, y: 0, a: 0 };
     size = size || 16;
-    // START: panah bergerak sepanjang jalur + label di sisi yang lapang
+    // START: panah bergerak sepanjang jalur + label di sisi yang lapang (dilewati bila ada portal: portal sendiri jadi penandanya)
+    const hasPortal = !!(GA.Effects && GA.Effects.portalPos());
     const d0 = r * 2.6;
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 3 && !hasPortal; i++) {
       const d = d0 + ((t * 70 + i * 40) % 120);
       path.at(d, tmp);
       ctx.save(); ctx.translate(tmp.x, tmp.y); ctx.rotate(tmp.a);
@@ -237,9 +254,11 @@
       ctx.fill(); ctx.stroke(); ctx.restore();
     }
     ctx.globalAlpha = 1;
-    path.at(d0 + 30, tmp);
-    const s = labelSpot(path, 'start', tmp.x, tmp.y, r + 38, 0, d0 + 420);
-    pill(ctx, 'MUNCUL', s[0], s[1], '#7a4ad8', '#fff', size);
+    if (!hasPortal) {
+      path.at(d0 + 30, tmp);
+      const s = labelSpot(path, 'start', tmp.x, tmp.y, r + 38, 0, d0 + 420);
+      pill(ctx, 'MUNCUL', s[0], s[1], '#7a4ad8', '#fff', size);
+    }
 
     // FINISH: label bendera di sisi lubang yang lapang
     const h = holeXY(path), f = labelSpot(path, 'finish', h.x, h.y, r * 2.9, path.length - 420, path.length);

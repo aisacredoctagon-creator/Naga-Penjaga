@@ -4,6 +4,7 @@
   'use strict';
   const Theme = GA.Theme, Storage = GA.Storage, MT = GA.MathText;
 
+  const I = function (n, c) { return GA.Icons.html(n, c); };
   let root = null, H = null, countdownTimer = null, hudBtn = null, pauseOpen = false, toastTimer = 0, mascotRaf = 0;
   const screens = {};
 
@@ -80,9 +81,9 @@
       '<section class="screen" id="s-title"><div class="menu-card">' +
       '<div class="logo"><span class="l1">Naga</span><span class="l2">Penjaga</span></div>' +
       '<p class="tagline">Semburkan bola api berangka, selamatkan telur-telur naga dari Penyihir Jahat!</p>' +
-      '<button class="btn btn-primary btn-big" data-act="play">▶ Mulai Petualangan</button>' +
-      '<div class="row"><button class="btn btn-small" data-act="howto">❓ Cara Bermain</button>' +
-      '<button class="btn btn-small" data-act="settings">⚙️ Pengaturan</button></div>' +
+      '<button class="btn btn-primary btn-big" data-act="play">' + I('play') + ' Mulai Petualangan</button>' +
+      '<div class="row"><button class="btn btn-small" data-act="howto">' + I('help') + ' Cara Bermain</button>' +
+      '<button class="btn btn-small" data-act="settings">' + I('gear') + ' Pengaturan</button></div>' +
       '<p class="stat">Skor tertinggi <b id="t-hi">0</b> · ★ <b id="t-stars">0</b></p>' +
       '</div></section>',
 
@@ -91,24 +92,26 @@
       '<h2>Pengaturan</h2>' +
       '<button class="btn" data-act="sound"><span data-sound-label></span></button>' +
       '<button class="btn" data-act="music"><span data-music-label></span></button>' +
-      '<button class="btn" data-act="replay-story">📖 Lihat Cerita Lagi</button>' +
+      '<button class="btn" data-act="quality" aria-describedby="q-note"><span data-quality-label></span></button>' +
+      '<p class="stat" id="q-note">Otomatis menurunkan efek bila FPS di bawah 50.</p>' +
+      '<button class="btn" data-act="replay-story">' + I('book') + ' Lihat Cerita Lagi</button>' +
       '<button class="btn btn-danger" data-act="reset" id="btn-reset">Hapus Semua Progres</button>' +
-      '<button class="btn btn-primary" data-act="back">← Kembali</button>' +
+      '<button class="btn btn-primary" data-act="back">' + I('back') + ' Kembali</button>' +
       '</div></section>',
 
     howto:
       '<section class="screen scroll dim" id="s-howto"><div class="panel wide"><h2>Cara Bermain</h2>' +
       '<ul class="howto">' +
-      '<li><b>🐉 Tujuan</b> Soal tampil di atas layar. Semburkan bola api ke <b>bola sihir yang berisi jawaban yang benar</b>. Ada 3 step; step terakhir melawan Penyihir Jahat.</li>' +
-      '<li><b>👆 Membidik</b> Mouse: arahkan lalu klik. Layar sentuh: geser untuk membidik, lepas untuk menembak. Papan ketik: ← → membidik, Spasi menembak, Q menukar, P jeda.</li>' +
-      '<li><b>🔄 Tukar bola api</b> Ketuk naga (atau bola kecil di dadanya) untuk menukar. Angka <b>×1 ×2 ×3</b> adalah pengali skor.</li>' +
-      '<li><b>🥚 Telur</b> Kamu punya 5 telur. Satu telur hilang jika jawaban salah, peluru kena rintangan, atau bola sihir sampai ke sarang. Telur emas menambah satu telur!</li>' +
+      '<li><b>' + I('dragon') + ' Tujuan</b> Soal tampil di atas layar. Semburkan bola api ke <b>bola sihir yang berisi jawaban yang benar</b>. Ada 3 step; step terakhir melawan Penyihir Jahat.</li>' +
+      '<li><b>' + I('swords') + ' Membidik</b> Mouse: arahkan lalu klik. Layar sentuh: geser untuk membidik, lepas untuk menembak. Papan ketik: ← → membidik, Spasi menembak, Q menukar, P jeda.</li>' +
+      '<li><b>' + I('restart') + ' Tukar bola api</b> Ketuk naga (atau bola kecil di dadanya) untuk menukar. Angka <b>×1 ×2 ×3</b> adalah pengali skor.</li>' +
+      '<li><b>' + I('egg') + ' Telur</b> Kamu punya 5 telur. Satu telur hilang jika jawaban salah, peluru kena rintangan, atau bola sihir sampai ke sarang. Telur emas menambah satu telur!</li>' +
       '<li class="legend"><span data-icon="curse"></span><span><b>Bola kutukan</b> jangan ditembak!</span></li>' +
       '<li class="legend"><span data-icon="frost"></span><span><b>Bola beku</b> memperlambat rantai.</span></li>' +
       '<li class="legend"><span data-icon="egg"></span><span><b>Telur emas</b> menyembuhkan satu telur.</span></li>' +
-      '<li><b>🌿 Rintangan</b> Step 1: akar berduri, kabut sihir. Step 2: kristal pemantul, lahar &amp; petir, kelelawar penukar angka, dan naga bisa beku sejenak.</li>' +
-      '<li><b>🧙 Boss</b> Penyihir Jahat punya 3 fase dengan mantra kabut, es, dan tukar angka. Fase 3 mencampur semua kategori dan ada batas waktu.</li>' +
-      '</ul><button class="btn btn-primary" data-act="back">← Kembali</button></div></section>',
+      '<li><b>' + I('flame') + ' Rintangan</b> Step 1: akar berduri, kabut sihir. Step 2: kristal pemantul, lahar &amp; petir, kelelawar penukar angka, dan naga bisa beku sejenak.</li>' +
+      '<li><b>' + I('star') + ' Boss</b> Penyihir Jahat punya 3 fase dengan mantra kabut, es, dan tukar angka. Fase 3 mencampur semua kategori dan ada batas waktu.</li>' +
+      '</ul><button class="btn btn-primary" data-act="back">' + I('back') + ' Kembali</button></div></section>',
 
     story:
       '<section class="screen dim scroll" id="s-story"><div class="panel story" role="dialog" aria-modal="true" aria-labelledby="st-title">' +
@@ -116,7 +119,7 @@
       '<h2 id="st-title"></h2><p class="st-text" id="st-text"></p>' +
       '<div class="st-dots" id="st-dots" aria-hidden="true"></div>' +
       '<div class="row"><button class="btn btn-small" data-act="story-skip" id="st-skip">Lewati</button>' +
-      '<button class="btn btn-primary" data-act="story-next" id="st-next">Lanjut ▶</button></div>' +
+      '<button class="btn btn-primary" data-act="story-next" id="st-next">Lanjut ' + I('play') + '</button></div>' +
       '</div></section>',
 
     intro: '<section class="screen dim scroll" id="s-intro"><div class="panel intro" id="intro-card"></div></section>',
@@ -129,7 +132,7 @@
   /* ---------- API UI (DOM) ---------- */
   const UI = {
     init: function (handlers) {
-      H = handlers;
+      H = handlers; if (GA.Skin) GA.Skin.apply();
       root = document.getElementById('ui');
       Object.keys(TPL).forEach(function (k) { const n = el(TPL[k]); root.appendChild(n); screens[k] = n; });
       root.appendChild(el('<div id="countdown" class="countdown" aria-live="assertive"></div>'));
@@ -155,8 +158,9 @@
       root.addEventListener('click', function (e) {
         const b = e.target.closest('[data-act]');
         if (!b || b.disabled) return;
-        GA.Audio.unlock(); GA.Audio.play('click');
-        UI.act(b.getAttribute('data-act'), b);
+        const act = b.getAttribute('data-act');
+        GA.Audio.unlock(); GA.Audio.play(uiSound(act));
+        UI.act(act, b);
       });
       // ikon bola khusus di halaman "Cara Bermain"
       root.querySelectorAll('[data-icon]').forEach(function (n) { n.appendChild(UI.specialIcon(n.getAttribute('data-icon'), 44)); });
@@ -184,6 +188,7 @@
         case 'back': this.refreshTitle(); this.show('title'); break;
         case 'sound': H.toggleSound(); break;
         case 'music': H.toggleMusic(); break;
+        case 'quality': H.toggleQuality(); break;
         case 'replay-story': H.replayStory(); break;
         case 'reset':
           if (!b.dataset.armed) { this.resetArm(true); } else { Storage.reset(); this.resetArm(false); this.refreshTitle(); b.textContent = 'Progres dihapus ✓'; }
@@ -227,8 +232,9 @@
 
     syncSound: function () {
       const on = GA.Audio.isEnabled(), mu = GA.Audio.isMusic();
-      root.querySelectorAll('[data-sound-label]').forEach(function (n) { n.textContent = on ? '🔊 Efek Suara: Nyala' : '🔇 Efek Suara: Mati'; });
-      root.querySelectorAll('[data-music-label]').forEach(function (n) { n.textContent = mu ? '🎵 Musik: Nyala' : '🎵 Musik: Mati'; });
+      root.querySelectorAll('[data-sound-label]').forEach(function (n) { n.innerHTML = I(on ? 'sound' : 'mute') + (on ? ' Efek Suara: Nyala' : ' Efek Suara: Mati'); });
+      root.querySelectorAll('[data-music-label]').forEach(function (n) { n.innerHTML = I('music') + (mu ? ' Musik: Nyala' : ' Musik: Mati'); });
+      root.querySelectorAll('[data-quality-label]').forEach(function (n) { n.innerHTML = I('gear') + ' Grafik: ' + GA.Quality.label(); });
       const sw = root.querySelector('.pz-toggle');
       if (sw) { sw.setAttribute('aria-checked', on ? 'true' : 'false'); document.getElementById('pz-state').textContent = on ? 'NYALA' : 'MATI'; }
     },
@@ -254,7 +260,7 @@
       document.getElementById('st-text').textContent = p.text;
       let dots = ''; for (let i = 0; i < s.list.length; i++) dots += '<i' + (i === s.i ? ' class="on"' : '') + '></i>';
       document.getElementById('st-dots').innerHTML = dots;
-      document.getElementById('st-next').textContent = s.i >= s.list.length - 1 ? 'Mulai ▶' : 'Lanjut ▶';
+      document.getElementById('st-next').innerHTML = (s.i >= s.list.length - 1 ? 'Mulai ' : 'Lanjut ') + I('play');
     },
     storyNext: function () {
       const s = this._story; if (!s) return;
@@ -294,11 +300,11 @@
         '<p class="hintline">' + esc(info.story) + '</p>' +
         '<p class="chip">' + esc(info.catIcon) + ' ' + esc(info.catName) + '</p>' +
         '<div class="example"><span class="ex-label">Contoh soal</span><span class="ex-text">' + info.exampleHtml + '</span></div>' +
-        '<p class="hintline">💡 ' + esc(info.rangeText) + '.</p>' +
+        '<p class="hintline">' + I('star', 'ic-inline') + ' ' + esc(info.rangeText) + '.</p>' +
         (notes ? '<ul class="obst-list">' + notes + '</ul>' : '') +
         (lg ? '<ul class="legend-list">' + lg + '</ul>' : '') +
-        '<p class="startnote">🟣 <b>MUNCUL</b>: bola sihir masuk di sini · 🥚 <b>SARANG</b>: jangan sampai bola sampai ke sini!</p>' +
-        '<button class="btn btn-primary btn-big" data-act="go">Mulai! ▶</button>';
+        '<p class="startnote"><b>Portal</b>: bola sihir muncul di sini · ' + I('egg', 'ic-inline') + ' <b>Sarang</b>: jangan sampai bola sampai ke sini!</p>' +
+        '<button class="btn btn-primary btn-big" data-act="go">Mulai! ' + I('play') + '</button>';
       card.querySelectorAll('[data-icon]').forEach(function (n) { n.appendChild(UI.specialIcon(n.getAttribute('data-icon'), 34)); });
       this.show('intro');
     },
@@ -428,8 +434,8 @@
         '<p class="big-score">Skor <b>' + r.score + '</b></p>' +
         '<p class="eggrow" aria-label="Telur tersisa ' + r.eggs + ' dari ' + r.maxEggs + '">' + eggsHTML(r.eggs, r.maxEggs) + (r.bonus ? ' <b class="good">+1 telur!</b>' : '') + '</p>' +
         '<p class="stat">' + esc(r.detail || '') + '</p>' +
-        '<button class="btn btn-primary btn-big" data-act="next-step">' + esc(r.nextLabel || 'Lanjut') + ' ▶</button>' +
-        '<button class="btn btn-small" data-act="quit">🏠 Menu Utama</button>';
+        '<button class="btn btn-primary btn-big" data-act="next-step">' + esc(r.nextLabel || 'Lanjut') + ' ' + I('play') + '</button>' +
+        '<button class="btn btn-small" data-act="quit">' + I('home') + ' Menu Utama</button>';
       this.show('result');
     },
 
@@ -444,154 +450,30 @@
         '<p class="stat">Skor tertinggi <b>' + r.high + '</b>' + (r.newBest ? ' · <b class="good">Rekor baru!</b>' : '') + '</p>' +
         '<p class="eggrow" aria-label="Telur tersisa ' + r.eggs + ' dari ' + r.maxEggs + '">' + eggsHTML(r.eggs, r.maxEggs) + '</p>' +
         '<p class="stat">' + esc(r.detail || '') + '</p>' +
-        '<button class="btn btn-primary btn-big" data-act="again">↻ Main Lagi</button>' +
-        '<div class="row"><button class="btn btn-small" data-act="to-menu">🎯 Ganti Kategori</button><button class="btn btn-small" data-act="quit">🏠 Menu Utama</button></div>';
+        '<button class="btn btn-primary btn-big" data-act="again">' + I('restart') + ' Main Lagi</button>' +
+        '<div class="row"><button class="btn btn-small" data-act="to-menu">' + I('mix') + ' Ganti Kategori</button><button class="btn btn-small" data-act="quit">' + I('home') + ' Menu Utama</button></div>';
       this.show('result');
     },
 
     /* ---------- HUD (canvas) ---------- */
-    hudMetrics: function (L) {
-      const btn = Math.min(76, Math.max(56, 48 / L.scale));
-      if (L.portrait) return { h: 150, btn: btn, pause: { x: L.W - 12 - btn, y: 8, w: btn, h: btn } };
-      return { h: 84, btn: btn, pause: { x: L.W - 12 - btn, y: (84 - btn) / 2, w: btn, h: btn } };
-    },
+    hudMetrics: function (L) { return GA.HUD.metrics(L); },
 
     hitPause: function (x, y, L) {
       const m = this.hudMetrics(L).pause, pad = 6;
       return x >= m.x - pad && x <= m.x + m.w + pad && y >= m.y - pad && y <= m.y + m.h + pad;
     },
 
-    /** Telur di HUD: s = lebar kira-kira; filled = ada, kosong = redup dengan retakan. */
-    drawEggIcon: function (ctx, x, y, s, filled, t, tint) {
-      ctx.save(); ctx.translate(x, y);
-      if (!filled) ctx.globalAlpha = 0.3;
-      const w = s * 0.34, h = s * 0.46;
-      const g = ctx.createRadialGradient(-w * 0.3, -h * 0.35, 1, 0, 0, h * 1.1);
-      if (filled) { g.addColorStop(0, '#fff'); g.addColorStop(0.4, tint[0]); g.addColorStop(1, tint[1]); } else { g.addColorStop(0, '#d9d2c4'); g.addColorStop(1, '#8a8478'); }
-      ctx.fillStyle = g; ctx.strokeStyle = filled ? '#fff' : '#cfc8ba'; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
-      GA.Chain.eggPath(ctx, 0, 0, w, h); ctx.fill(); ctx.stroke();
-      if (filled) { ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.ellipse(-w * 0.3, -h * 0.35, w * 0.16, h * 0.22, -0.4, 0, 6.283); ctx.fill(); }
-      ctx.restore();
-    },
-
-    fit: function (ctx, text, maxW, size, weight) {
-      let s = size;
-      ctx.font = (weight || '800') + ' ' + s + 'px ' + Theme.fonts.ui;
-      while (ctx.measureText(text).width > maxW && s > 12) { s -= 2; ctx.font = (weight || '800') + ' ' + s + 'px ' + Theme.fonts.ui; }
-      return s;
-    },
-
-    /** Gambar HUD. run: lihat main.js. L: layout. */
-    drawHUD: function (ctx, run, L, t) {
-      const m = this.hudMetrics(L), W = L.W, por = L.portrait;
-      // panel (batu malam kebiruan, sesuai tema fantasi)
-      const g = ctx.createLinearGradient(0, 0, 0, m.h);
-      g.addColorStop(0, '#2a1d5e'); g.addColorStop(1, '#1a1240');
-      ctx.fillStyle = g; ctx.fillRect(0, 0, W, m.h);
-      ctx.fillStyle = 'rgba(255,214,140,0.35)'; ctx.fillRect(0, m.h - 3, W, 3);
-      ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(0, m.h, W, 5);
-
-      ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
-      // skor
-      ctx.fillStyle = '#c9b6ff'; ctx.font = '700 13px ' + Theme.fonts.ui; ctx.fillText('SKOR', 14, por ? 22 : 24);
-      ctx.fillStyle = '#ffd23f'; ctx.font = '800 ' + (por ? 30 : 32) + 'px ' + Theme.fonts.ui;
-      ctx.fillText(String(Math.round(run.scoreShown)), 14, por ? 54 : 56);
-      // progres step: tiga titik + nama
-      // potret: sejajar dengan label SKOR (panel soal ada di bawahnya); lanskap: di bawah skor
-      const dy = por ? 17 : 72, dx0 = por ? 64 : 20;
-      for (let i = 0; i < 3; i++) {
-        ctx.fillStyle = i < run.stepNo - 1 ? '#7ee26f' : (i === run.stepNo - 1 ? '#ffd23f' : 'rgba(255,255,255,0.25)');
-        ctx.beginPath(); ctx.arc(dx0 + i * 16, dy, 5, 0, 6.283); ctx.fill();
-      }
-      ctx.fillStyle = '#e6dcff'; ctx.font = '700 13px ' + Theme.fonts.ui; ctx.fillText(run.stepNo + '/3', dx0 + 3 * 16 - 4, dy + 5);
-      // tombol jeda
-      const p = m.pause;
-      ctx.fillStyle = 'rgba(0,0,0,0.25)'; GA.Path.roundRect(ctx, p.x, p.y + 3, p.w, p.h, 16); ctx.fill();
-      const bg = ctx.createLinearGradient(0, p.y, 0, p.y + p.h); bg.addColorStop(0, '#ffd23f'); bg.addColorStop(1, '#ff9a1f');
-      ctx.fillStyle = bg; GA.Path.roundRect(ctx, p.x, p.y, p.w, p.h, 16); ctx.fill();
-      ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.stroke();
-      ctx.fillStyle = '#1b2a49';
-      const bw = p.w * 0.14, bh = p.h * 0.42, cx = p.x + p.w / 2, cy = p.y + p.h / 2;
-      GA.Path.roundRect(ctx, cx - bw * 1.6, cy - bh / 2, bw, bh, 3); ctx.fill();
-      GA.Path.roundRect(ctx, cx + bw * 0.6, cy - bh / 2, bw, bh, 3); ctx.fill();
-      // telur (nyawa)
-      const es = por ? 34 : 38, lx1 = p.x - 12, n = run.maxLives, TINTS = [['#fff3c4', '#f2c75c'], ['#ffd6ea', '#e88ab8'], ['#d2f3ff', '#6cc3ea'], ['#e2ffd2', '#7dcf5a'], ['#e8d9ff', '#a98af0'], ['#ffe1c4', '#f08a4a']];
-      for (let i = 0; i < n; i++) {
-        const x = lx1 - (n - i - 0.5) * (es * 0.72) + es * 0.2;
-        const lost = run.lifeLostT > 0 && i === run.lives; // telur yang baru hilang bergetar
-        this.drawEggIcon(ctx, x + (lost ? Math.sin(t * 60) * 3 : 0), (por ? 32 : 40) + (lost ? -4 : 0), es, i < run.lives, t, TINTS[i % TINTS.length]);
-      }
-
-      // panel soal
-      let qx, qy, qw, qh;
-      if (por) { qx = 12; qy = 74; qw = W - 24; qh = 60; } else { qx = 190; qy = 6; qw = W - 190 - 300; qh = 62; }
-      ctx.fillStyle = 'rgba(0,0,0,0.25)'; GA.Path.roundRect(ctx, qx, qy + 3, qw, qh, 18); ctx.fill();
-      ctx.fillStyle = '#fffaf0'; GA.Path.roundRect(ctx, qx, qy, qw, qh, 18); ctx.fill();
-      ctx.lineWidth = 3; ctx.strokeStyle = '#ffd23f'; ctx.stroke();
-      const q = run.q;
-      if (q) {
-        const pop = run.qPop > 0 ? 1 + run.qPop * 0.3 : 1;
-        const hasNote = !!q.note, inner = qh - (hasNote ? 22 : 12);
-        ctx.save(); ctx.translate(qx + qw / 2, qy + qh / 2 + (hasNote ? -7 : 1)); ctx.scale(pop, pop);
-        const size = MT.fit(ctx, q.text, qw - 30, inner, por ? 44 : 42);
-        MT.draw(ctx, q.text, 0, 0, size, '#1b2a49', null);
-        ctx.restore();
-        if (hasNote) { ctx.font = '700 14px ' + Theme.fonts.ui; ctx.fillStyle = '#c2410c'; ctx.textAlign = 'center'; ctx.fillText(q.note, qx + qw / 2, qy + qh - 9); }
-      }
-      // batas waktu soal
-      if (run.qTimeMax) {
-        const f = Math.max(0, run.qTime / run.qTimeMax), tw = qw - 28;
-        ctx.fillStyle = 'rgba(27,42,73,0.15)'; GA.Path.roundRect(ctx, qx + 14, qy + qh - 9, tw, 6, 3); ctx.fill();
-        ctx.fillStyle = f > 0.5 ? '#2fbf71' : (f > 0.25 ? '#ffb02e' : '#ff4d5e');
-        GA.Path.roundRect(ctx, qx + 14, qy + qh - 9, Math.max(6, tw * f), 6, 3); ctx.fill();
-      }
-      // progres step / boss
-      const py = qy + qh + 6, pw = qw - 40;
-      ctx.fillStyle = 'rgba(255,255,255,0.25)'; GA.Path.roundRect(ctx, qx + 20, py, pw, 8, 4); ctx.fill();
-      const pf = Math.min(1, run.progress);
-      if (pf > 0) { ctx.fillStyle = run.boss ? '#c9a0ff' : '#7ee26f'; GA.Path.roundRect(ctx, qx + 20, py, Math.max(8, pw * pf), 8, 4); ctx.fill(); }
-
-      // di bawah HUD: kombo, status, umpan balik
-      const by = m.h + 12;
-      if (run.combo >= 2) {
-        const k = 1 + (run.comboPulse > 0 ? run.comboPulse * 0.6 : 0);
-        ctx.save(); ctx.translate(16, by + 18); ctx.scale(k, k);
-        ctx.font = '800 22px ' + Theme.fonts.ui; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-        ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(20,10,50,0.9)'; ctx.lineJoin = 'round';
-        const ct = '🔥 KOMBO ×' + run.combo; ctx.strokeText(ct, 0, 0); ctx.fillStyle = '#ffd23f'; ctx.fillText(ct, 0, 0); ctx.restore();
-      }
-      let sy = by + 18;
-      ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-      // potret: chip di tengah (sisi kiri/kanan ditempati label MUNCUL & SARANG); lanskap: di kanan
-      const chip = function (txt, col) {
-        ctx.font = '800 16px ' + Theme.fonts.ui; const w = ctx.measureText(txt).width + 20, x1 = por ? W / 2 + w / 2 : W - 14;
-        ctx.fillStyle = col; GA.Path.roundRect(ctx, x1 - w, sy - 14, w, 28, 14); ctx.fill();
-        ctx.lineWidth = 2.5; ctx.strokeStyle = '#fff'; ctx.stroke();
-        ctx.fillStyle = '#fff'; ctx.fillText(txt, x1 - 10, sy + 1); sy += 34;
-      };
-      if (run.slowT > 0) chip('❄ Lambat ' + Math.ceil(run.slowT) + 'd', '#2a9ad8');
-      if (run.shooter && run.shooter.frozen) chip('🧊 Naga beku', '#4a7ad8');
-
-      if (run.feedback && run.feedback.t > 0) {
-        const f = run.feedback, a = Math.min(1, f.t * 3);
-        ctx.globalAlpha = a;
-        const sz = 26;
-        let w = MT.measure(ctx, f.text, sz).w;
-        ctx.font = '700 16px ' + Theme.fonts.ui;
-        if (f.hint) w = Math.max(w, ctx.measureText(f.hint).width);
-        w = Math.min(W - 24, w + 40);
-        const h = f.hint ? 68 : 46, fy = por ? m.h + 56 : m.h + 12;
-        const fx = W / 2 - w / 2;
-        ctx.fillStyle = 'rgba(0,0,0,0.25)'; GA.Path.roundRect(ctx, fx, fy + 3, w, h, 16); ctx.fill();
-        ctx.fillStyle = f.good ? '#1f9d5c' : '#d92d44'; GA.Path.roundRect(ctx, fx, fy, w, h, 16); ctx.fill();
-        ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.stroke();
-        const fs = MT.fit(ctx, f.text, w - 24, f.hint ? 34 : h - 12, sz);
-        MT.draw(ctx, f.text, W / 2, fy + (f.hint ? 21 : h / 2), fs, '#fff', null);
-        if (f.hint) { ctx.font = '700 15px ' + Theme.fonts.ui; ctx.fillStyle = '#ffe9ec'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(f.hint, W / 2, fy + 48, w - 20); }
-        ctx.globalAlpha = 1;
-      }
-    }
+    /** HUD canvas: lihat js/ui/hud.js */
+    drawHUD: function (ctx, run, L, t) { GA.HUD.draw(ctx, run, L, t); }
   };
+
+  /** Bunyi UI menurut jenis tindakan: pilih (kartu/slot/kesulitan), kembali, konfirmasi (mulai/lanjut), klik biasa. */
+  function uiSound(a) {
+    if (a === 'back' || a === 'm-back' || a === 'c-no' || a === 'story-skip') return 'back';
+    if (a === 'm-cat' || a === 'm-slot' || a === 'm-diff' || a === 'm-same' || a === 'm-random' || a === 'sound' || a === 'music' || a === 'quality' || a === 'p-sound') return 'select';
+    if (a === 'play' || a === 'm-start' || a === 'go' || a === 'next-step' || a === 'again' || a === 'c-yes' || a === 'p-resume') return 'confirm';
+    return 'click';
+  }
 
   /** Deretan telur (HTML kecil) untuk layar hasil. */
   function eggsHTML(have, max) {

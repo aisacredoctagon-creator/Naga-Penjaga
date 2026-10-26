@@ -40,7 +40,11 @@
   }
 
   const SOUNDS = {
-    click: function () { tone(660, 880, 0.07, 'triangle', 0.2); },
+    // bunyi UI: ketukan batu (klik), denting (pilih), gema rendah (kembali), fanfare kecil (konfirmasi)
+    click: function () { tone(520, 300, 0.06, 'triangle', 0.22); noise(0.03, 0.12, 0, 2400); },
+    select: function () { tone(880, 1180, 0.07, 'sine', 0.2); tone(1320, 1320, 0.05, 'sine', 0.1, 0.04); },
+    back: function () { tone(420, 280, 0.1, 'triangle', 0.2); },
+    confirm: function () { tone(523, 523, 0.08, 'triangle', 0.22); tone(784, 784, 0.12, 'triangle', 0.22, 0.07); noise(0.05, 0.1, 0, 3000); },
     swap: function () { tone(500, 760, 0.08, 'triangle', 0.2); },
     shoot: function () { tone(520, 180, 0.13, 'square', 0.12); noise(0.05, 0.08, 0, 3000); },
     correct: function (n) { // naik nada sesuai kombo

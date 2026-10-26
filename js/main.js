@@ -29,7 +29,7 @@
     const portrait = cssH > cssW;
     const W = portrait ? 540 : 960, H = portrait ? 960 : 540;
     const scale = Math.min(cssW / W, cssH / H);
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, GA.Quality ? GA.Quality.dprCap : 2);
     const hud = UI.hudMetrics({ portrait: portrait, scale: scale, W: W }).h;
     let ballR = Theme.ballRadiusFor(W, H, scale);
     if (run && Math.abs(ballR - run.baseR) < 3) ballR = run.baseR; // jangan bangun ulang jika jendela hanya berubah sedikit
@@ -55,7 +55,7 @@
   }
   function makeObstacles(cfg, path, R, sh) {
     return Obstacles.create({ rocks: cfg.rocks, movers: cfg.movers, crystals: cfg.crystals }, path.shooter, L.portrait,
-      { clear: function (x, y) { return pathDist(path, x, y) - (R + Theme.ball.trackMargin); }, frogR: sh.r, unit: L.ballR / 25 });
+      { clear: function (x, y) { return pathDist(path, x, y) - (R + Theme.ball.trackMargin); }, frogR: sh.r, unit: L.ballR / 25, bounds: { y0: L.play.y, y1: L.H } });
   }
 
   function sceneRef() { return run || attract; }
@@ -64,13 +64,15 @@
   function renderBg() {
     const sc = sceneRef(), id = run ? run.cfg.scene : 'menu';
     GA.Scenery.build(canvas, L, id, sc ? sc.path : null, sc ? sc.R : 0);
+    GA.Effects.setPath(L, sc ? sc.path : null, sc ? sc.R : 0, id);
+    if (sc && sc.chain) sc.chain.entryD = GA.Effects.entryD();
   }
 
   function relayout() {
     const wasPortrait = L ? L.portrait : null;
     computeLayout();
     if (wasPortrait !== null && wasPortrait !== L.portrait) {
-      if (run) rebuildForOrientation(run);
+      if (run) { rebuildForOrientation(run); if (state === 'playing') pauseGame(); }   // layar berputar: jeda otomatis, jalur dibangun ulang, posisi bola dipetakan menurut jarak relatif
       if (attract) buildAttract();
     }
     renderBg();
@@ -78,10 +80,10 @@
 
   /** Orientasi berubah di tengah permainan: bangun ulang jalur, pertahankan posisi relatif rantai. */
   function rebuildForOrientation(r) {
-    const np = Path.forLayout(r.cfg.pathId, L), newR = stageR(r.cfg);
+    const newR = stageR(r.cfg), np = Path.forLayout(r.cfg.pathId, L, newR);
     const f = (2 * newR + 1) / (r.chain ? r.chain.D : 2 * r.R + 1);   // jarak antar-bola berubah mengikuti radius baru
     r.path = np; r.baseR = L.ballR; r.R = newR;
-    if (r.chain) { r.chain.r = newR; r.chain.D = 2 * newR + 1; r.chain.minFront = newR * 8; r.chain.setPath(np, f); }
+    if (r.chain) { r.chain.zones = np.zones; r.chain.overWindows = np.overWindows; r.chain.r = newR; r.chain.D = 2 * newR + 1; r.chain.minFront = newR * 8; r.chain.setPath(np, f); }
     fitShooter(r.shooter, np, newR);
     const on = r.obst.on;
     r.obst = makeObstacles(r.cfg, np, newR, r.shooter); r.obst.on = on; r.obst.alpha = on ? 1 : 0;
@@ -92,7 +94,7 @@
 
   /* ================= adegan menu (dekoratif) ================= */
   function buildAttract() {
-    const R = L.ballR, path = Path.forLayout('hook', L);
+    const R = L.ballR, path = Path.forLayout('hook', L, R);
     const chain = new Chain.Chain(path, { r: R, speed: 34, maxBalls: 26 });
     chain.fill(Math.min(24, Math.ceil(path.length * 0.55 / (2 * R + 1)) + 1), path.length * 0.55, 0);
     const sh = new Shooter.Shooter(); fitShooter(sh, path, R);
@@ -213,7 +215,9 @@
   function buildRun(cfg) {
     const R = stageR(cfg);
     Theme.setScene(cfg.scene);
-    const path = Path.forLayout(cfg.pathId, L);
+    const path = Path.forLayout(cfg.pathId, L, R);
+    cfg.maxBalls = Math.max(10, Math.round(path.length / (2 * R + 1) * 0.55 * cfg.maxBalls / 18));   // jumlah bola mengikuti panjang jalur
+    cfg.startBalls = Math.min(cfg.maxBalls, 14);
     const shooter = new Shooter.Shooter(); fitShooter(shooter, path, R);
     run = {
       cfg: cfg, path: path, R: R, baseR: L.ballR, shooter: shooter, chain: null, boss: null,
@@ -231,6 +235,7 @@
     }
     FX.reset(); Bullets.setSize(R); Bullets.clear();
     renderBg();
+    GA.Effects.resetPortal(false);
   }
 
   function introInfo(cfg) {
@@ -247,7 +252,7 @@
   function startAdventure(sel, skipStory) {
     Audio.resume();
     const cats = Levels.resolveCats(sel);
-    adv = { sel: sel, cats: cats, key: sel.random ? null : Storage.runKey(cats, sel.diff), step: 0, eggs: Levels.START_EGGS, maxEggs: Levels.MAX_EGGS, score: 0,
+    adv = { picks: [0, 1, 2].map(function (i) { return Levels.pick(i); }), sel: sel, cats: cats, key: sel.random ? null : Storage.runKey(cats, sel.diff), step: 0, eggs: Levels.START_EGGS, maxEggs: Levels.MAX_EGGS, score: 0,
       stars: [0, 0, 0], correct: 0, wrong: 0, maxCombo: 0, snap: { eggs: Levels.START_EGGS, score: 0 } };
     run = null; if (!attract) buildAttract();
     if (!skipStory && !Storage.introSeen) {
@@ -260,9 +265,10 @@
     UI.cancelCountdown(); Audio.resume();
     adv.step = n; adv.snap = { eggs: adv.eggs, score: adv.score };
     const cfg = Levels.build(n, adv.sel, adv.cats);
+    cfg.pathId = adv.picks[n].path; cfg.scene = adv.picks[n].map;   // jalur & peta dipilih acak per petualangan; Ulangi memakai yang sama
     buildRun(cfg);
     Audio.music(cfg.scene);
-    if (skipIntro) { state = 'countdown'; UI.countdown(beginPlay); }
+    if (skipIntro) { state = 'countdown'; GA.Effects.openPortal(); UI.countdown(beginPlay); }
     else { state = 'intro'; UI.showIntro(introInfo(cfg)); }
   }
 
@@ -271,6 +277,8 @@
     run.playing = true;
     run.qs = new Questions.Session(run.boss ? run.boss.topics : cfg.topics, { maxChoices: cfg.maxChoices });
     run.chain = new Chain.Chain(run.path, { r: run.R, speed: cfg.speed, maxBalls: cfg.maxBalls, labeler: labelBall });
+    run.chain.entryD = GA.Effects.entryD(); run.chain.zones = run.path.zones; run.chain.overWindows = run.path.overWindows;
+    run.chain.onEmerge = function (b) { GA.Effects.pulse(0.55); const p = GA.Effects.portalPos(); if (p) FX.embers(p.x, p.y, Math.cos(p.a) * 90, Math.sin(p.a) * 90, 4, run.R * 0.5, '#d9b8ff'); };
     run.q = run.qs.next(); run.qPop = 0.35;
     if (run.boss) {
       applyPhase();
@@ -311,9 +319,10 @@
     const pts = (100 + 25 * Math.min(run.combo - 1, 8)) * bullet.ammo.mult;
     run.score += pts; run.correct++;
     run.chain.remove(ball);
-    FX.burst(ball.x, ball.y, ballColors(ball), 22);
-    FX.text(ball.x, ball.y - 22, '+' + pts, '#ffd23f', 30);
-    if (run.combo >= 2) FX.text(ball.x, ball.y - 56, 'KOMBO ×' + run.combo, '#ff9a3c', 22);
+    FX.shatter(ball.x, ball.y, ballColors(ball), run.R);
+    FX.fireImpact(bullet.x, bullet.y, true, run.R);
+    FX.pop(ball.x, ball.y - 24, '+' + pts, 'score', 30);
+    if (run.combo >= 3) FX.pop(ball.x, ball.y - 62, ['Hebat!', 'Mantap!', 'Luar biasa!'][run.combo % 3] + ' ×' + run.combo, 'combo', 24);
     Audio.play('correct', run.combo);
     run.chain.retreat((run.cfg.retreat + Math.min(run.combo, 5) * 20) * (1 + 0.4 * (run.R / 25 - 1)));
     run.shooter.react('happy');
@@ -335,7 +344,8 @@
 
   function onWrong(bullet, ball, why) {
     run.wrong++;
-    if (ball) { ball.wob = 0.5; ball.red = 0.5; FX.text(ball.x, ball.y - 20, '✗', '#ff4d5e', 36); FX.ring(ball.x, ball.y, '#ff4d5e', 50); }
+    FX.fireImpact(bullet.x, bullet.y, false, run.R);
+    if (ball) { ball.wob = 0.5; ball.red = 0.5; FX.pop(ball.x, ball.y - 24, 'Salah!', 'bad', 30); FX.ring(ball.x, ball.y, '#ff4d5e', 50); }
     Audio.play('wrong');
     setFeedback((why || 'Salah!') + ' ' + run.q.explain, run.q.hint, false);
     if (run.boss) { run.boss.attack(); Audio.play('bossAttack'); FX.shake(10); }
@@ -396,6 +406,7 @@
     if (state !== 'playing' || !sh.canFire() || run.chain.pending > 1) return; // tunggu rantai selesai meluncur masuk
     sh.muzzle(tmpM);
     Bullets.fire(tmpM.x, tmpM.y, sh.angle, sh.takeShot());
+    FX.muzzle(tmpM.x, tmpM.y, sh.angle, run.R); FX.shake(2.5);
     run.shots++;
     Audio.play('fire');
   }
@@ -404,7 +415,7 @@
 
   /* ================= selesai step ================= */
   function startClearing(boss) {
-    state = 'clearing'; run.clearT = 0; run.bossDone = !!boss;
+    state = 'clearing'; run.clearT = 0; run.bossDone = !!boss; GA.Effects.closePortal();
     run.chain.paused = true; Bullets.clear(); run.obst.setMovers(false); run.shooter.react('cheer');
     run.clearQ = run.chain.balls.filter(function (b) { return run.chain.visible(b); });
     run.score += run.lives * 100; // bonus telur tersisa
@@ -481,7 +492,7 @@
     for (let k = 0; k < 2; k++) {
       let best = 640, hit = null;
       for (const b of r.chain.balls) {
-        if (b.d < 0 || b.d > r.path.length) continue;
+        if (!r.chain.visible(b)) continue;
         const d = rayCircle(x, y, dx, dy, b.x, b.y, rad); if (d < best) best = d;
       }
       const h = r.obst.rayFirst(x, y, dx, dy, Bullets.rObs);
@@ -581,23 +592,30 @@
     ctx.beginPath(); ctx.arc(e.x1, e.y1, 9, 0, 6.283); ctx.stroke();
   }
 
-  function drawScene(sc, showGuide) {
+  /** fase 1: peta, sarang, boss, rintangan, rantai. fase 2: garis bidik, kelelawar, naga, peluru, efek. Penutup depan peta digambar di antaranya. */
+  function drawScene(sc, showGuide, phase) {
     const R = sc.R;
     const center = { x: L.play.x + L.play.w / 2, y: L.play.y + L.play.h / 2 };
+    if (phase === 2) {
+      if (sc.chain) sc.chain.drawOver(ctx, t, L.px);
+      if (showGuide && sc.guide && sc.guide.length) drawGuide(sc.shooter, t, sc.guide);
+      if (sc.bats) sc.bats.draw(ctx, t);
+      sc.shooter.draw(ctx, t, L.px);
+      if (sc === run) Bullets.draw(ctx, L.px, t);
+      FX.draw(ctx);
+      return;
+    }
     GA.Scenery.drawAmbient(ctx, t, frameDt);
+    FX.drawDecals(ctx, frameDt);
+    GA.Effects.drawPortal(ctx, t, frameDt);
     Path.drawMarkers(ctx, sc.path, R, t, center, L.portrait ? 16 : 15);
-    Path.drawNest(ctx, sc.path, R, t, sc.lives, sc.maxLives || 5, sc.lifeLostT > 0 ? 1 : 0);
+    Path.drawNest(ctx, sc.path, R, t, sc.lives, sc.maxLives || 5, sc.lifeLostT > 0 ? 1 : 0, sc.chain && state === 'playing' ? Math.max(0, Math.min(1, 1 - (sc.path.length - sc.chain.frontD()) / (R * 14))) : 0);
     if (sc.boss) {
       sc.boss.draw(ctx, t);
       sc.boss.drawHP(ctx, sc.boss.x, sc.boss.y + sc.boss.R * 1.08 + 12, Math.min(L.W * 0.6, 340));
     }
     if (sc.obst) sc.obst.draw(ctx, t);
     if (sc.chain) sc.chain.draw(ctx, t, L.px);
-    if (showGuide && sc.guide && sc.guide.length) drawGuide(sc.shooter, t, sc.guide);
-    if (sc.bats) sc.bats.draw(ctx, t);
-    sc.shooter.draw(ctx, t, L.px);
-    if (sc === run) Bullets.draw(ctx, L.px, t);
-    FX.draw(ctx);
   }
 
   function baseTransform() { ctx.setTransform(L.px, 0, 0, L.px, L.dpr * L.ox, L.dpr * L.oy); }
@@ -610,10 +628,18 @@
     ctx.setTransform(L.px, 0, 0, L.px, L.dpr * (L.ox + shk.x * L.scale), L.dpr * (L.oy + shk.y * L.scale));
     // klip ke area logis supaya bola yang masuk dari luar tidak terlihat di pinggir letterbox
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, L.W, L.H); ctx.clip();
-    drawScene(sc, run && state === 'playing');
+    drawScene(sc, run && state === 'playing', 1);
+    ctx.restore();
+    GA.Scenery.drawFront(ctx, shk.x * L.px, shk.y * L.px, t);
+    ctx.save(); ctx.setTransform(L.px, 0, 0, L.px, L.dpr * (L.ox + shk.x * L.scale), L.dpr * (L.oy + shk.y * L.scale));
+    ctx.beginPath(); ctx.rect(0, 0, L.W, L.H); ctx.clip();
+    drawScene(sc, run && state === 'playing', 2);
+    GA.Scenery.drawOver(ctx, t, frameDt);
+    if (GA.debug && sc.path) GA.Paths.drawDebug(ctx, sc.path, sc.R, t);
     ctx.restore();
     baseTransform();
     if (run) UI.drawHUD(ctx, run, L, t);
+    if (GA.debug) { ctx.save(); ctx.font = '12px monospace'; ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = 3; const dt2 = 'fps ' + GA.Quality.fps.toFixed(0) + ' 00b7 grafik ' + GA.Quality.label() + ' 00b7 dpr ' + L.dpr; ctx.strokeText(dt2, 8, L.H - 8); ctx.fillText(dt2, 8, L.H - 8); ctx.restore(); }
     if (FX.flashA > 0.01) {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.fillStyle = 'rgba(' + FX.flashCol + ',' + Math.min(0.6, FX.flashA).toFixed(3) + ')';
@@ -635,7 +661,8 @@
   }
 
   function frame(now) {
-    const dt = Math.min(0.05, (now - last) / 1000 || 0.016); last = now;
+    const raw = (now - last) / 1000, dt = Math.min(0.05, raw || 0.016); last = now;
+    GA.Quality.sample(raw, state === 'playing' && !document.hidden);
     tick(dt);
     requestAnimationFrame(frame);
   }
@@ -720,7 +747,7 @@
   function toTitle() {
     UI.cancelCountdown(); Audio.resume(); run = null; adv = null; state = 'menu'; Bullets.clear(); FX.reset();
     Theme.setScene('menu'); Audio.music('menu');
-    buildAttract(); renderBg(); UI.refreshTitle(); UI.show('title');
+    buildAttract(); renderBg(); GA.Effects.resetPortal(true); UI.refreshTitle(); UI.show('title');
   }
   function toMenu() {
     toTitle(); GA.Menu.open();
@@ -728,7 +755,7 @@
 
   const handlers = {
     start: function (sel) { startAdventure(sel, false); },
-    introGo: function () { state = 'countdown'; UI.countdown(beginPlay); },
+    introGo: function () { state = 'countdown'; GA.Effects.openPortal(); UI.countdown(beginPlay); },
     resume: resumeGame,
     pause: pauseGame,
     hasProgress: hasProgress,
@@ -739,19 +766,31 @@
     again: function () { startAdventure(adv.sel, true); },
     toMenu: toMenu,
     toggleSound: function () { const on = !Audio.isEnabled(); Audio.setEnabled(on); Storage.sound = on; UI.syncSound(); if (on) Audio.play('click'); },
+    toggleQuality: function () { Storage.quality = GA.Quality.cycle(); UI.syncSound(); },
     toggleMusic: function () { const on = !Audio.isMusic(); Audio.setMusic(on); Storage.music = on; UI.syncSound(); },
     replayStory: function () { UI.showStory(Story.intro, { onDone: function () { UI.show('settings'); } }); }
   };
 
   /* ================= mulai ================= */
   Theme.loadSprites();
+  GA.Assets.onReady = function () { GA.Background.invalidate(); renderBg(); };
+  GA.Background.onArtReady = function () { renderBg(); };
+  GA.Assets.load();
+  // prefers-reduced-motion: kurangi getar, kilatan, goyangan dedaunan, dan efek atmosfer berat
+  (function () {
+    const rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+    const apply = function () { const on = !!(rm && rm.matches); FX.reduce = on; GA.Background.reduceMotion = on; if (on) GA.Effects.setQuality(Math.min(GA.Effects.quality, 1)); };
+    apply(); if (rm && rm.addEventListener) rm.addEventListener('change', apply);
+  })();
   Audio.setEnabled(Storage.sound); Audio.setMusic(Storage.music);
   UI.init(handlers);
+  GA.Quality.init(Storage.quality, function () { computeLayout(); GA.Background.invalidate(); renderBg(); UI.syncSound(); });
   GA.Menu.init(handlers);
   Theme.setScene('menu');
   computeLayout();
   buildAttract();
   renderBg();
+  GA.Effects.resetPortal(true);
   UI.refreshTitle();
   UI.show('title');
   Audio.music('menu');

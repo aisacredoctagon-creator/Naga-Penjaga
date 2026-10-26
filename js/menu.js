@@ -4,6 +4,7 @@
   'use strict';
   const Q = GA.Questions, Storage = GA.Storage, MT = GA.MathText;
 
+  const I = function (n, c) { return GA.Icons.html(n, c); };
   const EXAMPLES = {
     add: '7 + 5', sub: '15 − 8', mul: '6 × 7', div: '48 ÷ 6', int: '(−4) + 9', frac: '1/2 + 1/4', dec: '0,5 + 1,2', mix: 'Semua jenis'
   };
@@ -17,18 +18,18 @@
   function build() {
     root = GA.UI.el(
       '<section class="screen scroll dim" id="s-menu"><div class="panel wide menu-panel">' +
-      '<div class="panel-head"><button class="btn btn-small" data-act="m-back">← Kembali</button><h2>Siapkan Petualangan</h2><span class="stat">★ <b id="m-stars">0</b></span></div>' +
+      '<div class="panel-head"><button class="btn btn-small" data-act="m-back">' + I('back') + ' Kembali</button><h2>Siapkan Petualangan</h2><span class="stat">★ <b id="m-stars">0</b></span></div>' +
       '<p class="m-help" id="m-help"></p>' +
       '<div class="m-slots" id="m-slots" role="tablist" aria-label="Pilih step"></div>' +
       '<div class="m-opts">' +
         '<button type="button" class="chip-btn" id="m-same" role="switch" data-act="m-same">Satu kategori untuk semua</button>' +
-        '<button type="button" class="chip-btn" id="m-random" role="switch" data-act="m-random">🎲 Acak</button>' +
+        '<button type="button" class="chip-btn" id="m-random" role="switch" data-act="m-random">' + I('dice') + ' Acak</button>' +
       '</div>' +
       '<div class="cat-grid" id="m-cats" role="radiogroup" aria-label="Kategori soal"></div>' +
       '<div class="m-diff" id="m-diff" role="radiogroup" aria-label="Tingkat kesulitan"></div>' +
       '<p class="m-diffnote" id="m-diffnote"></p>' +
       '<div class="m-summary" id="m-summary"></div>' +
-      '<button class="btn btn-primary btn-big" data-act="m-start">⚔️ Mulai Petualangan</button>' +
+      '<button class="btn btn-primary btn-big" data-act="m-start">' + I('flame') + ' Mulai Petualangan</button>' +
       '</div></section>');
     GA.UI.addScreen('menu', root);
   }
@@ -50,7 +51,7 @@
       const on = !sel.same && !sel.random && i === active;
       sl += '<button type="button" class="slot' + (on ? ' on' : '') + '" role="tab" aria-selected="' + on + '" data-act="m-slot" data-i="' + i + '"' + (sel.same || sel.random ? ' aria-disabled="true"' : '') + '>' +
         '<span class="sl-tag">' + SLOT_LABEL[i] + '</span><span class="sl-place">' + esc(steps[i].place) + '</span>' +
-        '<span class="sl-cat">' + (cat ? esc(cat.icon) + ' ' + esc(cat.name) : '🎲 Acak') + '</span></button>';
+        '<span class="sl-cat">' + (cat ? I(GA.Icons.cat[cat.id], 'ic-inline') + ' ' + esc(cat.name) : I('dice', 'ic-inline') + ' Acak') + '</span></button>';
     }
     $('m-slots').innerHTML = sl;
     setSwitch($('m-same'), sel.same); setSwitch($('m-random'), sel.random);
@@ -61,7 +62,7 @@
     Q.CATEGORIES.forEach(function (c) {
       const on = !sel.random && c.id === cur;
       cg += '<button type="button" class="cat' + (on ? ' on' : '') + '" role="radio" aria-checked="' + on + '" data-act="m-cat" data-id="' + c.id + '" style="--c:' + c.color + '"' + (sel.random ? ' disabled' : '') + '>' +
-        '<span class="cat-ico">' + esc(c.icon) + '</span><span class="cat-name">' + esc(c.name) + '</span><span class="cat-ex">' + MT.html(EXAMPLES[c.id]) + '</span></button>';
+        '<span class="cat-ico">' + I(GA.Icons.cat[c.id]) + '</span><span class="cat-name">' + esc(c.name) + '</span><span class="cat-ex">' + MT.html(EXAMPLES[c.id]) + '</span></button>';
     });
     $('m-cats').innerHTML = cg;
 

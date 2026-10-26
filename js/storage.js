@@ -7,7 +7,7 @@
   const DEFAULT_SEL = { slots: ['add', 'add', 'add'], same: true, random: false, diff: 'mudah' };
 
   const Storage = {
-    data: { sel: null, runs: {}, highScore: 0, introSeen: false, settings: { sound: true, music: true } },
+    data: { sel: null, runs: {}, highScore: 0, introSeen: false, settings: { sound: true, music: true, quality: 'auto' } },
     unlockAll: /[?&]unlock(=1|&|$)/.test(location.search),
 
     load: function () {
@@ -19,7 +19,7 @@
           this.data.runs = d.runs || {};
           this.data.highScore = d.highScore || 0;
           this.data.introSeen = !!d.introSeen;
-          this.data.settings = Object.assign({ sound: true, music: true }, d.settings || {});
+          this.data.settings = Object.assign({ sound: true, music: true, quality: 'auto' }, d.settings || {});
         }
       } catch (e) { /* abaikan */ }
       return this;
@@ -62,6 +62,8 @@
 
     get sound() { return this.data.settings.sound !== false; },
     set sound(v) { this.data.settings.sound = !!v; this.save(); },
+    get quality() { return this.data.settings.quality || 'auto'; },
+    set quality(v) { this.data.settings.quality = v; this.save(); },
     get music() { return this.data.settings.music !== false; },
     set music(v) { this.data.settings.music = !!v; this.save(); },
 
