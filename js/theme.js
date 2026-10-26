@@ -1,4 +1,4 @@
-/* theme.js — satu-satunya tempat untuk mengganti tampilan.
+/* theme.js — satu-satunya tempat untuk mengganti tampilan (warna, ukuran bola, naga, latar tiap step).
  * Semua gambar saat ini digambar lewat kode (placeholder). Untuk memakai aset sendiri,
  * isi `sprites` dengan URL gambar (mis. 'assets/rock.png'); kode gambar otomatis memakainya. */
 (function (GA) {
@@ -10,57 +10,84 @@
     },
 
     colors: {
-      skyTop: '#6fd3ff', skyBottom: '#d9f7ff',
-      grassA: '#a6e86f', grassB: '#7dd35a',
-      trackEdge: '#b98550', trackFill: '#e7c58f', trackInner: '#d9b27a',
-      hudBg: 'rgba(20,40,90,0.78)', hudText: '#ffffff', hudAccent: '#ffd23f',
+      hudBg: 'rgba(20,24,60,0.82)', hudText: '#ffffff', hudAccent: '#ffd23f',
       panel: '#ffffff', panelText: '#1b2a49',
       good: '#2fbf71', bad: '#ff4d5e', warn: '#ffb02e',
-      ink: '#1b2a49'
+      ink: '#1b2a49',
+      fire: ['#fff3a0', '#ff9a1f', '#d9361a'],   // bola api (terang, dasar, gelap)
+      magic: '#b69cff'                            // cahaya sihir penyihir
     },
 
-    // warna bola (terang, dasar, gelap). Warna acak dan TIDAK berkaitan dengan benar/salah.
+    // Orb sihir di rantai (terang, dasar, gelap): ungu / biru / hijau-kehijauan. Warna acak, TIDAK berkaitan dengan benar/salah.
     ballColors: [
-      ['#ff9a9a', '#ef4444', '#9b1c1c'],
-      ['#ffc98a', '#f97316', '#9a3f06'],
-      ['#fff08a', '#f2b705', '#8f6a00'],
-      ['#a9f59a', '#22c55e', '#0f6b2f'],
-      ['#8ff3e4', '#14b8a6', '#0b6b61'],
-      ['#a6cdff', '#3b82f6', '#1d3f94'],
-      ['#d9bcff', '#8b5cf6', '#4b2a9b'],
-      ['#ffb8e0', '#ec4899', '#8f1f59']
+      ['#e4d4ff', '#8b5cf6', '#3b1d8a'],   // ungu
+      ['#d2c2ff', '#6d5ae6', '#2a1f7a'],   // indigo
+      ['#c4dcff', '#3b82f6', '#16408f'],   // biru
+      ['#bfe6ff', '#2aa0e8', '#0c4f86'],   // biru langit
+      ['#b8f5e6', '#14b8a6', '#0a5f58'],   // hijau kebiruan
+      ['#c8f7c4', '#22c08a', '#0b6a46'],   // hijau zamrud
+      ['#efc8ff', '#b45ae6', '#5a1f86'],   // magenta-ungu
+      ['#bde8ff', '#4f8df0', '#1d3f9a']    // biru kobalt
     ],
 
     /* ---- ukuran bola: SATU tempat untuk mengubahnya ----
-     * Radius bola rantai = radiusRatio × sisi pendek canvas logis (540), tetapi dinaikkan otomatis
+     * Radius bola = BALL_RADIUS_RATIO × sisi pendek canvas logis (540), tetapi dinaikkan otomatis
      * supaya diameter bola di layar >= minScreenDiameter px (HP), dengan batas maxRadius. */
     BALL_RADIUS_RATIO: 0.06,
+
+    /* Semua bola yang berperan sama memakai radius yang SAMA PERSIS (BALL_RADIUS): bola sihir di rantai, bola api
+     * siap tembak di mulut naga, dan bola api yang melesat. Tidak ada pengali tambahan dan tidak ada perubahan
+     * ukuran saat ditembak.
+     *   SHOOTER_BALL_SCALE  harus 1.0 (bola siap tembak = bola rantai)
+     *   NEXT_BALL_SCALE     bola berikutnya (preview), sedikit lebih kecil agar hierarkinya jelas */
+    SHOOTER_BALL_SCALE: 1.0,
+    NEXT_BALL_SCALE: 0.8,
+
     ball: {
-      minScreenDiameter: 44,
-      maxRadius: 36,
-      playerRatio: 0.72,      // bola di mulut kodok / preview / peluru = playerRatio × radius bola rantai
-      bulletHitRatio: 0.55,   // radius tabrakan peluru relatif terhadap bola pemain
+      minScreenDiameter: 46,  // diameter bola (rantai & naga) di layar (px) minimal; radius dinaikkan otomatis di HP kecil
+      maxRadius: 36,          // batas radius bola (layar lebar tidak membuatnya raksasa)
+      bulletHitRatio: 1.0,    // radius tabrakan peluru dengan rantai = ratio × radius bola (1.0 = sama dengan yang terlihat)
+      obstacleHitRatio: 0.4,  // radius tabrakan peluru dengan rintangan
       trackMargin: 12         // alur lebih lebar dari bola sejauh ini di tiap sisi
     },
-    /** Hitung radius bola rantai untuk canvas logis (W×H) dan skala layar (px CSS per unit logis). */
+    /** Hitung radius bola untuk canvas logis (W×H) dan skala layar (px CSS per unit logis). */
     ballRadiusFor: function (W, H, scale) {
       const short = Math.min(W, H), b = this.ball;
       const r = Math.max(this.BALL_RADIUS_RATIO * short, (b.minScreenDiameter / 2) / Math.max(scale, 0.01));
       return Math.round(Math.min(r, b.maxRadius));
     },
+    /** Radius bola siap tembak (di mulut) = radius bola × SHOOTER_BALL_SCALE (1.0). */
+    shooterBallRadius: function (R) { return this.SHOOTER_BALL_SCALE * R; },
+    /** Radius bola preview: sedikit lebih kecil dari bola siap tembak. */
+    nextBallRadius: function (R) { return this.NEXT_BALL_SCALE * R; },
 
-    /* ---- kodok (js/frog.js) ---- */
-    frog: {
-      radiusRatio: 1.4,       // radius badan = radiusRatio × radius bola rantai
-      body: ['#d5f89a', '#79d654', '#2f9238'],   // terang, dasar, gelap
-      hurt: ['#ffd9d9', '#ff9a9a', '#b84848'],   // saat meringis
-      belly: '#f6ffd6', spots: 'rgba(28,110,40,0.32)', outline: 'rgba(20,70,25,0.55)',
-      eyeWhite: '#ffffff', pupil: '#15213f', mouth: '#7a1f2e', lip: '#4aa83e', tongue: '#ff7a95',
-      cheek: 'rgba(255,110,140,0.5)', tear: '#8fd3ff',
-      pad: ['#58bf5e', '#2f8a3d'],               // daun teratai di bawah kodok
-      blinkEvery: [2.0, 5.0],                    // detik, acak
-      breath: 0.025                              // amplitudo napas
+    /* ---- naga penjaga (js/dragon.js) ---- */
+    dragon: {
+      radiusRatio: 1.45,      // radius badan = radiusRatio × radius bola
+      headDist: 0.7,          // pusat kepala dari pusat badan (× radius badan)
+      mouthDist: 1.45,        // pusat bola api di mulut dari pusat badan (× radius badan)
+      body: ['#a6f0b4', '#33b56e', '#14633f'],   // zamrud: terang, dasar, gelap
+      belly: ['#fff1b8', '#f2c75c'],             // perut emas hangat
+      wing: ['#ffb45a', '#e8742a'],              // selaput sayap oranye
+      spike: '#ff9a3c', horn: '#fff0c4', outline: 'rgba(8,60,36,0.7)',
+      eye: '#ffe27a', pupil: '#1b1030', tooth: '#fffbe8', mouthIn: '#8a1d12', glow: 'rgba(255,150,40,0.6)',
+      hurt: ['#ffd9d9', '#ff9a9a', '#b84848'],
+      nest: ['#c99b4c', '#8d6420'],              // jerami sarang
+      blinkEvery: [2.0, 5.0],
+      breath: 0.025
     },
+
+    /* ---- latar tiap step (dipakai scenery.js dan path.js) ----
+     * sky: gradien langit; ground: gradien tanah; track: [tepi, isi, dalam]; ambient: partikel; far/near: siluet parallax */
+    scenes: {
+      menu:   { sky: ['#1b1650', '#5a3a9a'], ground: ['#2d6a4a', '#1d4a36'], track: ['#6a4a2e', '#b99a6a', '#a07f50'], glow: '#ffd27a', ambient: 'firefly', far: '#2a2272', near: '#173a2c' },
+      forest: { sky: ['#2d7d6a', '#a8e0b0'], ground: ['#4aa860', '#2f7d48'], track: ['#7a5a34', '#d9b98a', '#c6a070'], glow: '#ffe08a', ambient: 'firefly', far: '#1f6a52', near: '#18503a' },
+      volcano:{ sky: ['#3a1230', '#d4562a'], ground: ['#5a3a3a', '#35242a'], track: ['#2a1a1e', '#8a6a6a', '#6e5258'], glow: '#ff9a4a', ambient: 'ember', far: '#2a0f26', near: '#1f1218' },
+      tower:  { sky: ['#0e0a2e', '#3a1f7a'], ground: ['#3a3366', '#241f4a'], track: ['#161038', '#6a5fb0', '#554a98'], glow: '#c9a8ff', ambient: 'spark', far: '#150f3d', near: '#0f0b2c' }
+    },
+    scene: 'forest',
+    setScene: function (id) { this.scene = this.scenes[id] ? id : 'forest'; },
+    sceneColors: function () { return this.scenes[this.scene]; },
 
     // Ganti null dengan URL gambar untuk menimpa gambar placeholder.
     // ball: gambar bola kosong (angka tetap digambar di atasnya)

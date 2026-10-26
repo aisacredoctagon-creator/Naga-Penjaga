@@ -41,7 +41,8 @@
     mul: { aMin: 2, aMax: 9, bMin: 2, bMax: 9 },
     div: { bMin: 2, bMax: 9, qMin: 2, qMax: 9 },
     int: { op: 'any', min: 1, max: 12 },
-    dec: { op: '+', places: 1, min: 1, max: 20, round: 0 }
+    dec: { op: '+', places: 1, min: 1, max: 20, round: 0 },
+    frac: { ops: ['+', '-'], mode: 'same', dmax: 6 }
   };
 
   function range(s) {
@@ -49,23 +50,29 @@
     return { min: s.min, max: s.max };
   }
 
-  /** Rakit objek soal: bersihkan pengecoh (unik, bukan jawaban, sesuai batas). */
+  /** Rakit objek soal: bersihkan pengecoh (unik, bukan jawaban, sesuai batas).
+   * cands boleh berisi angka atau {text, value} (untuk pecahan, di mana teks menentukan identitas jawaban). */
   function make(o) {
-    const ans = r4(o.answer), ansT = fmt(ans);
+    const ans = r4(o.answer), ansT = o.answerText || fmt(ans);
     const seen = {}; seen[ansT] = 1;
     const out = [];
     const take = function (c) {
-      c = r4(c);
-      if (!isFinite(c)) return;
-      if (o.nonNeg && c < 0) return;
-      if (o.integer && !Number.isInteger(c)) return;
-      const t = fmt(c);
-      if (seen[t]) return;
-      seen[t] = 1; out.push({ value: c, text: t });
+      let t, v;
+      if (c !== null && typeof c === 'object') { t = c.text; v = c.value; if (!t || seen[t]) return; }
+      else {
+        c = r4(c);
+        if (!isFinite(c)) return;
+        if (o.nonNeg && c < 0) return;
+        if (o.integer && !Number.isInteger(c)) return;
+        t = fmt(c); v = c;
+        if (seen[t]) return;
+      }
+      seen[t] = 1; out.push({ value: v, text: t });
     };
     shuffle(o.cands.slice()).forEach(function (c) { if (out.length < 8) take(c); });
     const step = o.step || 1;
-    for (let k = 1; out.length < 6 && k < 60; k++) { take(ans + k * step); take(ans - k * step); }
+    if (o.fill) { for (let k = 1; out.length < 6 && k < 40; k++) o.fill(k).forEach(take); }
+    else for (let k = 1; out.length < 6 && k < 60; k++) { take(ans + k * step); take(ans - k * step); }
     return {
       text: o.expr + ' = ?', note: o.note || '', expr: o.expr,
       answer: ans, answerText: ansT,
@@ -73,6 +80,11 @@
       hint: o.hint || '', kind: o.kind, choices: out
     };
   }
+
+  function gcd(a, b) { return b ? gcd(b, a % b) : a; }
+  function fracText(n, d) { const g = gcd(n, d); n /= g; d /= g; return d === 1 ? String(n) : n + '/' + d; }
+  function fracCand(n, d) { return (n > 0 && d > 0 && isFinite(n) && isFinite(d)) ? { text: fracText(n, d), value: n / d } : null; }
+  function rawFrac(n, d) { return (n > 0 && d > 0) ? { text: n + '/' + d, value: n / d } : null; }   // tidak disederhanakan (pengecoh)
 
   const GEN = {
     add: function (s) {
@@ -139,6 +151,41 @@
       const star = op === '×' || op === '÷';
       const expr = (star ? opd(a) : fmt(a)) + ' ' + op + ' ' + opd(b);
       return make({ kind: 'int', expr: expr, answer: ans, integer: true, cands: cands, hint: hint });
+    },
+
+    frac: function (s) {
+      // pecahan sejati; jawaban SELALU dalam bentuk paling sederhana. s: { ops, mode: 'same'|'rel'|'any', dmax }
+      const ops = s.ops;
+      const OP = { '+': '+', '-': '−', '×': '×', '*': '×', '÷': '÷', '/': '÷', '−': '−' };
+      let o = OP[ops[Math.floor(Math.random() * ops.length)]], a, b, d1, d2, n, d, tries = 0;
+      do {
+        d1 = rnd(2, s.dmax);
+        if (s.mode === 'same') d2 = d1;
+        else if (s.mode === 'rel') d2 = pick([d1, d1, d1 * 2 <= 12 ? d1 * 2 : d1, d1 % 2 === 0 ? d1 / 2 : d1]);
+        else { do { d2 = rnd(2, s.dmax); } while (d2 === d1); }
+        a = rnd(1, d1 - 1); b = rnd(1, d2 - 1);
+        if (o === '+') { n = a * d2 + b * d1; d = d1 * d2; }
+        else if (o === '−') { n = a * d2 - b * d1; d = d1 * d2; if (n < 0) { const t1 = a, t2 = d1; a = b; d1 = d2; b = t1; d2 = t2; n = -n; } }
+        else if (o === '×') { n = a * b; d = d1 * d2; }
+        else { n = a * d2; d = d1 * b; }
+        tries++;
+      } while ((n <= 0 || (o === '−' && n === 0) || (s.mode === 'same' && o === '×' && false)) && tries < 40);
+      const g = gcd(n, d), sn = n / g, sd = d / g, ans = n / d, ansT = fracText(n, d);
+      const expr = a + '/' + d1 + ' ' + o + ' ' + b + '/' + d2;
+      const cands = [];
+      const add = function (c) { if (c) cands.push(c); };
+      if (o === '+') { add(fracCand(a + b, d1 + d2)); add(fracCand(a + b, d1 === d2 ? d1 : d1 * d2)); add(fracCand(Math.abs(a * d2 - b * d1), d1 * d2)); }
+      else if (o === '−') { add(fracCand(a - b > 0 ? a - b : 1, d1 === d2 ? d1 + d2 : Math.abs(d1 - d2) || d1)); add(fracCand(a * d2 + b * d1, d1 * d2)); }
+      else if (o === '×') { add(fracCand(a * d2 + b * d1, d1 * d2)); add(fracCand(a * b, d1 + d2)); add(fracCand(a + b, d1 * d2)); }
+      else { add(fracCand(a * b, d1 * d2)); add(fracCand(d1 * b, a * d2)); add(fracCand(a * d2 + b, d1 * d2)); }
+      add(fracCand(sd, sn)); add(fracCand(sn + 1, sd)); add(fracCand(sn, sd + 1)); add(fracCand(sn + 2, sd)); add(fracCand(sn, sd + 2));
+      if (sn > 1) add(fracCand(sn - 1, sd)); if (sd > 2) add(fracCand(sn, sd - 1));
+      const q = make({
+        kind: 'frac', expr: expr, answer: ans, answerText: ansT, cands: cands,
+        hint: o === '+' || o === '−' ? 'Samakan penyebutnya dulu, lalu hitung pembilangnya. Sederhanakan hasilnya.' : (o === '×' ? 'Kalikan pembilang dengan pembilang dan penyebut dengan penyebut.' : 'Membagi pecahan = mengalikan dengan kebalikannya.'),
+        fill: function (k) { return [fracCand(sn + k, sd + k), fracCand(sn + k, sd), fracCand(sn, sd + k)]; }
+      });
+      return q;
     },
 
     dec: function (s) {
@@ -210,9 +257,10 @@
     return f(Object.assign({}, DEFAULTS[spec.type], spec));
   }
 
-  /** Sesi soal: memilih topik acak (boleh berbobot) dan menghindari soal yang sama berturut-turut. */
+  /** Sesi soal: memilih topik acak (boleh berbobot), menghindari soal yang sama berturut-turut,
+   * dan membatasi jumlah pengecoh (opts.maxChoices: Mudah 4, Sedang 6, Sulit 8). */
   class Session {
-    constructor(topics) { this.topics = topics; this.last = ''; this.count = 0; }
+    constructor(topics, opts) { this.topics = topics; this.last = ''; this.count = 0; this.maxChoices = (opts && opts.maxChoices) || 8; }
     next() {
       let q, tries = 0;
       do {
@@ -221,6 +269,7 @@
         for (const t of this.topics) { r -= (t.weight || 1); if (r <= 0) { spec = t; break; } }
         q = generate(spec);
       } while (q.text === this.last && ++tries < 12);
+      if (q.choices.length > this.maxChoices) q.choices = q.choices.slice(0, this.maxChoices);
       this.last = q.text; this.count++;
       return q;
     }
@@ -229,11 +278,48 @@
   /** Ringkasan untuk layar pembuka: contoh soal + rentang jawaban. */
   function describe(topics) {
     const s = new Session(topics);
-    let lo = Infinity, hi = -Infinity;
-    for (let i = 0; i < 60; i++) { const q = s.next(); lo = Math.min(lo, q.answer); hi = Math.max(hi, q.answer); }
+    let lo = Infinity, hi = -Infinity, fr = true;
+    for (let i = 0; i < 60; i++) { const q = s.next(); lo = Math.min(lo, q.answer); hi = Math.max(hi, q.answer); if (q.kind !== 'frac') fr = false; }
     const ex = new Session(topics).next();
-    return { example: ex.explain, exampleText: ex.text, range: [lo, hi], rangeText: 'Jawaban sekitar ' + fmt(lo) + ' sampai ' + fmt(hi) };
+    return { example: ex.explain, exampleText: ex.text, range: [lo, hi], rangeText: fr ? 'Jawaban berupa pecahan paling sederhana' : 'Jawaban sekitar ' + fmt(lo) + ' sampai ' + fmt(hi) };
   }
 
-  GA.Questions = { generate: generate, Session: Session, describe: describe, fmt: fmt, DEFAULTS: DEFAULTS, GEN: GEN };
+  /* ---------- kategori & tingkat kesulitan (Main Menu) ----------
+   * Tiap kategori + kesulitan menghasilkan daftar topik untuk generator di atas.
+   * Parameter: rentang angka (min/max), jumlah digit (digits), jenis operasi (op/ops), dan kerumitan (mode pecahan, desimal, pembulatan).
+   * Untuk menambah kategori: tambahkan ke CATEGORIES dan isi TABLE-nya untuk tiga kesulitan. */
+  const CATEGORIES = [
+    { id: 'add', name: 'Penjumlahan', icon: '+', color: '#ff9a3c' },
+    { id: 'sub', name: 'Pengurangan', icon: '−', color: '#ff6b8a' },
+    { id: 'mul', name: 'Perkalian', icon: '×', color: '#8b5cf6' },
+    { id: 'div', name: 'Pembagian', icon: '÷', color: '#3b82f6' },
+    { id: 'int', name: 'Bilangan Bulat', icon: '±', color: '#14b8a6' },
+    { id: 'frac', name: 'Pecahan', icon: '½', color: '#ec4899' },
+    { id: 'dec', name: 'Desimal', icon: '0,5', color: '#22c55e' },
+    { id: 'mix', name: 'Campuran', icon: '✦', color: '#eab308' }
+  ];
+  const INT = function (op, min, max) { return { type: 'int', op: op, min: min, max: max }; };
+  const DEC = function (op, places, min, max, round) { return { type: 'dec', op: op, places: places, min: min, max: max, round: round || 0 }; };
+  const TABLE = {
+    add: { mudah: [{ type: 'add', min: 1, max: 10 }], sedang: [{ type: 'add', min: 10, max: 60 }], sulit: [{ type: 'add', min: 25, max: 250 }] },
+    sub: { mudah: [{ type: 'sub', min: 1, max: 15 }], sedang: [{ type: 'sub', min: 10, max: 80 }], sulit: [{ type: 'sub', min: 30, max: 300 }] },
+    mul: { mudah: [{ type: 'mul', aMin: 2, aMax: 5, bMin: 2, bMax: 9 }], sedang: [{ type: 'mul', aMin: 2, aMax: 9, bMin: 2, bMax: 12 }], sulit: [{ type: 'mul', aMin: 6, aMax: 15, bMin: 6, bMax: 15 }, { type: 'mul', aMin: 11, aMax: 30, bMin: 3, bMax: 9 }] },
+    div: { mudah: [{ type: 'div', bMin: 2, bMax: 5, qMin: 2, qMax: 9 }], sedang: [{ type: 'div', bMin: 2, bMax: 9, qMin: 2, qMax: 12 }], sulit: [{ type: 'div', bMin: 3, bMax: 12, qMin: 5, qMax: 25 }] },
+    int: { mudah: [INT('+', 1, 9), INT('-', 1, 9)], sedang: [INT('any', 1, 12)], sulit: [INT('+', 5, 40), INT('-', 5, 40), INT('*', 2, 15), INT('/', 2, 15)] },
+    frac: { mudah: [{ type: 'frac', ops: ['+', '-'], mode: 'same', dmax: 6 }], sedang: [{ type: 'frac', ops: ['+', '-', '×'], mode: 'rel', dmax: 8 }], sulit: [{ type: 'frac', ops: ['+', '-', '×', '÷'], mode: 'any', dmax: 10 }] },
+    dec: { mudah: [DEC('+', 1, 1, 10), DEC('-', 1, 1, 10)], sedang: [DEC('+', 1, 1, 30), DEC('-', 1, 1, 30), DEC('*', 1, 1, 9)], sulit: [DEC('+', 2, 1, 20), DEC('-', 2, 1, 20), DEC('*', 1, 1, 9, 1), DEC('/', 1, 1, 9)] }
+  };
+  const CHOICES = { mudah: 4, sedang: 6, sulit: 8 };
+
+  function categoryById(id) { for (const c of CATEGORIES) if (c.id === id) return c; return CATEGORIES[0]; }
+
+  /** Daftar topik untuk satu kategori dan kesulitan ('mix' = semua kategori). Boleh juga array kategori (campur beberapa slot). */
+  function topicsFor(cat, diff) {
+    diff = TABLE.add[diff] ? diff : 'sedang';
+    if (Array.isArray(cat)) { const out = []; cat.forEach(function (c) { topicsFor(c, diff).forEach(function (t) { out.push(t); }); }); return out; }
+    if (cat === 'mix') return topicsFor(['add', 'sub', 'mul', 'div', 'int', 'frac', 'dec'], diff);
+    return (TABLE[cat] || TABLE.add)[diff].slice();
+  }
+
+  GA.Questions = { generate: generate, Session: Session, describe: describe, fmt: fmt, DEFAULTS: DEFAULTS, GEN: GEN, CATEGORIES: CATEGORIES, categoryById: categoryById, topicsFor: topicsFor, maxChoices: function (d) { return CHOICES[d] || 6; } };
 })(window.GA = window.GA || {});

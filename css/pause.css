@@ -314,7 +314,7 @@
   border: 4px solid var(--pz-mascot-border); border-radius: 9999px; background: var(--pz-mascot-bg);
   box-shadow: 0 0 0 4px var(--pz-mascot-ring), 0 10px 20px rgba(0, 0, 0, 0.6);
 }
-.pz-mascot img { display: block; width: 136px; height: 136px; object-fit: cover; }
+.pz-mascot img, .pz-mascot canvas { display: block; width: 136px; height: 136px; object-fit: cover; }
 
 /* ---------- dialog konfirmasi ---------- */
 .pz-confirm { position: absolute; inset: 0; z-index: 5; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(0, 0, 0, 0.55); }

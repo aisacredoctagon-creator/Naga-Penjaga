@@ -103,6 +103,11 @@
       mode: 'transpose',
       pts: [[-0.12, 0.06], [0.2, 0.0], [0.6, 0.0], [0.93, 0.05], [1.0, 0.5], [0.94, 0.95], [0.6, 1.0], [0.2, 0.99], [0.04, 0.9], [0.0, 0.68], [0.08, 0.56], [0.22, 0.52]]
     },
+    // Zig-zag (S) lebar: turun di sisi kiri, naik, menyeberang di atas penembak, lalu turun-naik di sisi kanan. Tidak berpotongan.
+    zigzag: {
+      mode: 'transpose',
+      pts: [[-0.12, 0.08], [0.04, 0.1], [0.06, 0.5], [0.07, 0.86], [0.13, 0.98], [0.2, 0.86], [0.2, 0.5], [0.2, 0.16], [0.27, 0.04], [0.4, 0.02], [0.6, 0.02], [0.73, 0.04], [0.8, 0.16], [0.8, 0.5], [0.8, 0.84], [0.87, 0.98], [0.94, 0.86], [0.95, 0.5], [0.92, 0.22]]
+    },
     // Cincin hampir penuh: masuk dari atas, mengelilingi, lubang di dekat pintu masuk.
     ring: {
       mode: 'transpose',
@@ -137,35 +142,47 @@
 
   /* ---------- gambar alur, lubang, START & FINISH ---------- */
   function drawTrack(ctx, path, r) {
-    const C = GA.Theme.colors, p = path.poly();
+    const C = GA.Theme.sceneColors().track, p = path.poly();
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = r * 2 + 30;
+    ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = r * 2 + 30;
     ctx.save(); ctx.translate(0, 4); ctx.stroke(p); ctx.restore();
-    ctx.strokeStyle = C.trackEdge; ctx.lineWidth = r * 2 + 24; ctx.stroke(p);
-    ctx.strokeStyle = C.trackFill; ctx.lineWidth = r * 2 + 14; ctx.stroke(p);
-    ctx.strokeStyle = C.trackInner; ctx.lineWidth = r * 2 - 4; ctx.stroke(p);
-    ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 3; ctx.setLineDash([2, 16]); ctx.stroke(p); ctx.setLineDash([]);
+    ctx.strokeStyle = C[0]; ctx.lineWidth = r * 2 + 24; ctx.stroke(p);
+    ctx.strokeStyle = C[1]; ctx.lineWidth = r * 2 + 14; ctx.stroke(p);
+    ctx.strokeStyle = C[2]; ctx.lineWidth = r * 2 - 4; ctx.stroke(p);
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 3; ctx.setLineDash([2, 16]); ctx.stroke(p); ctx.setLineDash([]);
   }
 
   function holeXY(path) {
     return { x: path.xs[path.xs.length - 1], y: path.ys[path.ys.length - 1] };
   }
 
-  function drawHole(ctx, path, r, t) {
-    const h = GA.Theme.sprite('hole'), p = holeXY(path), R = r * 1.55;
-    if (h) { ctx.drawImage(h, p.x - R, p.y - R, R * 2, R * 2); return; }
-    ctx.fillStyle = '#6b6f7a'; ctx.beginPath(); ctx.arc(p.x, p.y, R + 7, 0, 6.283); ctx.fill();
-    ctx.fillStyle = '#9ca3b0'; ctx.beginPath(); ctx.arc(p.x, p.y, R + 3, 0, 6.283); ctx.fill();
-    const g = ctx.createRadialGradient(p.x, p.y, 2, p.x, p.y, R);
-    g.addColorStop(0, '#000'); g.addColorStop(0.7, '#1a1530'); g.addColorStop(1, '#3a2b63');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, R, 0, 6.283); ctx.fill();
-    // pusaran
-    ctx.strokeStyle = 'rgba(190,150,255,0.55)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
-    for (let i = 0; i < 3; i++) {
-      const a0 = t * 2.4 + i * 2.094;
-      ctx.beginPath(); ctx.arc(p.x, p.y, R * 0.62, a0, a0 + 1.2); ctx.stroke();
+  const EGG_TINTS = [['#fff3c4', '#f2c75c'], ['#ffd6ea', '#e88ab8'], ['#d2f3ff', '#6cc3ea'], ['#e2ffd2', '#7dcf5a'], ['#e8d9ff', '#a98af0']];
+
+  /** Sarang telur di ujung jalur: jerami, cahaya, dan telur naga (satu per nyawa). lost = telur terakhir yang hilang berayun. */
+  function drawNest(ctx, path, r, t, eggs, maxEggs, shake) {
+    const p = holeXY(path), R = r * 2.1, C = GA.Theme.sceneColors(), N = maxEggs || 5, have = eggs == null ? N : eggs;
+    ctx.save(); ctx.translate(p.x + (shake > 0 ? Math.sin(t * 70) * 3 : 0), p.y);
+    const pulse = 0.55 + 0.25 * Math.sin(t * 2.2);
+    const gl = ctx.createRadialGradient(0, 0, R * 0.5, 0, 0, R * 1.9); gl.addColorStop(0, C.glow); gl.addColorStop(1, 'rgba(255,220,120,0)');
+    ctx.globalAlpha = pulse * 0.7; ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(0, 0, R * 1.9, 0, 6.283); ctx.fill(); ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(0, R * 0.12, R * 1.0, R * 0.9, 0, 0, 6.283); ctx.fill();
+    const ng = ctx.createRadialGradient(0, 0, R * 0.2, 0, 0, R); ng.addColorStop(0, '#7a5214'); ng.addColorStop(0.6, '#c99b4c'); ng.addColorStop(1, '#8d6420');
+    ctx.fillStyle = ng; ctx.beginPath(); ctx.arc(0, 0, R, 0, 6.283); ctx.fill();
+    ctx.strokeStyle = 'rgba(90,55,10,0.6)'; ctx.lineWidth = Math.max(1.5, r * 0.06); ctx.lineCap = 'round';
+    for (let i = 0; i < 26; i++) { const a = i * 0.6, rr = R * (0.72 + ((i * 37) % 30) / 100); ctx.beginPath(); ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr); ctx.lineTo(Math.cos(a + 0.5) * (rr + R * 0.22), Math.sin(a + 0.5) * (rr + R * 0.22)); ctx.stroke(); }
+    // telur: satu slot per telur, melingkar di dalam sarang
+    for (let i = 0; i < N; i++) {
+      const a = -Math.PI / 2 + i * 6.283 / N, ex = Math.cos(a) * R * 0.48, ey = Math.sin(a) * R * 0.48 + R * 0.05, w = r * 0.5, h = r * 0.66;
+      if (i >= have) { ctx.fillStyle = 'rgba(60,35,5,0.45)'; ctx.beginPath(); ctx.ellipse(ex, ey + h * 0.35, w * 0.8, h * 0.4, 0, 0, 6.283); ctx.fill(); continue; }
+      const tint = EGG_TINTS[i % EGG_TINTS.length], bob = Math.sin(t * 2 + i) * 1.2;
+      const g = ctx.createRadialGradient(ex - w * 0.3, ey - h * 0.4 + bob, 1, ex, ey + bob, h * 1.1); g.addColorStop(0, '#fff'); g.addColorStop(0.35, tint[0]); g.addColorStop(1, tint[1]);
+      ctx.fillStyle = g; ctx.strokeStyle = 'rgba(80,40,10,0.55)'; ctx.lineWidth = Math.max(1.5, r * 0.05);
+      GA.Chain.eggPath(ctx, ex, ey + bob, w, h); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.beginPath(); ctx.ellipse(ex - w * 0.3, ey - h * 0.35 + bob, w * 0.18, h * 0.22, -0.4, 0, 6.283); ctx.fill();
     }
+    ctx.restore();
   }
+  function drawHole(ctx, path, r, t) { drawNest(ctx, path, r, t, null, 5, 0); }   // kompatibilitas lama
 
   function pill(ctx, text, x, y, bg, fg, size) {
     ctx.font = '800 ' + size + 'px ' + GA.Theme.fonts.ui;
@@ -215,19 +232,19 @@
       path.at(d, tmp);
       ctx.save(); ctx.translate(tmp.x, tmp.y); ctx.rotate(tmp.a);
       ctx.globalAlpha = 0.9 - i * 0.2;
-      ctx.fillStyle = '#2fbf71'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5;
+      ctx.fillStyle = '#b69cff'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.moveTo(-8, -12); ctx.lineTo(8, 0); ctx.lineTo(-8, 12); ctx.lineTo(-3, 0); ctx.closePath();
       ctx.fill(); ctx.stroke(); ctx.restore();
     }
     ctx.globalAlpha = 1;
     path.at(d0 + 30, tmp);
     const s = labelSpot(path, 'start', tmp.x, tmp.y, r + 38, 0, d0 + 420);
-    pill(ctx, 'START', s[0], s[1], '#2fbf71', '#fff', size);
+    pill(ctx, 'MUNCUL', s[0], s[1], '#7a4ad8', '#fff', size);
 
     // FINISH: label bendera di sisi lubang yang lapang
     const h = holeXY(path), f = labelSpot(path, 'finish', h.x, h.y, r * 2.9, path.length - 420, path.length);
-    pill(ctx, '🏁 FINISH', f[0], f[1], '#e5384a', '#fff', size);
+    pill(ctx, '🥚 SARANG', f[0], f[1], '#e0932a', '#fff', size);
   }
 
-  GA.Path = { Path: Path, presets: presets, forLayout: forLayout, STEP: STEP, drawTrack: drawTrack, drawHole: drawHole, drawMarkers: drawMarkers, roundRect: roundRect, pill: pill, holeXY: holeXY };
+  GA.Path = { Path: Path, presets: presets, forLayout: forLayout, STEP: STEP, drawTrack: drawTrack, drawHole: drawHole, drawNest: drawNest, drawMarkers: drawMarkers, roundRect: roundRect, pill: pill, holeXY: holeXY };
 })(window.GA = window.GA || {});

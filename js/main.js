@@ -1,23 +1,24 @@
-/* main.js — loop game, layout responsif, input (Pointer Events), alur stage/boss.
+/* main.js — loop game, layout responsif, input (Pointer Events), alur petualangan.
  *
- * State: menu | intro | countdown | playing | paused | clearing | dying
+ * Alur: Judul → Main Menu (kategori & kesulitan) → cerita (sekali) → Step 1 → Step 2 → Step 3 (boss) → hasil.
+ * State: menu | countdown | intro | playing | paused | clearing | stepdone | dying | result
+ * Telur (nyawa) dibawa antar-step: `adv.eggs`. Konfigurasi step ada di levels.js, soal di questions.js,
+ * rintangan di obstacles.js, boss di boss.js, cerita di story.js.
  */
 (function (GA) {
   'use strict';
   const Theme = GA.Theme, FX = GA.FX, Path = GA.Path, Chain = GA.Chain, Shooter = GA.Shooter, Bullets = GA.Shooter.Bullets,
-    Questions = GA.Questions, Obstacles = GA.Obstacles, Levels = GA.Levels, Bosses = GA.Bosses, UI = GA.UI, Audio = GA.Audio, Storage = GA.Storage;
+    Questions = GA.Questions, Obstacles = GA.Obstacles, Levels = GA.Levels, Bosses = GA.Bosses, UI = GA.UI, Audio = GA.Audio, Storage = GA.Storage, Story = GA.Story;
 
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
-  const MAX_LIVES = 5;
 
   let L = null;                // layout logis
-  let bg = null;               // cache latar statis
   let state = 'menu';
-  let run = null;              // data stage yang sedang dimainkan
+  let run = null;              // data step yang sedang dimainkan
+  let adv = null;              // data petualangan (3 step)
   let attract = null;          // adegan dekoratif di menu
-  let cur = { l: 0, s: 0 };
-  let t = 0, last = 0, hudShown = false;
+  let t = 0, last = 0, hudShown = false, frameDt = 0;
   const keys = {};
   const ptr = { down: false, onShooter: false, id: null };
   const tmpM = { x: 0, y: 0 }, shk = { x: 0, y: 0 };
@@ -47,48 +48,22 @@
     return Math.sqrt(m);
   }
 
-  /** Ukuran kodok/bola pemain dan sisi gelembung untuk jalur saat ini. */
+  /** Ukuran naga/bola api/bola preview untuk jalur saat ini. */
   function fitShooter(sh, path, R) {
-    sh.setSize(L.ballR); sh.ammoR = Theme.ball.playerRatio * R;
+    sh.setSize(R);  // naga, bola api siap tembak (= bola rantai), dan bola preview dihitung dari radius bola step ini
     sh.setPos(path.shooter.x, path.shooter.y);
   }
   function makeObstacles(cfg, path, R, sh) {
-    return Obstacles.create({ rocks: cfg.rocks, movers: cfg.movers }, path.shooter, L.portrait,
+    return Obstacles.create({ rocks: cfg.rocks, movers: cfg.movers, crystals: cfg.crystals }, path.shooter, L.portrait,
       { clear: function (x, y) { return pathDist(path, x, y) - (R + Theme.ball.trackMargin); }, frogR: sh.r, unit: L.ballR / 25 });
   }
 
-  function rng(seed) { return function () { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let x = Math.imul(seed ^ seed >>> 15, 1 | seed); x = x + Math.imul(x ^ x >>> 7, 61 | x) ^ x; return ((x ^ x >>> 14) >>> 0) / 4294967296; }; }
-
   function sceneRef() { return run || attract; }
 
+  /** Latar tiap step (js/scenery.js): id adegan mengikuti step yang sedang dimainkan. */
   function renderBg() {
-    if (!bg) bg = document.createElement('canvas');
-    bg.width = canvas.width; bg.height = canvas.height;
-    const g = bg.getContext('2d');
-    g.setTransform(1, 0, 0, 1, 0, 0);
-    g.fillStyle = '#16386f'; g.fillRect(0, 0, bg.width, bg.height);
-    g.setTransform(L.px, 0, 0, L.px, L.dpr * L.ox, L.dpr * L.oy);
-    const img = Theme.sprite('background');
-    if (img) g.drawImage(img, 0, 0, L.W, L.H);
-    else {
-      const gr = g.createLinearGradient(0, 0, 0, L.H);
-      gr.addColorStop(0, Theme.colors.grassA); gr.addColorStop(1, Theme.colors.grassB);
-      g.fillStyle = gr; g.fillRect(0, 0, L.W, L.H);
-      g.fillStyle = 'rgba(255,255,255,0.07)';
-      for (let y = 0; y < L.H; y += 96) g.fillRect(0, y, L.W, 48);
-      const r = rng(7);
-      for (let i = 0; i < 90; i++) { // bunga & rumput
-        const x = r() * L.W, y = L.hud + r() * (L.H - L.hud), k = r();
-        if (k < 0.55) { g.strokeStyle = 'rgba(40,120,40,0.35)'; g.lineWidth = 2; g.beginPath(); g.moveTo(x, y); g.lineTo(x - 4, y - 9); g.moveTo(x, y); g.lineTo(x + 4, y - 8); g.stroke(); }
-        else {
-          const col = ['#ffffff', '#ffd1ec', '#fff3a0'][i % 3];
-          g.fillStyle = col; for (let p = 0; p < 5; p++) { g.beginPath(); g.arc(x + Math.cos(p * 1.2566) * 4, y + Math.sin(p * 1.2566) * 4, 3, 0, 6.283); g.fill(); }
-          g.fillStyle = '#f2a60c'; g.beginPath(); g.arc(x, y, 2.4, 0, 6.283); g.fill();
-        }
-      }
-    }
-    const sc = sceneRef();
-    if (sc) { g.save(); g.beginPath(); g.rect(0, 0, L.W, L.H); g.clip(); Path.drawTrack(g, sc.path, sc.R); g.restore(); }
+    const sc = sceneRef(), id = run ? run.cfg.scene : 'menu';
+    GA.Scenery.build(canvas, L, id, sc ? sc.path : null, sc ? sc.R : 0);
   }
 
   function relayout() {
@@ -132,8 +107,10 @@
     if (a.chain.holeReached()) a.chain.fill(Math.min(24, Math.ceil(a.path.length * 0.2 / a.chain.D) + 1), a.path.length * 0.2, 0);
   }
 
-  /* ================= stage ================= */
-  function isCorrect(v) { return !!run.q && Math.abs(v - run.q.answer) < 1e-9; }
+  /* ================= soal & label bola ================= */
+  /** Teks efektif sebuah bola (memperhitungkan animasi balik label). Kebenaran dinilai dari TEKS, jadi pecahan 1/2 ≠ 2/4. */
+  function ballText(b) { return b.nt !== null && b.nt !== undefined ? b.nt : b.text; }
+  function isCorrectText(txt) { return !!run.q && txt === run.q.answerText; }
 
   function numLabel(b) {
     const q = run.q;
@@ -147,10 +124,9 @@
     const sp = run && run.cfg.specials;
     if (sp && run.playing) {
       let r = Math.random();
-      const kinds = ['bomb', 'ice', 'bolt', 'life'];
-      for (const k of kinds) {
+      for (const k of ['curse', 'frost', 'egg']) {
         const p = sp[k] || 0;
-        if (k === 'life' && run.lives >= run.maxLives) continue;
+        if (k === 'egg' && run.lives >= run.maxLives) continue;
         if (r < p) { b.kind = k; b.value = 0; b.text = ''; return; }
         r -= p;
       }
@@ -172,7 +148,7 @@
     const visNum = [], allNum = [];
     for (const b of ch.balls) {
       if (b.kind !== 'num') continue;
-      const eff = b.nv !== null ? b.nv : b.value, ok = isCorrect(eff);
+      const ok = isCorrectText(ballText(b));
       allNum.push(b); if (ok) anyCorrect++;
       if (ch.visible(b)) { visNum.push(b); if (ok) visCorrect++; }
     }
@@ -193,27 +169,60 @@
     if (run.chain) relabelAll();
   }
 
+  /** Terapkan fase boss: kecepatan rantai, rintangan bergerak, jenis soal. */
   function applyPhase() {
     const b = run.boss, ph = b.phase;
     run.chain.speedMul = ph.speedMul;
     run.obst.setMovers(ph.movers);
-    run.qs = new Questions.Session(b.topics);
+    run.qs = new Questions.Session(b.topics, { maxChoices: run.cfg.maxChoices });
   }
 
-  /** Radius bola rantai untuk stage ini (bola desimal boleh sedikit lebih besar). */
+  /* ================= mantra & rintangan dinamis ================= */
+  /** Kabut sihir: sembunyikan angka `count` bola yang terlihat selama `dur` detik (tetap ada minimal satu jawaban benar yang terbaca). */
+  function fogBalls(count, dur) {
+    const ch = run.chain, vis = ch.balls.filter(function (b) { return b.kind === 'num' && ch.visible(b); });
+    for (let i = vis.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const x = vis[i]; vis[i] = vis[j]; vis[j] = x; }
+    vis.slice(0, count).forEach(function (b) { b.fog = dur; b.fogAge = 0; });
+    const clearCorrect = vis.some(function (b) { return isCorrectText(ballText(b)) && b.fog <= 0; });
+    if (!clearCorrect) { const c = vis.find(function (b) { return isCorrectText(ballText(b)); }); if (c) c.fog = 0; }
+    Audio.play('spell');
+  }
+
+  function swapSomeBalls(pairs) {
+    const ch = run.chain, vis = ch.balls.filter(function (b) { return b.kind === 'num' && ch.visible(b); });
+    for (let k = 0; k < pairs && vis.length >= 2; k++) {
+      const a = vis.splice(Math.floor(Math.random() * vis.length), 1)[0], b = vis.splice(Math.floor(Math.random() * vis.length), 1)[0];
+      if (!b) break;
+      if (ballText(a) !== ballText(b)) { ch.swapLabels(a, b); FX.ring(a.x, a.y, '#c9a0ff', 44); FX.ring(b.x, b.y, '#c9a0ff', 44); }
+    }
+    Audio.play('swap');
+  }
+
+  function castSpell(name) {
+    Audio.play('spell'); FX.flash(0.25, '170,110,255');
+    if (name === 'fog') fogBalls(3 + (run.boss.phaseIdx >= 2 ? 1 : 0), 6);
+    else if (name === 'frost') { run.shooter.freeze(1.4); Audio.play('frost'); FX.text(run.shooter.x, run.shooter.y - run.shooter.r - 16, 'Beku!', '#9fe0ff', 30); }
+    else if (name === 'swap') swapSomeBalls(2);
+    FX.ring(run.boss.x, run.boss.y, '#c9a0ff', run.boss.R * 1.6);
+  }
+
+  /* ================= petualangan & step ================= */
+  /** Radius bola rantai untuk step ini (bola desimal/pecahan boleh sedikit lebih besar). */
   function stageR(cfg) { return Math.min(L.ballR * cfg.ballScale, L.ballR * 1.2); }
 
   function buildRun(cfg) {
     const R = stageR(cfg);
+    Theme.setScene(cfg.scene);
     const path = Path.forLayout(cfg.pathId, L);
     const shooter = new Shooter.Shooter(); fitShooter(shooter, path, R);
     run = {
       cfg: cfg, path: path, R: R, baseR: L.ballR, shooter: shooter, chain: null, boss: null,
-      obst: makeObstacles(cfg, path, R, shooter),
-      lives: MAX_LIVES, maxLives: MAX_LIVES, score: 0, scoreShown: 0, combo: 0, maxCombo: 0, comboPulse: 0,
+      obst: makeObstacles(cfg, path, R, shooter), bats: cfg.bats ? new Obstacles.BatSwarm(cfg.bats) : null,
+      lives: adv.eggs, maxLives: adv.maxEggs, startEggs: adv.eggs, stepNo: cfg.step + 1,
+      score: adv.score, scoreAtStart: adv.score, scoreShown: adv.score, combo: 0, maxCombo: 0, comboPulse: 0,
       correct: 0, wrong: 0, shots: 0, progress: 0, qs: null, q: null, qPop: 0, qTime: 0, qTimeMax: 0, bag: [],
-      feedback: null, lifeLostT: 0, holeCd: 0, ensureT: 0, playing: false, clearT: 0, clearQ: null, dyingT: 0, reason: '',
-      stageTag: 'Level ' + (cfg.level + 1) + ' · ' + (cfg.isBoss ? 'Boss' : 'Stage ' + (cfg.index + 1)), time: 0, bossDone: false
+      feedback: null, lifeLostT: 0, holeCd: 0, ensureT: 0, fogT: cfg.fog ? cfg.fog.every * 0.6 : 0,
+      playing: false, clearT: 0, clearQ: null, dyingT: 0, reason: '', time: 0, bossDone: false, guide: []
     };
     if (cfg.isBoss) {
       run.boss = Bosses.create(cfg.boss, path.boss, Math.round(2.45 * L.ballR));
@@ -225,26 +234,34 @@
   }
 
   function introInfo(cfg) {
-    const d = Questions.describe(cfg.topics);
-    const sp = [];
-    ['bomb', 'ice', 'bolt', 'life'].forEach(function (k) { if ((cfg.specials[k] || 0) > 0) sp.push(k); });
-    const extra = [];
-    if (cfg.isBoss) extra.push('Raja Angka punya 3 fase. Jawab benar untuk melukainya; jawaban salah membuatnya menyerang!');
-    if (cfg.rocks.length) extra.push('Batu menghalangi peluru, nyawa berkurang jika terkena.');
-    if (cfg.movers.length && !cfg.isBoss) extra.push('Ada rintangan bergerak: tunggu celahnya!');
+    const d = Levels.describe(cfg), cat = Questions.categoryById(cfg.cat), sp = [], sps = cfg.specials || {};
+    ['curse', 'frost', 'egg'].forEach(function (k) { if ((sps[k] || 0) > 0) sp.push(k); });
     return {
-      heading: 'Level ' + (cfg.level + 1) + ' · ' + (cfg.isBoss ? 'Boss Final' : 'Stage ' + (cfg.index + 1)),
-      name: cfg.name, label: cfg.label, example: d.example, rangeText: d.rangeText,
-      tip: 'Tembak bola dengan jawaban yang benar.', extra: extra.join(' '), specials: sp
+      tag: cfg.tag, place: cfg.place, story: cfg.story, catName: cfg.isBoss ? cat.name + ' + campuran' : cat.name, catIcon: cat.icon,
+      exampleHtml: GA.MathText.html(d.exampleText), rangeText: d.rangeText, notes: cfg.notes, specials: sp,
+      diffName: Levels.DIFF_NAMES[cfg.diff]
     };
   }
 
-  function startStage(l, s, skipIntro) {
-    cur = { l: l, s: s }; Audio.resume();
-    UI.cancelCountdown();
-    const cfg = Levels.get(l, s);
+  /** Mulai petualangan baru dengan pilihan menu `sel`. skipStory: lewati cerita meskipun belum pernah dilihat. */
+  function startAdventure(sel, skipStory) {
+    Audio.resume();
+    const cats = Levels.resolveCats(sel);
+    adv = { sel: sel, cats: cats, key: sel.random ? null : Storage.runKey(cats, sel.diff), step: 0, eggs: Levels.START_EGGS, maxEggs: Levels.MAX_EGGS, score: 0,
+      stars: [0, 0, 0], correct: 0, wrong: 0, maxCombo: 0, snap: { eggs: Levels.START_EGGS, score: 0 } };
+    run = null; if (!attract) buildAttract();
+    if (!skipStory && !Storage.introSeen) {
+      state = 'story'; renderBg();
+      UI.showStory(Story.intro, { onDone: function () { Storage.introSeen = true; startStep(0, false); } });
+    } else startStep(0, false);
+  }
+
+  function startStep(n, skipIntro) {
+    UI.cancelCountdown(); Audio.resume();
+    adv.step = n; adv.snap = { eggs: adv.eggs, score: adv.score };
+    const cfg = Levels.build(n, adv.sel, adv.cats);
     buildRun(cfg);
-    attract = null;
+    Audio.music(cfg.scene);
     if (skipIntro) { state = 'countdown'; UI.countdown(beginPlay); }
     else { state = 'intro'; UI.showIntro(introInfo(cfg)); }
   }
@@ -252,13 +269,13 @@
   function beginPlay() {
     const cfg = run.cfg, len = run.path.length;
     run.playing = true;
-    run.qs = new Questions.Session(run.boss ? run.boss.topics : cfg.topics);
+    run.qs = new Questions.Session(run.boss ? run.boss.topics : cfg.topics, { maxChoices: cfg.maxChoices });
     run.chain = new Chain.Chain(run.path, { r: run.R, speed: cfg.speed, maxBalls: cfg.maxBalls, labeler: labelBall });
     run.q = run.qs.next(); run.qPop = 0.35;
     if (run.boss) {
       applyPhase();
       run.q = run.qs.next();
-      run.boss.say(run.boss.phase.say, 3.4);
+      run.boss.say(run.boss.phase.say, 3.4); run.boss.resetSpellTimer();
       run.qTimeMax = run.boss.phase.questionTime || 0;
     } else run.qTimeMax = cfg.questionTime || 0;
     run.qTime = run.qTimeMax;
@@ -269,8 +286,8 @@
     state = 'playing';
   }
 
-  /* ================= nyawa & akibat tembakan ================= */
-  function loseLife(reason) {
+  /* ================= telur (nyawa) & akibat tembakan ================= */
+  function loseEgg(reason) {
     run.lives = Math.max(0, run.lives - 1);
     run.lifeLostT = 0.6; run.combo = 0; run.reason = reason;
     run.shooter.react('hurt');
@@ -281,7 +298,8 @@
   function gameOver() {
     state = 'dying'; run.dyingT = 0; Bullets.clear(); run.shooter.react('sad');
     Audio.play('lose');
-    if (run.score > Storage.data.highScore) { Storage.data.highScore = run.score; Storage.save(); }
+    syncAdv();
+    Storage.noteScore(run.score);
   }
 
   function setFeedback(text, hint, good) { run.feedback = { text: text, hint: hint || '', good: good, t: good ? 1.4 : 4.2 }; }
@@ -305,7 +323,7 @@
       const r = run.boss.hit();
       run.progress = (run.boss.maxHp - run.boss.hp) / run.boss.maxHp;
       Audio.play('bossHit'); FX.shake(8);
-      FX.text(run.boss.x, run.boss.y - run.boss.R - 4, '-1', '#ff6b6b', 34);
+      FX.text(run.boss.x, run.boss.y - run.boss.R - 4, '-1', '#c9a0ff', 34);
       if (r === 'defeat') { startClearing(true); return; }
       if (r === 'phase') { Audio.play('phase'); FX.confetti(run.boss.x, run.boss.y, 26); applyPhase(); }
     } else {
@@ -321,39 +339,52 @@
     Audio.play('wrong');
     setFeedback((why || 'Salah!') + ' ' + run.q.explain, run.q.hint, false);
     if (run.boss) { run.boss.attack(); Audio.play('bossAttack'); FX.shake(10); }
-    loseLife('Jawaban salah');
+    if (run.cfg.freezeOnWrong) { run.shooter.freeze(run.cfg.freezeOnWrong); Audio.play('frost'); FX.text(run.shooter.x, run.shooter.y - run.shooter.r - 16, 'Beku!', '#9fe0ff', 28); }
+    loseEgg('Jawaban salah');
   }
 
   function ballHit(bullet, ball) {
     switch (ball.kind) {
       case 'num':
-        if (isCorrect(ball.value)) onCorrect(bullet, ball); else onWrong(bullet, ball);
+        if (isCorrectText(ballText(ball))) onCorrect(bullet, ball); else onWrong(bullet, ball);
         break;
-      case 'bomb':
-        run.chain.remove(ball); FX.burst(ball.x, ball.y, ['#ff6b2c', '#ffd23f', '#444'], 30); FX.text(ball.x, ball.y - 20, 'BOM!', '#ff6b2c', 34);
-        Audio.play('bomb'); setFeedback('Bom! Jangan tembak bola bom.', '', false); loseLife('Menembak bom');
+      case 'curse':
+        run.chain.remove(ball); FX.burst(ball.x, ball.y, ['#6a2f8f', '#c9a0ff', '#222'], 30); FX.text(ball.x, ball.y - 20, 'KUTUKAN!', '#c9a0ff', 32);
+        Audio.play('curse'); setFeedback('Bola kutukan! Jangan ditembak.', '', false); loseEgg('Menembak bola kutukan');
         break;
-      case 'ice':
-        run.chain.remove(ball); run.chain.slowT = 6; FX.burst(ball.x, ball.y, ['#d4f1ff', '#7fd0ff', '#fff'], 20); FX.text(ball.x, ball.y - 20, 'Lambat!', '#7fd0ff', 28); Audio.play('ice');
+      case 'frost':
+        run.chain.remove(ball); run.chain.slowT = 6; FX.burst(ball.x, ball.y, ['#d4f1ff', '#7fd0ff', '#fff'], 20); FX.text(ball.x, ball.y - 20, 'Lambat!', '#7fd0ff', 28); Audio.play('frost');
         break;
-      case 'bolt':
-        run.chain.remove(ball); run.chain.fastT = 4; run.chain.slowT = 0; FX.burst(ball.x, ball.y, ['#ffd23f', '#ff9a1f', '#5b2bd0'], 20); FX.text(ball.x, ball.y - 20, 'Cepat!', '#ffb02e', 28); Audio.play('bolt');
-        break;
-      case 'life':
-        run.chain.remove(ball); run.lives = Math.min(run.maxLives, run.lives + 1); FX.burst(ball.x, ball.y, ['#ff8fb8', '#fff', '#e11d48'], 22); FX.text(ball.x, ball.y - 20, '+1 ♥', '#ff8fb8', 32); Audio.play('life');
+      case 'egg':
+        run.chain.remove(ball); run.lives = Math.min(run.maxLives, run.lives + 1); FX.burst(ball.x, ball.y, ['#ffe27a', '#fff', '#ffb02e'], 24); FX.text(ball.x, ball.y - 20, '+1 telur', '#ffe27a', 30); Audio.play('egg');
         break;
     }
     if (state === 'playing') ensureCorrect();
   }
 
+  /** Peluru bergerak satu langkah kecil. true = peluru habis. */
   function onBulletStep(b) {
-    const o = run.obst.collide(b.x, b.y, Bullets.r);
+    const o = run.obst.collide(b.x, b.y, Bullets.rObs);
     if (o) {
       run.obst.hitFlash(o);
-      FX.burst(b.x, b.y, ['#cfd5e3', '#8a93a6', '#fff'], 14); FX.text(b.x, b.y - 22, 'Awas!', '#ff9a9a', 26);
-      Audio.play('rock'); setFeedback('Peluru mengenai rintangan!', 'Tunggu celah atau bidik dari sudut lain.', false);
-      loseLife('Peluru mengenai rintangan');
+      const lava = o.kind === 'lava' || o.kind === 'bolt';
+      FX.burst(b.x, b.y, lava ? ['#ffb02e', '#ff5a1a', '#fff'] : ['#8a5a30', '#4e3018', '#6ac060'], 14); FX.text(b.x, b.y - 22, 'Awas!', '#ff9a9a', 26);
+      Audio.play(lava ? 'rock' : 'thorn');
+      setFeedback(lava ? 'Peluru terkena lahar/petir!' : 'Peluru terkena akar berduri!', 'Tunggu celah atau bidik dari sudut lain.', false);
+      loseEgg('Peluru mengenai rintangan');
       return true;
+    }
+    const c = run.obst.crystalHit(b.x, b.y, Bullets.rObs);
+    if (c) {
+      c.flash = 0.25; Audio.play('crystal');
+      if (b.bounces >= 1) { FX.burst(b.x, b.y, ['#7fe3ff', '#fff'], 10); return true; }   // pantulan kedua diserap kristal
+      let nx = b.x - c.x, ny = b.y - c.y; const nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;
+      const dot = b.vx * nx + b.vy * ny;
+      if (dot < 0) { b.vx -= 2 * dot * nx; b.vy -= 2 * dot * ny; }
+      const away = c.r * 0.95 + Bullets.rObs + 2;
+      b.x = c.x + nx * away; b.y = c.y + ny * away; b.bounces++;
+      FX.burst(b.x, b.y, ['#7fe3ff', '#fff'], 10);
+      return false;
     }
     const ball = run.chain.hit(b.x, b.y, Bullets.r);
     if (ball) { ballHit(b, ball); return true; }
@@ -366,18 +397,18 @@
     sh.muzzle(tmpM);
     Bullets.fire(tmpM.x, tmpM.y, sh.angle, sh.takeShot());
     run.shots++;
-    Audio.play('shoot');
+    Audio.play('fire');
   }
 
   function swapAmmo() { if (state === 'playing') { run.shooter.swap(); Audio.play('swap'); } }
 
-  /* ================= selesai stage ================= */
+  /* ================= selesai step ================= */
   function startClearing(boss) {
     state = 'clearing'; run.clearT = 0; run.bossDone = !!boss;
     run.chain.paused = true; Bullets.clear(); run.obst.setMovers(false); run.shooter.react('cheer');
     run.clearQ = run.chain.balls.filter(function (b) { return run.chain.visible(b); });
-    run.score += run.lives * 100; // bonus nyawa tersisa
-    FX.text(L.W / 2, L.play.y + 60, boss ? 'RAJA ANGKA KALAH!' : 'STAGE SELESAI!', '#ffd23f', 40);
+    run.score += run.lives * 100; // bonus telur tersisa
+    FX.text(L.W / 2, L.play.y + 60, boss ? 'PENYIHIR KALAH!' : 'STEP SELESAI!', '#ffd23f', 40);
     FX.confetti(L.W / 2, L.H * 0.55, 40);
     Audio.play('win');
   }
@@ -393,27 +424,44 @@
       }
     }
     if (run.bossDone && Math.random() < dt * 6) FX.confetti(L.W / 2 + (Math.random() - 0.5) * 300, L.H * 0.4, 8);
-    const minT = run.bossDone ? 2.8 : 1.6;
-    if (run.clearT > minT && (!run.clearQ || !run.clearQ.length)) finishStage();
+    const minT = run.bossDone ? 3.2 : 1.6;
+    if (run.clearT > minT && (!run.clearQ || !run.clearQ.length)) finishStep();
   }
 
-  function finishStage() {
-    const cfg = run.cfg, id = cfg.id;
-    const stars = run.lives >= 4 ? 3 : (run.lives >= 2 ? 2 : 1);
-    const rec = Storage.record(id, stars, run.score);
-    const nx = Levels.next(cfg.level, cfg.index);
-    const total = run.correct + run.wrong;
-    const acc = total ? Math.round(run.correct * 100 / total) : 100;
-    const res = {
-      eyebrow: run.stageTag,
-      title: cfg.isBoss ? (nx ? 'Level ' + (cfg.level + 1) + ' Tamat!' : 'Kamu Juara Matematika!') : 'Stage Selesai!',
-      subtitle: cfg.isBoss ? (nx ? 'Raja Angka sudah kalah. Level berikutnya terbuka!' : 'Semua level dan semua boss sudah kamu taklukkan!') : '',
-      stars: stars, score: run.score, newBest: rec.newBest,
+  function syncAdv() { adv.score = run.score; adv.eggs = run.lives; adv.correct += run.correct; adv.wrong += run.wrong; adv.maxCombo = Math.max(adv.maxCombo, run.maxCombo); run.synced = true; }
+
+  function finishStep() {
+    const cfg = run.cfg, lost = Math.max(0, run.startEggs - run.lives);
+    const stars = lost === 0 ? 3 : (lost <= 2 ? 2 : 1);
+    adv.stars[cfg.step] = stars;
+    if (adv.key) Storage.recordStep(adv.key, cfg.step, stars);
+    syncAdv(); Storage.noteScore(adv.score);
+    const total = run.correct + run.wrong, acc = total ? Math.round(run.correct * 100 / total) : 100;
+    if (cfg.isBoss) { finishAdventure(true); return; }
+    const bonus = adv.eggs < adv.maxEggs;
+    if (bonus) adv.eggs++;
+    const next = Levels.STEPS[cfg.step + 1];
+    state = 'stepdone';
+    UI.showStepDone({
+      eyebrow: cfg.tag + ' · ' + cfg.place, title: 'Step ' + (cfg.step + 1) + ' Selesai!', subtitle: 'Berikutnya: ' + next.place,
+      stars: stars, score: adv.score, eggs: adv.eggs, maxEggs: adv.maxEggs, bonus: bonus,
       detail: 'Benar ' + run.correct + ' · Salah ' + run.wrong + ' · Akurasi ' + acc + '% · Kombo ×' + run.maxCombo,
-      canNext: !!nx, nextLabel: nx && nx.l !== cfg.level ? 'Level Berikutnya' : 'Stage Berikutnya'
+      nextLabel: 'Ke Step ' + (cfg.step + 2)
+    });
+  }
+
+  function finishAdventure(win) {
+    const rec = adv.key ? Storage.recordRun(adv.key, adv.score, win) : { newBest: false };
+    const total = adv.correct + adv.wrong, acc = total ? Math.round(adv.correct * 100 / total) : 100;
+    const res = {
+      win: win, title: win ? 'Telur-Telur Selamat!' : 'Telur Dicuri…',
+      subtitle: win ? 'Penyihir Jahat berhasil dikalahkan!' : (run && run.reason ? 'Penyebab: ' + run.reason.toLowerCase() + '.' : ''),
+      steps: Levels.STEPS.map(function (s, i) { return { name: 'Step ' + (i + 1) + ' · ' + s.place, stars: adv.stars[i] }; }),
+      score: adv.score, newBest: rec.newBest, high: Storage.data.highScore, eggs: win ? adv.eggs : 0, maxEggs: adv.maxEggs,
+      detail: 'Benar ' + adv.correct + ' · Salah ' + adv.wrong + ' · Akurasi ' + acc + '% · Kombo ×' + adv.maxCombo
     };
-    state = 'cleared';
-    UI.showClear(res);
+    state = 'story';
+    UI.showStory(win ? [Story.win] : [Story.lose], { skippable: false, onDone: function () { state = 'result'; UI.showResult(res); } });
   }
 
   /* ================= update ================= */
@@ -423,6 +471,29 @@
     const d2 = fx * fx + fy * fy - proj * proj;
     if (d2 > rad * rad) return Infinity;
     return proj - Math.sqrt(rad * rad - d2);
+  }
+
+  /** Garis bidik: satu ruas lurus, atau dua ruas bila mengenai kristal (pantulan). */
+  function computeGuide(r) {
+    const sh = r.shooter, segs = [], rad = r.R * 0.92 + Bullets.r;
+    sh.muzzle(tmpM);
+    let x = tmpM.x, y = tmpM.y, dx = Math.cos(sh.angle), dy = Math.sin(sh.angle);
+    for (let k = 0; k < 2; k++) {
+      let best = 640, hit = null;
+      for (const b of r.chain.balls) {
+        if (b.d < 0 || b.d > r.path.length) continue;
+        const d = rayCircle(x, y, dx, dy, b.x, b.y, rad); if (d < best) best = d;
+      }
+      const h = r.obst.rayFirst(x, y, dx, dy, Bullets.rObs);
+      if (h && h.t < best) { best = h.t; hit = h; }
+      segs.push({ x0: x, y0: y, x1: x + dx * best, y1: y + dy * best, end: !(hit && hit.crystal && k === 0) });
+      if (!(hit && hit.crystal && k === 0)) break;
+      const px = x + dx * best, py = y + dy * best;
+      let nx = px - hit.o.x, ny = py - hit.o.y; const nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;
+      const dot = dx * nx + dy * ny; dx -= 2 * dot * nx; dy -= 2 * dot * ny;
+      x = px + nx * 4; y = py + ny * 4;
+    }
+    r.guide = segs;
   }
 
   function updateRun(dt) {
@@ -442,24 +513,30 @@
     if (r.qPop > 0) r.qPop -= dt;
     if (r.lifeLostT > 0) r.lifeLostT -= dt;
     if (r.feedback) { r.feedback.t -= dt; if (r.feedback.t <= 0) r.feedback = null; }
-    r.slowT = r.chain ? Math.max(0, r.chain.slowT) : 0; r.fastT = r.chain ? Math.max(0, r.chain.fastT) : 0;
+    r.slowT = r.chain ? Math.max(0, r.chain.slowT) : 0;
 
     if (state === 'playing') {
       r.chain.update(dt);
       Bullets.update(dt, L.W, L.H, onBulletStep);
       if (state !== 'playing') return;
 
-      // rantai sampai lubang akhir (FINISH)
+      // kelelawar penyihir (tukar dua bola) & kabut sihir terjadwal
+      if (r.bats) r.bats.update(dt, { chain: r.chain, W: L.W, H: L.H, active: !r.boss || r.boss.phaseIdx >= 2,
+        onSwap: function (a, b) { r.chain.swapLabels(a, b); FX.ring(a.x, a.y, '#c9a0ff', 44); FX.ring(b.x, b.y, '#c9a0ff', 44); Audio.play('swap'); FX.text(a.x, a.y - 24, 'Tukar!', '#c9a0ff', 24); ensureCorrect(); } });
+      if (r.cfg.fog) { r.fogT -= dt; if (r.fogT <= 0) { r.fogT = r.cfg.fog.every; fogBalls(r.cfg.fog.count, r.cfg.fog.dur); } }
+      if (r.boss) { const sp = r.boss.tick(dt); if (sp) castSpell(sp); }
+
+      // bola sihir sampai ke sarang
       if (r.holeCd > 0) r.holeCd -= dt;
       else if (r.chain.holeReached()) {
         const f = r.chain.balls[0];
         const hp = Path.holeXY(r.path);
         r.chain.remove(f);
-        FX.burst(hp.x, hp.y, ['#7a5cff', '#c9b6ff', '#fff'], 22); FX.text(hp.x, hp.y - 50, 'Masuk lubang!', '#ff9a9a', 28);
-        Audio.play('hole');
+        FX.burst(hp.x, hp.y, ['#7a5cff', '#c9b6ff', '#fff'], 22); FX.text(hp.x, hp.y - 50, 'Telur dicuri!', '#ff9a9a', 28);
+        Audio.play('steal');
         r.chain.retreat(650, 900); r.chain.hold = 0.5; r.holeCd = 1.8;
-        setFeedback('Awas! Rantai masuk lubang FINISH.', 'Tembak lebih cepat agar rantai mundur.', false);
-        loseLife('Rantai sampai di lubang');
+        setFeedback('Awas! Bola sihir sampai di sarang.', 'Tembak lebih cepat agar rantai mundur.', false);
+        loseEgg('Bola sihir sampai di sarang');
         if (state !== 'playing') return;
         ensureCorrect();
       }
@@ -471,62 +548,53 @@
           r.wrong++; Audio.play('wrong');
           setFeedback('Waktu habis! ' + r.q.explain, r.q.hint, false);
           if (r.boss) { r.boss.attack(); Audio.play('bossAttack'); FX.shake(10); }
-          loseLife('Waktu habis');
+          loseEgg('Waktu habis');
           if (state === 'playing') nextQuestion();
         }
       }
       r.ensureT -= dt;
       if (r.ensureT <= 0) { r.ensureT = 0.6; ensureCorrect(); }
 
-      // garis bidik
-      let best = 640;
-      const dx = Math.cos(sh.angle), dy = Math.sin(sh.angle);
-      sh.muzzle(tmpM);
-      const rad = r.R * 0.92 + Bullets.r;
-      for (const b of r.chain.balls) {
-        if (b.d < 0 || b.d > r.path.length) continue;
-        const d = rayCircle(tmpM.x, tmpM.y, dx, dy, b.x, b.y, rad); if (d < best) best = d;
-      }
-      const od = r.obst.rayDist(tmpM.x, tmpM.y, dx, dy); if (od < best) best = od;
-      sh.guideLen = best;
+      computeGuide(r);
     } else if (state === 'clearing') {
       r.chain.update(dt);
       updateClearing(dt);
     } else if (state === 'dying') {
       r.dyingT += dt;
-      if (r.dyingT > 1.0) {
-        state = 'over';
-        UI.showOver({ score: r.score, reason: r.reason ? 'Penyebab: ' + r.reason.toLowerCase() + '.' : '' });
-      }
+      if (r.dyingT > 1.0) finishAdventure(false);
     }
   }
 
   /* ================= gambar ================= */
-  function drawGuide(sh, t) {
-    const a = sh.angle, dx = Math.cos(a), dy = Math.sin(a);
-    sh.muzzle(tmpM);
-    const len = sh.guideLen;
-    ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.strokeStyle = 'rgba(27,42,73,0.5)'; ctx.lineWidth = 1.5;
+  function drawGuide(sh, t, segs) {
+    ctx.fillStyle = 'rgba(255,236,170,0.9)'; ctx.strokeStyle = 'rgba(60,20,10,0.5)'; ctx.lineWidth = 1.5;
     const off = (t * 40) % 22;
-    for (let d = 18 + off; d < len - 8; d += 22) {
-      ctx.beginPath(); ctx.arc(tmpM.x + dx * d, tmpM.y + dy * d, 3.2, 0, 6.283); ctx.fill(); ctx.stroke();
-    }
+    segs.forEach(function (s, k) {
+      const len = Math.hypot(s.x1 - s.x0, s.y1 - s.y0), dx = (s.x1 - s.x0) / (len || 1), dy = (s.y1 - s.y0) / (len || 1);
+      for (let d = (k ? 6 : 18) + off; d < len - 8; d += 22) {
+        ctx.beginPath(); ctx.arc(s.x0 + dx * d, s.y0 + dy * d, 3.2, 0, 6.283); ctx.fill(); ctx.stroke();
+      }
+      if (!s.end) { ctx.strokeStyle = 'rgba(127,227,255,0.95)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(s.x1, s.y1, 8, 0, 6.283); ctx.stroke(); ctx.strokeStyle = 'rgba(60,20,10,0.5)'; ctx.lineWidth = 1.5; }
+    });
+    const e = segs[segs.length - 1];
     ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(tmpM.x + dx * len, tmpM.y + dy * len, 9, 0, 6.283); ctx.stroke();
+    ctx.beginPath(); ctx.arc(e.x1, e.y1, 9, 0, 6.283); ctx.stroke();
   }
 
   function drawScene(sc, showGuide) {
     const R = sc.R;
     const center = { x: L.play.x + L.play.w / 2, y: L.play.y + L.play.h / 2 };
+    GA.Scenery.drawAmbient(ctx, t, frameDt);
     Path.drawMarkers(ctx, sc.path, R, t, center, L.portrait ? 16 : 15);
-    Path.drawHole(ctx, sc.path, R, t);
+    Path.drawNest(ctx, sc.path, R, t, sc.lives, sc.maxLives || 5, sc.lifeLostT > 0 ? 1 : 0);
     if (sc.boss) {
       sc.boss.draw(ctx, t);
       sc.boss.drawHP(ctx, sc.boss.x, sc.boss.y + sc.boss.R * 1.08 + 12, Math.min(L.W * 0.6, 340));
     }
     if (sc.obst) sc.obst.draw(ctx, t);
     if (sc.chain) sc.chain.draw(ctx, t, L.px);
-    if (showGuide) drawGuide(sc.shooter, t);
+    if (showGuide && sc.guide && sc.guide.length) drawGuide(sc.shooter, t, sc.guide);
+    if (sc.bats) sc.bats.draw(ctx, t);
     sc.shooter.draw(ctx, t, L.px);
     if (sc === run) Bullets.draw(ctx, L.px, t);
     FX.draw(ctx);
@@ -535,8 +603,7 @@
   function baseTransform() { ctx.setTransform(L.px, 0, 0, L.px, L.dpr * L.ox, L.dpr * L.oy); }
 
   function render() {
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.drawImage(bg, 0, 0);
+    GA.Scenery.drawBack(ctx, t);
     const sc = sceneRef();
     if (!sc) return;
     FX.shakeOffset(shk);
@@ -554,16 +621,22 @@
     }
   }
 
+  /** Satu langkah permainan: dt detik. Dipisah dari requestAnimationFrame agar bisa dijalankan manual (uji coba). */
+  function tick(dt, noRender) {
+    frameDt = state === 'paused' ? 0 : dt;
+    const hudOn = state === 'playing' || state === 'paused'; if (hudOn !== hudShown) { hudShown = hudOn; UI.setHudButton(hudOn); }
+    if (state === 'paused') { if (!noRender) render(); return; } // jeda: tidak ada yang bergerak (rantai, rintangan, partikel, animasi)
+    t += dt;
+    if (run && (state === 'playing' || state === 'clearing' || state === 'dying')) updateRun(dt);
+    else if (run) { run.obst.update(dt); if (run.boss) run.boss.update(dt); run.shooter.update(dt); }
+    else if (attract) updateAttract(dt);
+    FX.update(dt);
+    if (!noRender) render();
+  }
+
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000 || 0.016); last = now;
-    const hudOn = state === 'playing' || state === 'paused'; if (hudOn !== hudShown) { hudShown = hudOn; UI.setHudButton(hudOn); }
-    if (state === 'paused') { render(); requestAnimationFrame(frame); return; } // jeda: tidak ada yang bergerak (rantai, rintangan, partikel, animasi)
-    t += dt;
-    if (state === 'menu' || state === 'cleared') { if (attract) updateAttract(dt); else if (run) run.shooter.update(dt); }
-    else if (run && (state === 'playing' || state === 'clearing' || state === 'dying')) updateRun(dt);
-    else if (run) { run.obst.update(dt); if (run.boss) run.boss.update(dt); run.shooter.update(dt); }
-    FX.update(dt);
-    render();
+    tick(dt);
     requestAnimationFrame(frame);
   }
 
@@ -627,13 +700,10 @@
   document.addEventListener('touchmove', function (e) { if (e.target === canvas) e.preventDefault(); }, { passive: false });
 
   /* ================= alur menu ================= */
-  /** Teks lencana popup jeda: level, stage, dan namanya. */
-  function pauseBadge() {
-    const c = run.cfg;
-    return 'Level ' + (c.level + 1) + ' · ' + (c.isBoss ? 'Boss - Raja Angka' : 'Stage ' + (c.index + 1) + ' - ' + c.name);
-  }
-  /** Progres stage hilang jika diulang/keluar? (untuk dialog konfirmasi) */
-  function hasProgress() { return !!run && (run.score > 0 || run.correct > 0 || run.wrong > 0 || run.lives < run.maxLives); }
+  /** Teks lencana popup jeda: step dan nama tempatnya. */
+  function pauseBadge() { const c = run.cfg; return c.tag + ' · ' + c.place; }
+  /** Progres step hilang jika diulang/keluar? (untuk dialog konfirmasi) */
+  function hasProgress() { return !!run && (run.score > run.scoreAtStart || run.correct > 0 || run.wrong > 0 || run.lives < run.startEggs) && state !== 'menu'; }
 
   function pauseGame() {
     if (state !== 'playing') return;
@@ -647,34 +717,46 @@
     UI.hidePause();
   }
 
-  function toMenu() {
-    UI.cancelCountdown(); Audio.resume(); run = null; state = 'menu'; Bullets.clear(); FX.reset();
+  function toTitle() {
+    UI.cancelCountdown(); Audio.resume(); run = null; adv = null; state = 'menu'; Bullets.clear(); FX.reset();
+    Theme.setScene('menu'); Audio.music('menu');
     buildAttract(); renderBg(); UI.refreshTitle(); UI.show('title');
+  }
+  function toMenu() {
+    toTitle(); GA.Menu.open();
   }
 
   const handlers = {
-    stage: function (l, s) { startStage(l, s, false); },
+    start: function (sel) { startAdventure(sel, false); },
     introGo: function () { state = 'countdown'; UI.countdown(beginPlay); },
     resume: resumeGame,
     pause: pauseGame,
     hasProgress: hasProgress,
-    restart: function () { startStage(cur.l, cur.s, true); UI.hide(); },
-    quit: toMenu,
-    next: function () { const n = Levels.next(cur.l, cur.s); if (n) startStage(n.l, n.s, false); else toMenu(); },
-    toggleSound: function () { const on = !Audio.isEnabled(); Audio.setEnabled(on); Storage.sound = on; UI.syncSound(); if (on) Audio.play('click'); }
+    // ulangi step ini dari awal, dengan telur & skor seperti saat step dimulai
+    restart: function () { adv.eggs = adv.snap.eggs; adv.score = adv.snap.score; startStep(adv.step, true); UI.hide(); },
+    quit: toTitle,
+    nextStep: function () { startStep(adv.step + 1, false); },
+    again: function () { startAdventure(adv.sel, true); },
+    toMenu: toMenu,
+    toggleSound: function () { const on = !Audio.isEnabled(); Audio.setEnabled(on); Storage.sound = on; UI.syncSound(); if (on) Audio.play('click'); },
+    toggleMusic: function () { const on = !Audio.isMusic(); Audio.setMusic(on); Storage.music = on; UI.syncSound(); },
+    replayStory: function () { UI.showStory(Story.intro, { onDone: function () { UI.show('settings'); } }); }
   };
 
   /* ================= mulai ================= */
   Theme.loadSprites();
-  Audio.setEnabled(Storage.sound);
+  Audio.setEnabled(Storage.sound); Audio.setMusic(Storage.music);
   UI.init(handlers);
+  GA.Menu.init(handlers);
+  Theme.setScene('menu');
   computeLayout();
   buildAttract();
   renderBg();
   UI.refreshTitle();
   UI.show('title');
+  Audio.music('menu');
   requestAnimationFrame(function (n) { last = n; frame(n); });
 
   // untuk uji coba / debugging
-  GA.game = { get state() { return state; }, get run() { return run; }, get layout() { return L; }, startStage: startStage, fire: fire, handlers: handlers, ensureCorrect: ensureCorrect };
+  GA.game = { get state() { return state; }, get run() { return run; }, get adv() { return adv; }, get layout() { return L; }, tick: tick, startAdventure: startAdventure, startStep: startStep, fire: fire, handlers: handlers, ensureCorrect: ensureCorrect };
 })(window.GA = window.GA || {});

@@ -1,141 +1,141 @@
 /* boss.js — boss sebagai konfigurasi + modul terpisah.
  *
- * Untuk MENGGANTI boss: panggil GA.Bosses.register({...}) dengan id baru lalu isi `bossCfg: { id:'id-baru' }`
- * pada level di levels.js (atau ubah DEFAULT_BOSS). Definisi boss berisi:
+ * Untuk MENGGANTI boss: panggil GA.Bosses.register({...}) dengan id baru lalu isi `boss.id` di levels.js.
+ * Definisi boss berisi:
  *   id, name, title        identitas
- *   phases[]               { name, hits, speedMul, movers, mixed, questionTime, say }
- *   lines                  kalimat boss (hit, attack, defeat)
+ *   phases[]               { name, speedMul, movers, mixed, questionTime, spells[], spellEvery, say }
+ *                          (jumlah pukulan per fase diambil dari cfg.hits di levels.js)
+ *   lines                  kalimat boss (hit, attack, defeat, spell)
  *   draw(ctx, b, t)        gambar boss (placeholder lewat kode; boleh diganti sprite via Theme)
- * Instance boss (`b`) punya: x, y, R, hp, maxHp, phase, hurt, attackT, defeatT, dan metode hit()/attack().
+ * Instance boss (`b`) punya: x, y, R, hp, maxHp, phase, hurt, attackT, castT, defeatT, dan metode hit()/attack()/tick().
+ * Mantra ('fog' | 'frost' | 'swap') diumumkan lewat tick(); efeknya dijalankan main.js.
  */
 (function (GA) {
   'use strict';
   const Theme = GA.Theme;
+  const PI2 = Math.PI * 2;
 
   const registry = {};
 
-  /* ---------- Raja Angka (boss bawaan) ---------- */
-  const RajaAngka = {
-    id: 'raja-angka',
-    name: 'Raja Angka',
-    title: 'Penguasa Seribu Bilangan',
+  /** Gambar sosok penyihir pada (x,y) dengan radius R. mood: idle | hurt | attack | cast | laugh | defeat. */
+  function drawFigure(ctx, x, y, R, t, mood) {
+    const hurt = mood === 'hurt', atk = mood === 'attack', cast = mood === 'cast', laugh = mood === 'laugh';
+    ctx.save(); ctx.translate(x, y + Math.sin(t * 2) * R * 0.04);
+    // bayangan
+    ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.beginPath(); ctx.ellipse(0, R * 1.05, R * 0.95, R * 0.2, 0, 0, PI2); ctx.fill();
+    // aura sihir
+    const au = ctx.createRadialGradient(0, 0, R * 0.4, 0, 0, R * 1.7); au.addColorStop(0, 'rgba(170,110,255,' + (cast ? 0.55 : 0.28) + ')'); au.addColorStop(1, 'rgba(170,110,255,0)');
+    ctx.fillStyle = au; ctx.beginPath(); ctx.arc(0, 0, R * 1.7, 0, PI2); ctx.fill();
+    // jubah
+    let g = ctx.createLinearGradient(0, -R * 0.2, 0, R * 1.05); g.addColorStop(0, '#5b2bb0'); g.addColorStop(1, '#1e0f4a');
+    ctx.fillStyle = g; ctx.strokeStyle = '#12082e'; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(-R * 0.55, -R * 0.1); ctx.quadraticCurveTo(-R * 1.0, R * 0.6, -R * 0.9, R * 1.02); ctx.quadraticCurveTo(0, R * 1.15, R * 0.9, R * 1.02); ctx.quadraticCurveTo(R * 1.0, R * 0.6, R * 0.55, -R * 0.1); ctx.closePath(); ctx.fill(); ctx.stroke();
+    // bintang di jubah
+    ctx.fillStyle = '#ffd23f'; [[-0.4, 0.55, 0.07], [0.35, 0.7, 0.06], [0.05, 0.4, 0.05], [-0.1, 0.85, 0.05]].forEach(function (s) { ctx.beginPath(); ctx.arc(s[0] * R, s[1] * R, s[2] * R, 0, PI2); ctx.fill(); });
+    // tongkat + bola sihir
+    const sx = R * 0.85, sw = atk ? -0.5 : (cast ? -0.25 + Math.sin(t * 9) * 0.06 : Math.sin(t * 1.6) * 0.05);
+    ctx.save(); ctx.translate(sx, R * 0.3); ctx.rotate(sw);
+    ctx.strokeStyle = '#6a4120'; ctx.lineWidth = R * 0.09; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(0, R * 0.8); ctx.lineTo(0, -R * 0.95); ctx.stroke();
+    const og = ctx.createRadialGradient(-R * 0.04, -R * 1.05, 1, 0, -R * 1.0, R * 0.26); og.addColorStop(0, '#fff'); og.addColorStop(0.4, cast ? '#ff8aff' : '#b69cff'); og.addColorStop(1, '#5b2bd0');
+    ctx.fillStyle = og; ctx.beginPath(); ctx.arc(0, -R * 1.0, R * (cast ? 0.3 : 0.22), 0, PI2); ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#2a1060'; ctx.stroke();
+    ctx.restore();
+    // lengan
+    ctx.fillStyle = '#4b2399'; ctx.beginPath(); ctx.ellipse(R * 0.62, R * 0.22, R * 0.26, R * 0.14, -0.5, 0, PI2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#d9d2c4'; ctx.beginPath(); ctx.arc(R * 0.82, R * 0.3, R * 0.12, 0, PI2); ctx.fill();
+    ctx.fillStyle = '#4b2399'; ctx.beginPath(); ctx.ellipse(-R * 0.6, R * 0.25, R * 0.26, R * 0.14, 0.5, 0, PI2); ctx.fill(); ctx.stroke();
+    // kepala
+    const hg = ctx.createRadialGradient(-R * 0.1, -R * 0.5, R * 0.05, 0, -R * 0.4, R * 0.5); hg.addColorStop(0, '#e8e0d2'); hg.addColorStop(1, hurt ? '#e6a8a8' : '#b9b1a4');
+    ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(0, -R * 0.4, R * 0.4, 0, PI2); ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#4a4438'; ctx.stroke();
+    // jenggot
+    ctx.fillStyle = '#ece9f6'; ctx.beginPath(); ctx.moveTo(-R * 0.36, -R * 0.3); ctx.quadraticCurveTo(-R * 0.34, R * 0.34, 0, R * 0.5); ctx.quadraticCurveTo(R * 0.34, R * 0.34, R * 0.36, -R * 0.3); ctx.quadraticCurveTo(0, -R * 0.1, -R * 0.36, -R * 0.3); ctx.fill();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = '#a9a4c4'; ctx.stroke();
+    // mulut
+    ctx.fillStyle = '#4a0f20'; ctx.beginPath(); ctx.ellipse(0, -R * 0.14, R * 0.1, laugh || atk || hurt ? R * 0.09 : R * 0.035, 0, 0, PI2); ctx.fill();
+    // mata menyala
+    for (let s = -1; s <= 1; s += 2) {
+      const ex = s * R * 0.16, ey = -R * 0.43;
+      if (hurt) { ctx.strokeStyle = '#2a1a40'; ctx.lineWidth = 3.5; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(ex - R * 0.07, ey - R * 0.06); ctx.lineTo(ex + R * 0.07, ey + R * 0.06); ctx.moveTo(ex + R * 0.07, ey - R * 0.06); ctx.lineTo(ex - R * 0.07, ey + R * 0.06); ctx.stroke(); }
+      else { ctx.fillStyle = atk || cast ? '#ff3a6a' : '#ff9a3a'; ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = R * 0.15; ctx.beginPath(); ctx.ellipse(ex, ey, R * 0.09, R * 0.06, s * 0.3, 0, PI2); ctx.fill(); ctx.shadowBlur = 0; }
+      ctx.strokeStyle = '#2a2236'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(ex - s * R * 0.12, ey - R * 0.12 - (atk ? 0 : R * 0.02)); ctx.lineTo(ex + s * R * 0.1, ey - R * (atk ? 0.04 : 0.1)); ctx.stroke();
+    }
+    // topi runcing
+    const tg = ctx.createLinearGradient(0, -R * 1.5, 0, -R * 0.5); tg.addColorStop(0, '#6a38d0'); tg.addColorStop(1, '#2a1260');
+    ctx.fillStyle = tg; ctx.strokeStyle = '#12082e'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(-R * 0.62, -R * 0.56); ctx.quadraticCurveTo(-R * 0.1, -R * 0.82, R * 0.1, -R * 1.5); ctx.quadraticCurveTo(R * 0.3, -R * 0.8, R * 0.62, -R * 0.56); ctx.quadraticCurveTo(0, -R * 0.68, -R * 0.62, -R * 0.56); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.arc(R * 0.02, -R * 0.9, R * 0.07, 0, PI2); ctx.fill();
+    ctx.fillStyle = '#ff4d8d'; ctx.fillRect(-R * 0.5, -R * 0.62, R * 1.0, R * 0.06);
+    ctx.restore();
+  }
+
+  /* ---------- Penyihir Jahat (boss bawaan) ---------- */
+  const Penyihir = {
+    id: 'penyihir',
+    name: 'Penyihir Jahat',
+    title: 'Pencuri Telur Naga',
     phases: [
-      { name: 'Fase 1 – Rantai Lambat', hits: 3, speedMul: 0.7, movers: false, mixed: false, questionTime: null,
-        say: 'Hahaha! Aku Raja Angka! Sanggupkah kamu menjawab soalku?' },
-      { name: 'Fase 2 – Rintangan Bergerak', hits: 3, speedMul: 1.0, movers: true, mixed: false, questionTime: null,
-        say: 'Lumayan! Sekarang atur waktu tembakanmu!' },
-      { name: 'Fase 3 – Soal Campuran', hits: 3, speedMul: 1.0, movers: true, mixed: true, questionTime: 15,
-        say: 'Ini yang terakhir! Soal campuran dan waktunya terbatas!' }
+      { name: 'Fase 1 – Sihir Lambat', speedMul: 0.7, movers: false, mixed: false, questionTime: null, spells: [], spellEvery: 0,
+        say: 'Hahaha! Telur-telur ini milikku sekarang! Jawab soalku kalau kau berani, naga kecil!' },
+      { name: 'Fase 2 – Mantra Gelap', speedMul: 1.0, movers: true, mixed: false, questionTime: null, spells: ['fog', 'frost', 'swap'], spellEvery: 10,
+        say: 'Lumayan! Rasakan mantra kabut, es, dan tukar angkaku!' },
+      { name: 'Fase 3 – Sihir Campuran', speedMul: 1.1, movers: true, mixed: true, questionTime: 15, spells: ['fog', 'frost', 'swap'], spellEvery: 7.5,
+        say: 'Ini sihir terkuatku! Soal campuran, dan waktumu terbatas!' }
     ],
     lines: {
-      hit: ['Aduh!', 'Auw! Itu benar!', 'Ukh... pintar juga!'],
-      attack: ['Rasakan seranganku!', 'Salah! Hehehe!', 'Hiyaaa!'],
-      defeat: 'Aku... kalah... Kamu hebat!'
+      hit: ['Aduh! Panas!', 'Auw! Itu benar!', 'Ukh... pintar juga!'],
+      attack: ['Rasakan sihirku!', 'Salah! Hehehe!', 'Telur ini jadi milikku!'],
+      spell: { fog: 'Kabut gelap!', frost: 'Beku!', swap: 'Tukar-tukar angka!' },
+      defeat: 'Tidak... sihirku... lenyap! Ambil telur-telurmu...'
     },
 
     draw: function (ctx, b, t) {
-      const R = b.R, hurt = b.hurt > 0, atk = b.attackT > 0;
       const spr = Theme.sprite('boss');
+      const mood = b.defeated ? 'defeat' : b.hurt > 0 ? 'hurt' : b.attackT > 0 ? 'attack' : b.castT > 0 ? 'cast' : 'idle';
+      if (spr) { ctx.drawImage(spr, b.x - b.R * 1.3, b.y - b.R * 1.3, b.R * 2.6, b.R * 2.6); return; }
       ctx.save();
-      ctx.translate(b.x, b.y + Math.sin(t * 2) * 4);
-      if (b.defeated) { ctx.rotate(Math.min(b.defeatT, 1.2) * 0.35); ctx.globalAlpha = Math.max(0, 1 - Math.max(0, b.defeatT - 1.0) / 0.8); }
-      const sq = hurt ? 1 + Math.sin(b.hurt * 30) * 0.06 : 1;
-      ctx.scale(sq, 1 / sq);
-      if (atk) ctx.translate(Math.sin(t * 60) * 3, 0);
-
-      if (spr) { ctx.drawImage(spr, -R * 1.3, -R * 1.3, R * 2.6, R * 2.6); ctx.restore(); return; }
-
-      // bayangan
-      ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.beginPath(); ctx.ellipse(0, R * 1.05, R * 0.95, R * 0.2, 0, 0, 6.283); ctx.fill();
-      // jubah belakang
-      let g = ctx.createLinearGradient(0, -R * 0.3, 0, R);
-      g.addColorStop(0, '#7c3aed'); g.addColorStop(1, '#3b1a8a');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, R * 0.3, R * 1.02, R * 0.78, 0, 0, 6.283); ctx.fill();
-      // badan
-      g = ctx.createRadialGradient(-R * 0.2, R * 0.1, R * 0.1, 0, R * 0.35, R * 0.9);
-      g.addColorStop(0, '#d8b4fe'); g.addColorStop(0.5, '#a855f7'); g.addColorStop(1, '#6d28d9');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, R * 0.38, R * 0.72, R * 0.66, 0, 0, 6.283); ctx.fill();
-      ctx.lineWidth = 3; ctx.strokeStyle = '#3b1a8a'; ctx.stroke();
-      // lambang di perut
-      ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.arc(0, R * 0.45, R * 0.24, 0, 6.283); ctx.fill();
-      ctx.lineWidth = 3; ctx.strokeStyle = '#b8860b'; ctx.stroke();
-      ctx.fillStyle = '#6d28d9'; ctx.font = '800 ' + (R * 0.3) + 'px ' + Theme.fonts.ui; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('×÷', 0, R * 0.47);
-      // lengan
-      const wave = atk ? -0.55 : Math.sin(t * 2.4) * 0.12;
-      for (let s = -1; s <= 1; s += 2) {
-        ctx.save(); ctx.translate(s * R * 0.68, R * 0.2); ctx.rotate(s * (0.5 + wave) * (atk ? -1.4 : 1));
-        ctx.fillStyle = '#8b3fe0'; ctx.beginPath(); ctx.ellipse(s * R * 0.2, R * 0.12, R * 0.34, R * 0.17, s * 0.4, 0, 6.283); ctx.fill();
-        ctx.fillStyle = '#ffd9a8'; ctx.beginPath(); ctx.arc(s * R * 0.48, R * 0.22, R * 0.15, 0, 6.283); ctx.fill();
-        ctx.restore();
-      }
-      // kepala
-      g = ctx.createRadialGradient(-R * 0.15, -R * 0.65, R * 0.05, 0, -R * 0.45, R * 0.6);
-      g.addColorStop(0, '#fff0d6'); g.addColorStop(1, hurt ? '#ffb4b4' : '#f2b97a');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, -R * 0.42, R * 0.5, 0, 6.283); ctx.fill();
-      ctx.lineWidth = 3; ctx.strokeStyle = '#a8662c'; ctx.stroke();
-      // jenggot
-      ctx.fillStyle = '#fff'; ctx.beginPath();
-      ctx.moveTo(-R * 0.46, -R * 0.3); ctx.quadraticCurveTo(-R * 0.4, R * 0.28, 0, R * 0.3); ctx.quadraticCurveTo(R * 0.4, R * 0.28, R * 0.46, -R * 0.3);
-      ctx.quadraticCurveTo(0, -R * 0.12, -R * 0.46, -R * 0.3); ctx.fill();
-      ctx.lineWidth = 2.5; ctx.strokeStyle = '#c9c9d8'; ctx.stroke();
-      // kumis
-      ctx.fillStyle = '#f4f4fa'; ctx.beginPath(); ctx.ellipse(-R * 0.14, -R * 0.26, R * 0.16, R * 0.07, 0.25, 0, 6.283); ctx.ellipse(R * 0.14, -R * 0.26, R * 0.16, R * 0.07, -0.25, 0, 6.283); ctx.fill();
-      // mulut
-      ctx.fillStyle = '#7a1f2e';
-      ctx.beginPath(); ctx.ellipse(0, -R * 0.13, R * 0.12, (atk || hurt) ? R * 0.1 : R * 0.04, 0, 0, 6.283); ctx.fill();
-      // mata
-      for (let s = -1; s <= 1; s += 2) {
-        const ex = s * R * 0.2, ey = -R * 0.5;
-        if (hurt) {
-          ctx.strokeStyle = '#2a1a40'; ctx.lineWidth = 4; ctx.lineCap = 'round';
-          ctx.beginPath(); ctx.moveTo(ex - R * 0.08, ey - R * 0.07); ctx.lineTo(ex + R * 0.08, ey + R * 0.07); ctx.moveTo(ex + R * 0.08, ey - R * 0.07); ctx.lineTo(ex - R * 0.08, ey + R * 0.07); ctx.stroke();
-        } else {
-          ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(ex, ey, R * 0.12, 0, 6.283); ctx.fill();
-          ctx.lineWidth = 2; ctx.strokeStyle = '#6b4a2a'; ctx.stroke();
-          ctx.fillStyle = atk ? '#e11d48' : '#2a1a40'; ctx.beginPath(); ctx.arc(ex + Math.sin(t * 1.3) * R * 0.03, ey + R * 0.01, R * 0.06, 0, 6.283); ctx.fill();
-        }
-        ctx.strokeStyle = '#5b3a1a'; ctx.lineWidth = 4; ctx.lineCap = 'round'; // alis
-        ctx.beginPath(); ctx.moveTo(ex - s * R * 0.14, ey - R * 0.2 + (atk ? 0 : -R * 0.03)); ctx.lineTo(ex + s * R * 0.12, ey - R * (atk ? 0.1 : 0.17)); ctx.stroke();
-      }
-      // mahkota
-      ctx.fillStyle = '#ffd23f'; ctx.beginPath();
-      ctx.moveTo(-R * 0.42, -R * 0.78); ctx.lineTo(-R * 0.48, -R * 1.15); ctx.lineTo(-R * 0.2, -R * 0.98); ctx.lineTo(0, -R * 1.25);
-      ctx.lineTo(R * 0.2, -R * 0.98); ctx.lineTo(R * 0.48, -R * 1.15); ctx.lineTo(R * 0.42, -R * 0.78); ctx.closePath(); ctx.fill();
-      ctx.lineWidth = 3; ctx.strokeStyle = '#b8860b'; ctx.lineJoin = 'round'; ctx.stroke();
-      const gems = ['#ef4444', '#3b82f6', '#22c55e'];
-      for (let i = 0; i < 3; i++) { ctx.fillStyle = gems[i]; ctx.beginPath(); ctx.arc((i - 1) * R * 0.25, -R * 0.84, R * 0.06, 0, 6.283); ctx.fill(); }
+      if (b.defeated) {
+        const k = Math.min(1, Math.max(0, (b.defeatT - 0.6) / 1.6));
+        ctx.globalAlpha = 1 - k;
+        ctx.translate(b.x, b.y); ctx.scale(1 - 0.25 * k, 1 + 0.35 * k); ctx.translate(-b.x, -b.y - k * b.R * 0.4);
+      } else if (b.hurt > 0) ctx.translate(Math.sin(b.hurt * 60) * 4, 0);
+      else if (b.attackT > 0) ctx.translate(Math.sin(t * 60) * 3, 0);
+      drawFigure(ctx, b.x, b.y, b.R, t, mood);
       ctx.restore();
     }
   };
-  registry[RajaAngka.id] = RajaAngka;
+  registry[Penyihir.id] = Penyihir;
 
   /* ---------- instance boss ---------- */
   class Boss {
     constructor(def, cfg, pos, R) {
       this.def = def; this.cfg = cfg;
       this.x = pos.x; this.y = pos.y; this.R = R;
-      const extra = cfg.levelIndex >= 3 ? 1 : 0;
-      this.phases = def.phases.map(function (p, i) { return Object.assign({}, p, { hits: p.hits + (i === 2 ? extra : 0) }); });
+      const hits = cfg.hits || [3, 3, 3];
+      this.phases = def.phases.map(function (p, i) {
+        const q = Object.assign({}, p, { hits: hits[i] || 3 });
+        if (q.mixed && cfg.phase3Time) q.questionTime = cfg.phase3Time;
+        return q;
+      });
       this.maxHp = this.phases.reduce(function (s, p) { return s + p.hits; }, 0);
       this.hp = this.maxHp;
       this.phaseIdx = 0; this.inPhase = 0;
-      this.hurt = 0; this.attackT = 0; this.defeated = false; this.defeatT = 0;
+      this.hurt = 0; this.attackT = 0; this.castT = 0; this.defeated = false; this.defeatT = 0;
+      this.spellT = 0; this.spellQueue = [];
       this.speech = ''; this.speechT = 0;
       this.say(this.phases[0].say, 3.2);
     }
     get phase() { return this.phases[this.phaseIdx]; }
-    get topics() { return this.phase.mixed ? this.cfg.mixedTopics : this.cfg.levelTopics; }
+    get topics() { return this.phase.mixed ? this.cfg.mixedTopics : this.cfg.topics; }
     get name() { return this.def.name; }
     say(text, dur) { this.speech = text; this.speechT = dur || 2.2; }
+    resetSpellTimer() { const p = this.phase; this.spellT = p.spellEvery ? p.spellEvery * 0.7 : 0; }
 
     /** Jawaban benar: boss terluka. Hasil: 'hit' | 'phase' | 'defeat' */
     hit() {
       this.hp--; this.inPhase++; this.hurt = 0.5;
-      if (this.hp <= 0) { this.defeated = true; this.defeatT = 0; this.say(this.def.lines.defeat, 3); return 'defeat'; }
+      if (this.hp <= 0) { this.defeated = true; this.defeatT = 0; this.say(this.def.lines.defeat, 3.4); return 'defeat'; }
       if (this.inPhase >= this.phase.hits) {
         this.phaseIdx++; this.inPhase = 0;
-        this.say(this.phase.say, 3.4);
+        this.say(this.phase.say, 3.4); this.resetSpellTimer();
         return 'phase';
       }
       const l = this.def.lines.hit; this.say(l[Math.floor(Math.random() * l.length)], 1.4);
@@ -146,15 +146,28 @@
       this.attackT = 0.7;
       const l = this.def.lines.attack; this.say(l[Math.floor(Math.random() * l.length)], 1.5);
     }
+    /** Hitung mundur mantra. Mengembalikan nama mantra ('fog'|'frost'|'swap') saat waktunya, atau null. */
+    tick(dt) {
+      const p = this.phase;
+      if (this.defeated || !p.spells.length) return null;
+      this.spellT -= dt;
+      if (this.spellT > 0) return null;
+      this.spellT = p.spellEvery;
+      if (!this.spellQueue.length) this.spellQueue = p.spells.slice().sort(function () { return Math.random() - 0.5; });
+      const s = this.spellQueue.pop();
+      this.castT = 0.9; this.say(this.def.lines.spell[s], 1.6);
+      return s;
+    }
     update(dt) {
       if (this.hurt > 0) this.hurt -= dt;
       if (this.attackT > 0) this.attackT -= dt;
+      if (this.castT > 0) this.castT -= dt;
       if (this.speechT > 0) this.speechT -= dt;
       if (this.defeated) this.defeatT += dt;
     }
     draw(ctx, t) {
       this.def.draw(ctx, this, t);
-      if (this.speechT > 0 && !(this.defeated && this.defeatT > 2.4)) this.drawSpeech(ctx);
+      if (this.speechT > 0 && !(this.defeated && this.defeatT > 2.8)) this.drawSpeech(ctx);
     }
     drawSpeech(ctx) {
       const R = this.R, text = this.speech;
@@ -193,7 +206,7 @@
         const f = this.defeated ? 0 : left / p.hits;
         ctx.fillStyle = 'rgba(20,30,70,0.85)'; GA.Path.roundRect(ctx, x, cy, sw, h, 9); ctx.fill();
         if (f > 0) {
-          const g = ctx.createLinearGradient(0, cy, 0, cy + h); g.addColorStop(0, '#ff8a8a'); g.addColorStop(1, '#e11d48');
+          const g = ctx.createLinearGradient(0, cy, 0, cy + h); g.addColorStop(0, '#d9a8ff'); g.addColorStop(1, '#7c3aed');
           ctx.fillStyle = g; GA.Path.roundRect(ctx, x + 3, cy + 3, Math.max(10, (sw - 6) * f), h - 6, 7); ctx.fill();
         }
         ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; GA.Path.roundRect(ctx, x, cy, sw, h, 9); ctx.stroke();
@@ -205,8 +218,9 @@
   GA.Bosses = {
     register: function (def) { registry[def.id] = def; },
     get: function (id) { return registry[id]; },
+    drawFigure: drawFigure,
     create: function (cfg, pos, R) {
-      const def = registry[cfg.id] || registry['raja-angka'];
+      const def = registry[cfg.id] || registry.penyihir;
       return new Boss(def, cfg, pos, R);
     }
   };

@@ -1,10 +1,10 @@
-/* ui.js — menu & overlay (DOM) dan HUD (digambar di canvas).
+/* ui.js — layar (DOM) dan HUD (digambar di canvas). Menu pilih kategori ada di menu.js, cerita di story.js.
  * Teks antarmuka: Bahasa Indonesia. */
 (function (GA) {
   'use strict';
-  const Theme = GA.Theme, Storage = GA.Storage;
+  const Theme = GA.Theme, Storage = GA.Storage, MT = GA.MathText;
 
-  let root = null, H = null, countdownTimer = null, hudBtn = null, pauseOpen = false, toastTimer = 0;
+  let root = null, H = null, countdownTimer = null, hudBtn = null, pauseOpen = false, toastTimer = 0, mascotRaf = 0;
   const screens = {};
 
   function el(html) { const d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstChild; }
@@ -18,10 +18,10 @@
   /* ---------- popup JEDA (desain Figma 123:122; gaya di css/pause.css) ---------- */
   // Teks sub-judul humor: [baris 1, baris 2]. Satu dipilih acak tiap popup dibuka. Silakan ganti/tambah.
   const PAUSE_QUOTES = [
-    ['Tertidur menghitung domba?', 'Saatnya kembali bermain!'],
-    ['Capek berhitung?', 'Tarik napas, lalu lanjutkan!'],
-    ['Kodok sedang istirahat.', 'Siap lanjut berpetualang?'],
-    ['Angka-angkanya menunggu, lho!', 'Yuk, lanjutkan permainan!']
+    ['Naga sedang tidur siang.', 'Telur-telur aman, untuk sementara!'],
+    ['Api naga perlu diisi ulang?', 'Tarik napas, lalu semburkan lagi!'],
+    ['Penyihir lagi minum teh.', 'Cepat, lanjutkan sebelum ia kembali!'],
+    ['Angka-angkanya menunggu, lho!', 'Yuk, lanjutkan petualangan!']
   ];
 
   function pauseHTML() {
@@ -63,7 +63,7 @@
             '<span class="pz-ad" aria-hidden="true">AD</span><span class="pz-ribbon" aria-hidden="true">GRATIS</span>' +
           '</button>' +
         '</div>' +
-        '<div class="pz-mascot"><img src="assets/frog-sleeping.jpg" alt="Kodok maskot sedang tidur nyenyak" width="136" height="136"></div>' +
+        '<div class="pz-mascot"><canvas id="pz-mascot-cv" width="272" height="272" role="img" aria-label="Naga penjaga sedang tidur nyenyak di samping sarangnya"></canvas></div>' +
       '</div></div></div></div>' +
       '<div class="pz-confirm" id="pz-confirm" role="alertdialog" aria-modal="true" aria-labelledby="pzc-title" aria-describedby="pzc-text">' +
         '<div class="pz-ccard"><h3 id="pzc-title"></h3><p id="pzc-text"></p>' +
@@ -78,24 +78,20 @@
   const TPL = {
     title:
       '<section class="screen" id="s-title"><div class="menu-card">' +
-      '<div class="logo"><span class="l1">Zuma</span><span class="l2">Matematika</span></div>' +
-      '<p class="tagline">Tembak bola yang berisi jawaban yang benar!</p>' +
-      '<button class="btn btn-primary btn-big" data-act="play">▶ Main</button>' +
-      '<button class="btn" data-act="levels">🗺️ Pilih Level</button>' +
-      '<div class="row"><button class="btn btn-small" data-act="settings">⚙️ Pengaturan</button>' +
-      '<button class="btn btn-small" data-act="howto">❓ Cara Bermain</button></div>' +
+      '<div class="logo"><span class="l1">Naga</span><span class="l2">Penjaga</span></div>' +
+      '<p class="tagline">Semburkan bola api berangka, selamatkan telur-telur naga dari Penyihir Jahat!</p>' +
+      '<button class="btn btn-primary btn-big" data-act="play">▶ Mulai Petualangan</button>' +
+      '<div class="row"><button class="btn btn-small" data-act="howto">❓ Cara Bermain</button>' +
+      '<button class="btn btn-small" data-act="settings">⚙️ Pengaturan</button></div>' +
       '<p class="stat">Skor tertinggi <b id="t-hi">0</b> · ★ <b id="t-stars">0</b></p>' +
       '</div></section>',
-
-    levels:
-      '<section class="screen scroll dim" id="s-levels"><div class="panel wide">' +
-      '<div class="panel-head"><button class="btn btn-small" data-act="back">← Kembali</button><h2>Pilih Level</h2><span class="stat">★ <b id="l-stars">0</b></span></div>' +
-      '<div id="level-grid"></div></div></section>',
 
     settings:
       '<section class="screen dim" id="s-settings"><div class="panel">' +
       '<h2>Pengaturan</h2>' +
       '<button class="btn" data-act="sound"><span data-sound-label></span></button>' +
+      '<button class="btn" data-act="music"><span data-music-label></span></button>' +
+      '<button class="btn" data-act="replay-story">📖 Lihat Cerita Lagi</button>' +
       '<button class="btn btn-danger" data-act="reset" id="btn-reset">Hapus Semua Progres</button>' +
       '<button class="btn btn-primary" data-act="back">← Kembali</button>' +
       '</div></section>',
@@ -103,25 +99,31 @@
     howto:
       '<section class="screen scroll dim" id="s-howto"><div class="panel wide"><h2>Cara Bermain</h2>' +
       '<ul class="howto">' +
-      '<li><b>🎯 Tujuan</b> Soal tampil di atas layar. Tembak bola yang berisi <b>jawaban yang benar</b>.</li>' +
-      '<li><b>👆 Membidik</b> Mouse: arahkan lalu klik. Layar sentuh: geser untuk membidik, lepas untuk menembak.</li>' +
-      '<li><b>🔄 Tukar bola</b> Ketuk katak (atau bola kecil di sampingnya) untuk menukar. Angka <b>×1 ×2 ×3</b> pada bola tembak adalah pengali skor.</li>' +
-      '<li><b>♟️ Nyawa</b> Ada 5 pion. Nyawa berkurang jika jawaban salah, peluru mengenai rintangan, atau rantai masuk lubang <b>FINISH</b>.</li>' +
-      '<li><b>🪨 Rintangan</b> Batu menghalangi peluru; rintangan bergerak harus ditunggu waktunya.</li>' +
-      '<li class="legend"><span data-icon="bomb"></span><span><b>Bom</b> jangan ditembak!</span></li>' +
-      '<li class="legend"><span data-icon="ice"></span><span><b>Es</b> memperlambat rantai.</span></li>' +
-      '<li class="legend"><span data-icon="bolt"></span><span><b>Petir</b> mempercepat rantai, hindari!</span></li>' +
-      '<li class="legend"><span data-icon="life"></span><span><b>Hati</b> menambah satu nyawa.</span></li>' +
-      '<li><b>👑 Boss</b> Setiap level ditutup oleh Raja Angka. Jawab benar untuk melukainya!</li>' +
-      '<li><b>⌨️ Papan ketik</b> ← → membidik, Spasi menembak, Q menukar, P jeda.</li>' +
+      '<li><b>🐉 Tujuan</b> Soal tampil di atas layar. Semburkan bola api ke <b>bola sihir yang berisi jawaban yang benar</b>. Ada 3 step; step terakhir melawan Penyihir Jahat.</li>' +
+      '<li><b>👆 Membidik</b> Mouse: arahkan lalu klik. Layar sentuh: geser untuk membidik, lepas untuk menembak. Papan ketik: ← → membidik, Spasi menembak, Q menukar, P jeda.</li>' +
+      '<li><b>🔄 Tukar bola api</b> Ketuk naga (atau bola kecil di dadanya) untuk menukar. Angka <b>×1 ×2 ×3</b> adalah pengali skor.</li>' +
+      '<li><b>🥚 Telur</b> Kamu punya 5 telur. Satu telur hilang jika jawaban salah, peluru kena rintangan, atau bola sihir sampai ke sarang. Telur emas menambah satu telur!</li>' +
+      '<li class="legend"><span data-icon="curse"></span><span><b>Bola kutukan</b> jangan ditembak!</span></li>' +
+      '<li class="legend"><span data-icon="frost"></span><span><b>Bola beku</b> memperlambat rantai.</span></li>' +
+      '<li class="legend"><span data-icon="egg"></span><span><b>Telur emas</b> menyembuhkan satu telur.</span></li>' +
+      '<li><b>🌿 Rintangan</b> Step 1: akar berduri, kabut sihir. Step 2: kristal pemantul, lahar &amp; petir, kelelawar penukar angka, dan naga bisa beku sejenak.</li>' +
+      '<li><b>🧙 Boss</b> Penyihir Jahat punya 3 fase dengan mantra kabut, es, dan tukar angka. Fase 3 mencampur semua kategori dan ada batas waktu.</li>' +
       '</ul><button class="btn btn-primary" data-act="back">← Kembali</button></div></section>',
+
+    story:
+      '<section class="screen dim scroll" id="s-story"><div class="panel story" role="dialog" aria-modal="true" aria-labelledby="st-title">' +
+      '<canvas id="st-art" class="st-art" width="480" height="300" aria-hidden="true"></canvas>' +
+      '<h2 id="st-title"></h2><p class="st-text" id="st-text"></p>' +
+      '<div class="st-dots" id="st-dots" aria-hidden="true"></div>' +
+      '<div class="row"><button class="btn btn-small" data-act="story-skip" id="st-skip">Lewati</button>' +
+      '<button class="btn btn-primary" data-act="story-next" id="st-next">Lanjut ▶</button></div>' +
+      '</div></section>',
 
     intro: '<section class="screen dim scroll" id="s-intro"><div class="panel intro" id="intro-card"></div></section>',
 
     pause: pauseHTML(),
 
-    over: '<section class="screen dim" id="s-over"><div class="panel" id="over-card"></div></section>',
-    clear: '<section class="screen dim scroll" id="s-clear"><div class="panel" id="clear-card"></div></section>'
+    result: '<section class="screen dim scroll" id="s-result"><div class="panel" id="result-card"></div></section>'
   };
 
   /* ---------- API UI (DOM) ---------- */
@@ -161,6 +163,11 @@
       this.syncSound();
     },
 
+    /** Daftarkan layar tambahan (mis. menu pilih kategori dari menu.js). */
+    addScreen: function (name, node) { root.appendChild(node); screens[name] = node; },
+    /** Penangan tindakan data-act yang tidak dikenal UI (diisi menu.js). */
+    extra: null,
+
     specialIcon: function (kind, size) {
       const c = document.createElement('canvas'), d = window.devicePixelRatio || 1;
       c.width = c.height = size * d; c.style.width = c.style.height = size + 'px';
@@ -171,27 +178,31 @@
 
     act: function (a, b) {
       switch (a) {
-        case 'play': { const o = GA.Levels.firstOpen(); H.stage(o.l, o.s); break; }
-        case 'levels': this.buildLevels(); this.show('levels'); break;
+        case 'play': GA.Menu.open(); break;
         case 'settings': this.resetArm(false); this.show('settings'); break;
         case 'howto': this.show('howto'); break;
         case 'back': this.refreshTitle(); this.show('title'); break;
         case 'sound': H.toggleSound(); break;
+        case 'music': H.toggleMusic(); break;
+        case 'replay-story': H.replayStory(); break;
         case 'reset':
           if (!b.dataset.armed) { this.resetArm(true); } else { Storage.reset(); this.resetArm(false); this.refreshTitle(); b.textContent = 'Progres dihapus ✓'; }
           break;
-        case 'stage': H.stage(+b.dataset.l, +b.dataset.s); break;
+        case 'story-next': this.storyNext(); break;
+        case 'story-skip': this.storyEnd(); break;
         case 'go': H.introGo(); break;
         case 'p-resume': H.resume(); break;
         case 'p-sound': H.toggleSound(); break;
         case 'p-booster': this.onBoosterClick(); break;
-        case 'p-restart': this.confirmOr('Ulangi stage?', 'Progres stage ini akan hilang dan kamu mulai dari awal.', 'Ya, ulangi', H.restart, b); break;
-        case 'p-quit': this.confirmOr('Kembali ke menu?', 'Progres stage ini akan hilang.', 'Ya, ke menu', H.quit, b); break;
+        case 'p-restart': this.confirmOr('Ulangi step ini?', 'Progres step ini akan hilang dan kamu mulai lagi dari awal step.', 'Ya, ulangi', H.restart, b); break;
+        case 'p-quit': this.confirmOr('Kembali ke menu?', 'Progres petualangan ini akan hilang.', 'Ya, ke menu', H.quit, b); break;
         case 'c-no': this.closeConfirm(true); break;
         case 'c-yes': { const fn = this._confirmFn; this.closeConfirm(false); if (fn) fn(); break; }
-        case 'restart': H.restart(); break;
+        case 'next-step': H.nextStep(); break;
+        case 'again': H.again(); break;
+        case 'to-menu': H.toMenu(); break;
         case 'quit': H.quit(); break;
-        case 'next': H.next(); break;
+        default: if (this.extra) this.extra(a, b);
       }
     },
 
@@ -203,18 +214,21 @@
 
     show: function (name) {
       if (pauseOpen && name !== 'pause') this.leavePause(false);
+      if (name !== 'story') this.stopStoryAnim();
       Object.keys(screens).forEach(function (k) { screens[k].classList.toggle('show', k === name); });
       const s = screens[name]; if (s) s.scrollTop = 0;
     },
     hide: function () {
       if (pauseOpen) this.leavePause(false);
+      this.stopStoryAnim();
       Object.keys(screens).forEach(function (k) { screens[k].classList.remove('show'); });
     },
     isOpen: function () { return Object.keys(screens).some(function (k) { return screens[k].classList.contains('show'); }); },
 
     syncSound: function () {
-      const on = GA.Audio.isEnabled();
-      root.querySelectorAll('[data-sound-label]').forEach(function (n) { n.textContent = on ? '🔊 Suara: Nyala' : '🔇 Suara: Mati'; });
+      const on = GA.Audio.isEnabled(), mu = GA.Audio.isMusic();
+      root.querySelectorAll('[data-sound-label]').forEach(function (n) { n.textContent = on ? '🔊 Efek Suara: Nyala' : '🔇 Efek Suara: Mati'; });
+      root.querySelectorAll('[data-music-label]').forEach(function (n) { n.textContent = mu ? '🎵 Musik: Nyala' : '🎵 Musik: Mati'; });
       const sw = root.querySelector('.pz-toggle');
       if (sw) { sw.setAttribute('aria-checked', on ? 'true' : 'false'); document.getElementById('pz-state').textContent = on ? 'NYALA' : 'MATI'; }
     },
@@ -224,41 +238,66 @@
       document.getElementById('t-stars').textContent = Storage.totalStars();
     },
 
-    buildLevels: function () {
-      const grid = document.getElementById('level-grid');
-      document.getElementById('l-stars').textContent = Storage.totalStars();
-      let html = '';
-      GA.Levels.list.forEach(function (lv, l) {
-        const n = GA.Levels.stageCount(l);
-        let btns = '';
-        for (let s = 0; s < n; s++) {
-          const id = GA.Levels.id(l, s), st = Storage.stage(id), open = GA.Levels.isUnlocked(l, s), boss = s === n - 1;
-          btns += '<button class="stage-btn' + (boss ? ' boss' : '') + (st.done ? ' done' : '') + '" data-act="stage" data-l="' + l + '" data-s="' + s + '"' + (open ? '' : ' disabled') +
-            ' aria-label="' + (boss ? 'Boss level ' : 'Level ') + (l + 1) + (boss ? '' : ' stage ' + (s + 1)) + (open ? '' : ' (terkunci)') + '">' +
-            '<span class="sb-main">' + (open ? (boss ? '👑' : (s + 1)) : '🔒') + '</span>' +
-            '<span class="sb-stars">' + starsHTML(st.stars) + '</span></button>';
-        }
-        html += '<div class="level-card" style="--c:' + lv.color + '"><div class="lc-head"><span class="lc-num">' + (l + 1) + '</span><div><h3>' + esc(lv.name) + '</h3><p>' + esc(lv.subtitle) + '</p></div></div><div class="stage-row">' + btns + '</div></div>';
-      });
-      grid.innerHTML = html;
+    /* ---------- cerita (panel bergambar) ---------- */
+    /** list: Story.intro / win / lose. opts: { onDone, skippable }. */
+    showStory: function (list, opts) {
+      this._story = { list: list, i: 0, onDone: (opts && opts.onDone) || null, skippable: !(opts && opts.skippable === false) };
+      document.getElementById('st-skip').style.display = this._story.skippable ? '' : 'none';
+      this.drawStoryPanel();
+      this.show('story');
+      this.startStoryAnim();
     },
+    drawStoryPanel: function () {
+      const s = this._story, p = GA.Story.panel(s.list, s.i);
+      s.art = p.art;
+      document.getElementById('st-title').textContent = p.title;
+      document.getElementById('st-text').textContent = p.text;
+      let dots = ''; for (let i = 0; i < s.list.length; i++) dots += '<i' + (i === s.i ? ' class="on"' : '') + '></i>';
+      document.getElementById('st-dots').innerHTML = dots;
+      document.getElementById('st-next').textContent = s.i >= s.list.length - 1 ? 'Mulai ▶' : 'Lanjut ▶';
+    },
+    storyNext: function () {
+      const s = this._story; if (!s) return;
+      if (s.i >= s.list.length - 1) { this.storyEnd(); return; }
+      s.i++; this.drawStoryPanel();
+    },
+    storyEnd: function () {
+      const s = this._story; this._story = null; this.stopStoryAnim();
+      if (s && s.onDone) s.onDone();
+    },
+    startStoryAnim: function () {
+      const cv = document.getElementById('st-art'), g = cv.getContext('2d'), self = this; let t0 = performance.now();
+      this.stopStoryAnim();
+      const frame = function (now) {
+        const s = self._story; if (!s) return;
+        g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, cv.width, cv.height);
+        g.save(); g.scale(cv.width / 240, cv.height / 150);
+        GA.Story.drawArt(g, s.art, 240, 150, (now - t0) / 1000);
+        g.restore();
+        self._storyRaf = requestAnimationFrame(frame);
+      };
+      this._storyRaf = requestAnimationFrame(frame);
+    },
+    stopStoryAnim: function () { cancelAnimationFrame(this._storyRaf); this._storyRaf = 0; },
 
-    /** Layar pembuka stage. info: { heading, name, label, example, rangeText, specials[], boss } */
+    /** Layar pembuka step. info: { tag, place, story, catName, catIcon, exampleHtml, rangeText, notes[], specials[], diffName } */
     showIntro: function (info) {
       const sp = info.specials || [];
-      const legend = { bomb: ['Bom', 'jangan ditembak!'], ice: ['Es', 'rantai melambat'], bolt: ['Petir', 'rantai ngebut, hindari!'], life: ['Hati', '+1 nyawa'] };
+      const legend = { curse: ['Bola kutukan', 'jangan ditembak!'], frost: ['Bola beku', 'rantai melambat'], egg: ['Telur emas', '+1 telur'] };
       let lg = '';
-      sp.forEach(function (k) { lg += '<li><span data-icon="' + k + '"></span><span><b>' + legend[k][0] + '</b> ' + legend[k][1] + '</span></li>'; });
+      sp.forEach(function (k) { if (legend[k]) lg += '<li><span data-icon="' + k + '"></span><span><b>' + legend[k][0] + '</b> ' + legend[k][1] + '</span></li>'; });
+      const notes = (info.notes || []).map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('');
       const card = document.getElementById('intro-card');
       card.innerHTML =
-        '<p class="eyebrow">' + esc(info.heading) + '</p>' +
-        '<h2>' + esc(info.name) + '</h2>' +
-        '<p class="chip">Materi: ' + esc(info.label) + '</p>' +
-        '<div class="example"><span class="ex-label">Contoh soal</span><span class="ex-text">' + esc(info.example) + '</span></div>' +
-        '<p class="hintline">💡 ' + esc(info.rangeText) + '. ' + esc(info.tip || '') + '</p>' +
-        (info.extra ? '<p class="hintline">' + esc(info.extra) + '</p>' : '') +
+        '<p class="eyebrow">' + esc(info.tag) + ' · ' + esc(info.diffName) + '</p>' +
+        '<h2>' + esc(info.place) + '</h2>' +
+        '<p class="hintline">' + esc(info.story) + '</p>' +
+        '<p class="chip">' + esc(info.catIcon) + ' ' + esc(info.catName) + '</p>' +
+        '<div class="example"><span class="ex-label">Contoh soal</span><span class="ex-text">' + info.exampleHtml + '</span></div>' +
+        '<p class="hintline">💡 ' + esc(info.rangeText) + '.</p>' +
+        (notes ? '<ul class="obst-list">' + notes + '</ul>' : '') +
         (lg ? '<ul class="legend-list">' + lg + '</ul>' : '') +
-        '<p class="startnote">🟢 <b>START</b>: bola muncul di sini · 🏁 <b>FINISH</b>: lubang akhir, jangan sampai kena!</p>' +
+        '<p class="startnote">🟣 <b>MUNCUL</b>: bola sihir masuk di sini · 🥚 <b>SARANG</b>: jangan sampai bola sampai ke sini!</p>' +
         '<button class="btn btn-primary btn-big" data-act="go">Mulai! ▶</button>';
       card.querySelectorAll('[data-icon]').forEach(function (n) { n.appendChild(UI.specialIcon(n.getAttribute('data-icon'), 34)); });
       this.show('intro');
@@ -289,6 +328,12 @@
     /** Placeholder: sambungkan ke iklan/reward sungguhan nanti. Belum ada SDK iklan apa pun. */
     onBoosterClick: function () { this.toast('Segera hadir'); },
 
+    drawMascot: function (t) {
+      const cv = document.getElementById('pz-mascot-cv'); if (!cv) return;
+      const g = cv.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, cv.width, cv.height);
+      GA.Dragon.drawSleeping(g, cv.width, cv.height, t);
+    },
+
     showPause: function (info) {
       info = info || {};
       const q = PAUSE_QUOTES[Math.floor(Math.random() * PAUSE_QUOTES.length)];
@@ -301,6 +346,11 @@
       this.fitPause();
       document.getElementById('game').inert = true; hudBtn.inert = true;
       window.addEventListener('resize', this._onPauseResize);
+      // naga tidur bernapas pelan (animasi DOM; permainan di belakang tetap beku)
+      const t0 = performance.now(), self = this;
+      cancelAnimationFrame(mascotRaf);
+      const loop = function (now) { if (!pauseOpen) return; self.drawMascot((now - t0) / 1000); mascotRaf = requestAnimationFrame(loop); };
+      mascotRaf = requestAnimationFrame(loop);
       document.getElementById('pz-first').focus({ preventScroll: true });
     },
 
@@ -308,7 +358,7 @@
     hidePause: function () { if (pauseOpen) { this.leavePause(true); screens.pause.classList.remove('show'); } },
 
     leavePause: function (focusBack) {
-      pauseOpen = false;
+      pauseOpen = false; cancelAnimationFrame(mascotRaf);
       this.closeConfirm(false);
       clearTimeout(toastTimer); document.getElementById('pz-toast').classList.remove('show');
       window.removeEventListener('resize', this._onPauseResize);
@@ -331,7 +381,7 @@
 
     confirmOpen: function () { return document.getElementById('pz-confirm').classList.contains('show'); },
 
-    /** Konfirmasi ringan hanya jika progres stage akan hilang; selain itu langsung jalan. */
+    /** Konfirmasi ringan hanya jika progres akan hilang; selain itu langsung jalan. */
     confirmOr: function (title, text, yes, fn, opener) {
       if (!(H.hasProgress && H.hasProgress())) { fn(); return; }
       this._confirmFn = fn; this._confirmOpener = opener || null;
@@ -368,29 +418,35 @@
     },
     setHudButton: function (on) { hudBtn.classList.toggle('on', !!on); },
 
-    showOver: function (r) {
-      document.getElementById('over-card').innerHTML =
-        '<h2 class="bad">Yah, nyawa habis!</h2>' +
-        '<p class="big-score">Skor <b>' + r.score + '</b></p>' +
-        '<p class="stat">' + esc(r.reason || '') + '</p>' +
-        '<button class="btn btn-primary btn-big" data-act="restart">↻ Coba Lagi</button>' +
-        '<button class="btn" data-act="quit">🏠 Menu Utama</button>';
-      this.show('over');
-    },
-
-    /** r: { title, subtitle, stars, score, accuracy, newBest, canNext, nextLabel, final } */
-    showClear: function (r) {
-      document.getElementById('clear-card').innerHTML =
+    /** Selesai satu step (bukan terakhir). r: { title, subtitle, stars, score, detail, bonus, eggs, maxEggs, nextLabel } */
+    showStepDone: function (r) {
+      document.getElementById('result-card').innerHTML =
         '<p class="eyebrow">' + esc(r.eyebrow || '') + '</p>' +
         '<h2 class="good">' + esc(r.title) + '</h2>' +
         (r.subtitle ? '<p class="stat">' + esc(r.subtitle) + '</p>' : '') +
         '<div class="stars">' + starsHTML(r.stars) + '</div>' +
         '<p class="big-score">Skor <b>' + r.score + '</b></p>' +
-        '<p class="stat">' + esc(r.detail || '') + (r.newBest ? ' · <b class="good">Rekor baru!</b>' : '') + '</p>' +
-        (r.canNext ? '<button class="btn btn-primary btn-big" data-act="next">' + esc(r.nextLabel || 'Lanjut') + ' ▶</button>' : '') +
-        '<button class="btn" data-act="restart">↻ Ulangi</button>' +
-        '<button class="btn" data-act="quit">🏠 Menu Utama</button>';
-      this.show('clear');
+        '<p class="eggrow" aria-label="Telur tersisa ' + r.eggs + ' dari ' + r.maxEggs + '">' + eggsHTML(r.eggs, r.maxEggs) + (r.bonus ? ' <b class="good">+1 telur!</b>' : '') + '</p>' +
+        '<p class="stat">' + esc(r.detail || '') + '</p>' +
+        '<button class="btn btn-primary btn-big" data-act="next-step">' + esc(r.nextLabel || 'Lanjut') + ' ▶</button>' +
+        '<button class="btn btn-small" data-act="quit">🏠 Menu Utama</button>';
+      this.show('result');
+    },
+
+    /** Hasil akhir. r: { win, title, subtitle, steps:[{name,stars}], score, newBest, high, eggs, maxEggs, detail } */
+    showResult: function (r) {
+      const steps = (r.steps || []).map(function (s) { return '<li><span>' + esc(s.name) + '</span><span class="stars sm">' + starsHTML(s.stars) + '</span></li>'; }).join('');
+      document.getElementById('result-card').innerHTML =
+        '<h2 class="' + (r.win ? 'good' : 'bad') + '">' + esc(r.title) + '</h2>' +
+        (r.subtitle ? '<p class="stat">' + esc(r.subtitle) + '</p>' : '') +
+        (steps ? '<ul class="step-stars">' + steps + '</ul>' : '') +
+        '<p class="big-score">Skor <b>' + r.score + '</b></p>' +
+        '<p class="stat">Skor tertinggi <b>' + r.high + '</b>' + (r.newBest ? ' · <b class="good">Rekor baru!</b>' : '') + '</p>' +
+        '<p class="eggrow" aria-label="Telur tersisa ' + r.eggs + ' dari ' + r.maxEggs + '">' + eggsHTML(r.eggs, r.maxEggs) + '</p>' +
+        '<p class="stat">' + esc(r.detail || '') + '</p>' +
+        '<button class="btn btn-primary btn-big" data-act="again">↻ Main Lagi</button>' +
+        '<div class="row"><button class="btn btn-small" data-act="to-menu">🎯 Ganti Kategori</button><button class="btn btn-small" data-act="quit">🏠 Menu Utama</button></div>';
+      this.show('result');
     },
 
     /* ---------- HUD (canvas) ---------- */
@@ -405,15 +461,16 @@
       return x >= m.x - pad && x <= m.x + m.w + pad && y >= m.y - pad && y <= m.y + m.h + pad;
     },
 
-    drawPawn: function (ctx, x, y, s, filled, t) {
+    /** Telur di HUD: s = lebar kira-kira; filled = ada, kosong = redup dengan retakan. */
+    drawEggIcon: function (ctx, x, y, s, filled, t, tint) {
       ctx.save(); ctx.translate(x, y);
-      if (!filled) ctx.globalAlpha = 0.35;
-      const g = ctx.createLinearGradient(-s * 0.4, -s * 0.6, s * 0.4, s * 0.5);
-      if (filled) { g.addColorStop(0, '#ff9ab0'); g.addColorStop(1, '#e11d48'); } else { g.addColorStop(0, '#b7c2dd'); g.addColorStop(1, '#6b7a9c'); }
-      ctx.fillStyle = g; ctx.strokeStyle = filled ? '#fff' : '#cfd8ee'; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
-      ctx.beginPath(); ctx.arc(0, -s * 0.52, s * 0.27, 0, 6.283); ctx.fill(); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(-s * 0.15, -s * 0.28); ctx.lineTo(s * 0.15, -s * 0.28); ctx.lineTo(s * 0.34, s * 0.3); ctx.lineTo(-s * 0.34, s * 0.3); ctx.closePath(); ctx.fill(); ctx.stroke();
-      GA.Path.roundRect(ctx, -s * 0.44, s * 0.28, s * 0.88, s * 0.2, s * 0.08); ctx.fill(); ctx.stroke();
+      if (!filled) ctx.globalAlpha = 0.3;
+      const w = s * 0.34, h = s * 0.46;
+      const g = ctx.createRadialGradient(-w * 0.3, -h * 0.35, 1, 0, 0, h * 1.1);
+      if (filled) { g.addColorStop(0, '#fff'); g.addColorStop(0.4, tint[0]); g.addColorStop(1, tint[1]); } else { g.addColorStop(0, '#d9d2c4'); g.addColorStop(1, '#8a8478'); }
+      ctx.fillStyle = g; ctx.strokeStyle = filled ? '#fff' : '#cfc8ba'; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+      GA.Chain.eggPath(ctx, 0, 0, w, h); ctx.fill(); ctx.stroke();
+      if (filled) { ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.ellipse(-w * 0.3, -h * 0.35, w * 0.16, h * 0.22, -0.4, 0, 6.283); ctx.fill(); }
       ctx.restore();
     },
 
@@ -427,21 +484,27 @@
     /** Gambar HUD. run: lihat main.js. L: layout. */
     drawHUD: function (ctx, run, L, t) {
       const m = this.hudMetrics(L), W = L.W, por = L.portrait;
-      // panel
+      // panel (batu malam kebiruan, sesuai tema fantasi)
       const g = ctx.createLinearGradient(0, 0, 0, m.h);
-      g.addColorStop(0, '#1d4f9a'); g.addColorStop(1, '#16386f');
+      g.addColorStop(0, '#2a1d5e'); g.addColorStop(1, '#1a1240');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, m.h);
-      ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.fillRect(0, m.h - 3, W, 3);
+      ctx.fillStyle = 'rgba(255,214,140,0.35)'; ctx.fillRect(0, m.h - 3, W, 3);
       ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(0, m.h, W, 5);
 
       ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
       // skor
-      ctx.fillStyle = '#9fc2ff'; ctx.font = '700 13px ' + Theme.fonts.ui; ctx.fillText('SKOR', 14, por ? 22 : 24);
+      ctx.fillStyle = '#c9b6ff'; ctx.font = '700 13px ' + Theme.fonts.ui; ctx.fillText('SKOR', 14, por ? 22 : 24);
       ctx.fillStyle = '#ffd23f'; ctx.font = '800 ' + (por ? 30 : 32) + 'px ' + Theme.fonts.ui;
       ctx.fillText(String(Math.round(run.scoreShown)), 14, por ? 54 : 56);
-      ctx.fillStyle = '#cfe0ff'; ctx.font = '700 13px ' + Theme.fonts.ui;
-      ctx.fillText(run.stageTag, 14, por ? 70 : 76);
-      // tombol menu
+      // progres step: tiga titik + nama
+      // potret: sejajar dengan label SKOR (panel soal ada di bawahnya); lanskap: di bawah skor
+      const dy = por ? 17 : 72, dx0 = por ? 64 : 20;
+      for (let i = 0; i < 3; i++) {
+        ctx.fillStyle = i < run.stepNo - 1 ? '#7ee26f' : (i === run.stepNo - 1 ? '#ffd23f' : 'rgba(255,255,255,0.25)');
+        ctx.beginPath(); ctx.arc(dx0 + i * 16, dy, 5, 0, 6.283); ctx.fill();
+      }
+      ctx.fillStyle = '#e6dcff'; ctx.font = '700 13px ' + Theme.fonts.ui; ctx.fillText(run.stepNo + '/3', dx0 + 3 * 16 - 4, dy + 5);
+      // tombol jeda
       const p = m.pause;
       ctx.fillStyle = 'rgba(0,0,0,0.25)'; GA.Path.roundRect(ctx, p.x, p.y + 3, p.w, p.h, 16); ctx.fill();
       const bg = ctx.createLinearGradient(0, p.y, 0, p.y + p.h); bg.addColorStop(0, '#ffd23f'); bg.addColorStop(1, '#ff9a1f');
@@ -451,28 +514,29 @@
       const bw = p.w * 0.14, bh = p.h * 0.42, cx = p.x + p.w / 2, cy = p.y + p.h / 2;
       GA.Path.roundRect(ctx, cx - bw * 1.6, cy - bh / 2, bw, bh, 3); ctx.fill();
       GA.Path.roundRect(ctx, cx + bw * 0.6, cy - bh / 2, bw, bh, 3); ctx.fill();
-      // nyawa (pion)
-      const ps = por ? 30 : 34, lx1 = p.x - 14, n = run.maxLives;
+      // telur (nyawa)
+      const es = por ? 34 : 38, lx1 = p.x - 12, n = run.maxLives, TINTS = [['#fff3c4', '#f2c75c'], ['#ffd6ea', '#e88ab8'], ['#d2f3ff', '#6cc3ea'], ['#e2ffd2', '#7dcf5a'], ['#e8d9ff', '#a98af0'], ['#ffe1c4', '#f08a4a']];
       for (let i = 0; i < n; i++) {
-        const x = lx1 - (n - i - 0.5) * (ps + 4) + 2;
-        const lost = run.lifeLostT > 0 && i === run.lives; // pion yang baru hilang bergetar
-        this.drawPawn(ctx, x + (lost ? Math.sin(t * 60) * 3 : 0), (por ? 32 : 42) + (lost ? -4 : 0), ps, i < run.lives, t);
+        const x = lx1 - (n - i - 0.5) * (es * 0.72) + es * 0.2;
+        const lost = run.lifeLostT > 0 && i === run.lives; // telur yang baru hilang bergetar
+        this.drawEggIcon(ctx, x + (lost ? Math.sin(t * 60) * 3 : 0), (por ? 32 : 40) + (lost ? -4 : 0), es, i < run.lives, t, TINTS[i % TINTS.length]);
       }
 
       // panel soal
       let qx, qy, qw, qh;
       if (por) { qx = 12; qy = 74; qw = W - 24; qh = 60; } else { qx = 190; qy = 6; qw = W - 190 - 300; qh = 62; }
       ctx.fillStyle = 'rgba(0,0,0,0.25)'; GA.Path.roundRect(ctx, qx, qy + 3, qw, qh, 18); ctx.fill();
-      ctx.fillStyle = '#fff'; GA.Path.roundRect(ctx, qx, qy, qw, qh, 18); ctx.fill();
+      ctx.fillStyle = '#fffaf0'; GA.Path.roundRect(ctx, qx, qy, qw, qh, 18); ctx.fill();
       ctx.lineWidth = 3; ctx.strokeStyle = '#ffd23f'; ctx.stroke();
       const q = run.q;
       if (q) {
         const pop = run.qPop > 0 ? 1 + run.qPop * 0.3 : 1;
-        ctx.save(); ctx.translate(qx + qw / 2, qy + qh / 2 + (q.note ? -7 : 1)); ctx.scale(pop, pop);
-        const size = this.fit(ctx, q.text, qw - 30, por ? 44 : 42);
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#1b2a49';
-        ctx.fillText(q.text, 0, 0); ctx.restore();
-        if (q.note) { ctx.font = '700 14px ' + Theme.fonts.ui; ctx.fillStyle = '#c2410c'; ctx.textAlign = 'center'; ctx.fillText(q.note, qx + qw / 2, qy + qh - 9); }
+        const hasNote = !!q.note, inner = qh - (hasNote ? 22 : 12);
+        ctx.save(); ctx.translate(qx + qw / 2, qy + qh / 2 + (hasNote ? -7 : 1)); ctx.scale(pop, pop);
+        const size = MT.fit(ctx, q.text, qw - 30, inner, por ? 44 : 42);
+        MT.draw(ctx, q.text, 0, 0, size, '#1b2a49', null);
+        ctx.restore();
+        if (hasNote) { ctx.font = '700 14px ' + Theme.fonts.ui; ctx.fillStyle = '#c2410c'; ctx.textAlign = 'center'; ctx.fillText(q.note, qx + qw / 2, qy + qh - 9); }
       }
       // batas waktu soal
       if (run.qTimeMax) {
@@ -481,11 +545,11 @@
         ctx.fillStyle = f > 0.5 ? '#2fbf71' : (f > 0.25 ? '#ffb02e' : '#ff4d5e');
         GA.Path.roundRect(ctx, qx + 14, qy + qh - 9, Math.max(6, tw * f), 6, 3); ctx.fill();
       }
-      // progres stage / boss
+      // progres step / boss
       const py = qy + qh + 6, pw = qw - 40;
       ctx.fillStyle = 'rgba(255,255,255,0.25)'; GA.Path.roundRect(ctx, qx + 20, py, pw, 8, 4); ctx.fill();
       const pf = Math.min(1, run.progress);
-      if (pf > 0) { ctx.fillStyle = '#7ee26f'; GA.Path.roundRect(ctx, qx + 20, py, Math.max(8, pw * pf), 8, 4); ctx.fill(); }
+      if (pf > 0) { ctx.fillStyle = run.boss ? '#c9a0ff' : '#7ee26f'; GA.Path.roundRect(ctx, qx + 20, py, Math.max(8, pw * pf), 8, 4); ctx.fill(); }
 
       // di bawah HUD: kombo, status, umpan balik
       const by = m.h + 12;
@@ -493,27 +557,26 @@
         const k = 1 + (run.comboPulse > 0 ? run.comboPulse * 0.6 : 0);
         ctx.save(); ctx.translate(16, by + 18); ctx.scale(k, k);
         ctx.font = '800 22px ' + Theme.fonts.ui; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-        ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(20,30,70,0.9)'; ctx.lineJoin = 'round';
+        ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(20,10,50,0.9)'; ctx.lineJoin = 'round';
         const ct = '🔥 KOMBO ×' + run.combo; ctx.strokeText(ct, 0, 0); ctx.fillStyle = '#ffd23f'; ctx.fillText(ct, 0, 0); ctx.restore();
       }
       let sy = by + 18;
       ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      // potret: chip di tengah (sisi kiri/kanan ditempati label MUNCUL & SARANG); lanskap: di kanan
       const chip = function (txt, col) {
-        ctx.font = '800 16px ' + Theme.fonts.ui; const w = ctx.measureText(txt).width + 20;
-        ctx.fillStyle = col; GA.Path.roundRect(ctx, W - 14 - w, sy - 14, w, 28, 14); ctx.fill();
+        ctx.font = '800 16px ' + Theme.fonts.ui; const w = ctx.measureText(txt).width + 20, x1 = por ? W / 2 + w / 2 : W - 14;
+        ctx.fillStyle = col; GA.Path.roundRect(ctx, x1 - w, sy - 14, w, 28, 14); ctx.fill();
         ctx.lineWidth = 2.5; ctx.strokeStyle = '#fff'; ctx.stroke();
-        ctx.fillStyle = '#fff'; ctx.fillText(txt, W - 24, sy + 1); sy += 34;
+        ctx.fillStyle = '#fff'; ctx.fillText(txt, x1 - 10, sy + 1); sy += 34;
       };
       if (run.slowT > 0) chip('❄ Lambat ' + Math.ceil(run.slowT) + 'd', '#2a9ad8');
-      if (run.fastT > 0) chip('⚡ Cepat ' + Math.ceil(run.fastT) + 'd', '#e8590c');
+      if (run.shooter && run.shooter.frozen) chip('🧊 Naga beku', '#4a7ad8');
 
       if (run.feedback && run.feedback.t > 0) {
         const f = run.feedback, a = Math.min(1, f.t * 3);
-        const lines = f.hint ? [f.text, f.hint] : [f.text];
         ctx.globalAlpha = a;
-        const sz = por ? 26 : 26;
-        ctx.font = '800 ' + sz + 'px ' + Theme.fonts.ui;
-        let w = ctx.measureText(f.text).width;
+        const sz = 26;
+        let w = MT.measure(ctx, f.text, sz).w;
         ctx.font = '700 16px ' + Theme.fonts.ui;
         if (f.hint) w = Math.max(w, ctx.measureText(f.hint).width);
         w = Math.min(W - 24, w + 40);
@@ -522,14 +585,21 @@
         ctx.fillStyle = 'rgba(0,0,0,0.25)'; GA.Path.roundRect(ctx, fx, fy + 3, w, h, 16); ctx.fill();
         ctx.fillStyle = f.good ? '#1f9d5c' : '#d92d44'; GA.Path.roundRect(ctx, fx, fy, w, h, 16); ctx.fill();
         ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.stroke();
-        ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.font = '800 ' + this.fit(ctx, f.text, w - 24, sz) + 'px ' + Theme.fonts.ui;
-        ctx.fillText(f.text, W / 2, fy + (f.hint ? 22 : h / 2 + 1));
-        if (f.hint) { ctx.font = '700 15px ' + Theme.fonts.ui; ctx.fillStyle = '#ffe9ec'; ctx.fillText(f.hint, W / 2, fy + 48, w - 20); }
+        const fs = MT.fit(ctx, f.text, w - 24, f.hint ? 34 : h - 12, sz);
+        MT.draw(ctx, f.text, W / 2, fy + (f.hint ? 21 : h / 2), fs, '#fff', null);
+        if (f.hint) { ctx.font = '700 15px ' + Theme.fonts.ui; ctx.fillStyle = '#ffe9ec'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(f.hint, W / 2, fy + 48, w - 20); }
         ctx.globalAlpha = 1;
       }
     }
   };
 
+  /** Deretan telur (HTML kecil) untuk layar hasil. */
+  function eggsHTML(have, max) {
+    let s = '';
+    for (let i = 0; i < max; i++) s += '<span class="egg' + (i < have ? ' on' : '') + '" aria-hidden="true"></span>';
+    return s;
+  }
+
+  UI.starsHTML = starsHTML; UI.esc = esc; UI.el = el;
   GA.UI = UI;
 })(window.GA = window.GA || {});
