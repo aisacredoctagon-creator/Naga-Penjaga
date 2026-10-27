@@ -4,7 +4,7 @@ Game matematika berbasis browser bergaya Zuma dengan tema fantasi. **Naga Penjag
 untuk menghancurkan **bola sihir berangka** milik **Penyihir Jahat**, yang ingin mencuri telur-telur naga. Di atas layar
 selalu ada soal; semburkan api ke bola sihir yang berisi **jawaban yang benar** sebelum bola-bola itu sampai ke sarang.
 
-**▶ Main sekarang (demo):** https://aisacredoctagon-creator.github.io/Zuma/
+**▶ Main sekarang (demo):** https://aisacredoctagon-creator.github.io/Naga-Penjaga/
 
 HTML5 Canvas + JavaScript murni. Tidak ada framework dan tidak ada build step. Gambar game dan suara dibuat lewat kode
 (placeholder yang mudah diganti); hanya popup Jeda memakai beberapa ikon di `assets/`. Bahasa antarmuka: Indonesia.
@@ -154,4 +154,4 @@ Gambar bawaan semuanya prosedural. Untuk memakai ilustrasi sendiri, daftarkan be
 ## Deploy (GitHub Pages)
 
 Workflow `.github/workflows/deploy.yml` menyalin `index.html`, `css/`, `js/`, `assets/` ke Pages saat push ke `main`. Semua path relatif,
-jadi aman di subpath `/Zuma/`. Pengaturan Pages: Source = GitHub Actions.
+jadi aman di subpath `/Naga-Penjaga/`. Pengaturan Pages: Source = GitHub Actions.
