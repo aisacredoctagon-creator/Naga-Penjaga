@@ -10,7 +10,7 @@
  * Lapisan dibuat sampai tepi layar (termasuk letterbox) supaya latar menyatu. */
 (function (GA) {
   'use strict';
-  const N = GA.Noise, D = GA.Decor, D2 = GA.Decor2, TAU = Math.PI * 2;
+  const N = GA.Noise, D = GA.Decor, D2 = GA.Decor2, D3 = GA.Decor3, TAU = Math.PI * 2;
   const S = { key: '', map: null, L: null, under: null, front: null, glow: null, E: null, info: null, lights: [] };
 
   function ext(L) {
@@ -28,7 +28,7 @@
   /* ---------- jarak ke jalur ---------- */
   function pathField(path) {
     const pts = [];
-    if (path) for (let i = 0; i < path.xs.length; i += 4) pts.push(path.xs[i], path.ys[i]);
+    [path, path && path.second].forEach(function (p) { if (p) for (let i = 0; i < p.xs.length; i += 4) pts.push(p.xs[i], p.ys[i]); });   // jalur kedua (dua sarang) ikut
     const dist = function (x, y) {
       let m = 1e12;
       for (let i = 0; i < pts.length; i += 2) { const dx = pts[i] - x, dy = pts[i + 1] - y, d = dx * dx + dy * dy; if (d < m) m = d; }
@@ -170,6 +170,7 @@
 
   /* ---------- dekorasi: tabel jenis → ukuran, jarak aman, penggambar ---------- */
   const SPEC = {
+    lily: { s: [14, 24], c: function (s) { return s * 1.9; }, big: true }, reed: { s: [24, 38], c: function (s) { return s * 0.9; }, big: true }, log: { s: [24, 36], c: function (s) { return s * 1.3; }, big: true },
     grass: { s: [10, 18], c: 6 }, flower: { s: [9, 15], c: 6 }, mush: { s: [12, 19], c: 8 }, glowshroom: { s: [12, 19], c: 8 }, rubble: { s: [8, 16], c: function (s) { return s * 0.9 + 4; } },
     rock: { s: [12, 28], c: function (s) { return s * 0.9 + 6; }, big: true }, fern: { s: [34, 60], c: function (s) { return s * 0.85; }, big: true }, leaf: { s: [44, 70], c: function (s) { return s * 0.95; }, big: true },
     crystal: { s: [18, 34], c: function (s) { return s * 1.3; }, big: true }, stalag: { s: [16, 30], c: function (s) { return s * 0.9 + 4; }, big: true },
@@ -177,6 +178,7 @@
     vent: { s: [16, 26], c: function (s) { return s + 4; }, big: true }, brazier: { s: [20, 28], c: function (s) { return s * 0.8 + 6; }, big: true }
   };
   const DRAW = {
+    lily: function (g, it, pal, r) { D3.lily(g, it.x, it.y, it.s, r, pal); }, reed: function (g, it, pal, r) { D3.reed(g, it.x, it.y, it.s, r, pal); }, log: function (g, it, pal, r) { D3.log(g, it.x, it.y, it.s, r, pal); },
     grass: function (g, it, pal, r) { D.grass(g, it.x, it.y, it.s, r, pal.grassA, pal.grassB); },
     flower: function (g, it, pal, r) { D.shade(g, it.x, it.y, it.s * 0.5, it.s * 0.2, 0.2); D.flower(g, it.x, it.y, it.s, pal.flowers[(r() * pal.flowers.length) | 0]); },
     mush: function (g, it, pal, r) { const c = pal.cap[(r() * pal.cap.length) | 0]; D.mushroom(g, it.x, it.y, it.s, r, c); if (r() < 0.6) D.mushroom(g, it.x + it.s * 0.9, it.y + it.s * 0.35, it.s * 0.65, r, c); },
@@ -207,6 +209,7 @@
       if (field.dist(x, y) < R * 1.15 + clr) return false;
       if (Math.hypot(x - shooter.x, y - shooter.y) < pondR * 1.25 + rad) return false;
       if (Math.hypot(x - hole.x, y - hole.y) < R * 3.8 + rad) return false;
+      if (hole.h2 && Math.hypot(x - hole.h2.x, y - hole.h2.y) < R * 3.8 + rad) return false;
       if (inBoss(boss, R, x, y, rad)) return false;
       return true;
     };
@@ -301,7 +304,7 @@
 
   /* ---------- bangun semua lapisan ---------- */
   function build(canvas, L, map, path, R) {
-    const key = [map.id, canvas.width, canvas.height, L.scale.toFixed(3), path ? path.presetId + ':' + Math.round(path.length) : '-', R, map.seed].join('|');
+    const key = [map.id, canvas.width, canvas.height, L.scale.toFixed(3), path ? path.presetId + ':' + Math.round(path.length) + (path.second ? '+' + Math.round(path.second.length) : '') : '-', R, map.seed].join('|');
     if (S.key === key && S.under) return;
     S.key = key; S.map = map; S.L = L;
     const qs = Math.min(1, 1700 / Math.max(canvas.width, canvas.height)), E = ext(L), pal = map.pal;
@@ -316,8 +319,9 @@
     else (BASES[map.base || 'moss'])(u, gl.g, E, map, N.rng(map.seed + 1), tex, path ? field : null);
     let info = { pond: null, hole: { x: 0, y: 0 } }, lights = [];
     if (path) {
-      const hole = GA.Path.holeXY(path), sh = path.shooter, dr = GA.Theme.dragon.radiusRatio * R;
+      const hole = GA.Path.holeXY(path), sh = path.shooter; if (path.second) hole.h2 = GA.Path.holeXY(path.second); const dr0 = 0, dr = GA.Theme.dragon.radiusRatio * R;
       carve(u, L, path, R, pal, N.rng(map.seed + 2), tex);
+      if (path.second) carve(u, L, path.second, R, pal, N.rng(map.seed + 12), tex);
       let pondR = dr * 1.95;
       pondR = Math.max(dr * 1.5, Math.min(pondR, field.dist(sh.x, sh.y) - R - 18));
       const slabR = Math.min(dr * 1.45, pondR * 0.78);

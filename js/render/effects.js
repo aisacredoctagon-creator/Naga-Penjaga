@@ -9,13 +9,17 @@
   'use strict';
   const TAU = Math.PI * 2;
   const E = { L: null, path: null, R: 0, map: null, ext: null, info: null, flies: [], ripples: [], quality: 2, bird: null, birdT: 12 };
-  const P = { x: 0, y: 0, a: 0, d: 0, has: false, open: 0, target: 0, pulse: 0, col: null, parts: [], spawn: 0, rip: [], rot: 0, flash: 0 };
+  const P = { x: 0, y: 0, a: 0, d: 0, has: false, open: 0, target: 0, pulse: 0, col: null, parts: [], spawn: 0, rip: [], bolts: [], rot: 0, flash: 0 };
 
   /** Warna portal per tema: [terang, tengah, gelap, inti]. */
   const PORTAL_COL = {
     forest: ['#e4ccff', '#9a62f0', '#2c1170', '#ffffff'], menu: ['#d4e0ff', '#7a8cf0', '#1c2070', '#ffffff'],
     volcano: ['#ffc4ec', '#d044b4', '#4a0a50', '#fff0fa'], grove: ['#d8ccff', '#8a6af0', '#241070', '#ffffff'], crystal: ['#cfe6ff', '#5aa0ff', '#14286a', '#ffffff'], tower2: ['#ffb0c8', '#a02aa0', '#2a0640', '#ffd0d8'], tower: ['#c9a0ff', '#6a2ad0', '#12053a', '#ff6a8a']
   };
+  ['bloom', 'swamp', 'swampDusk', 'coast'].forEach(function (k) { PORTAL_COL[k] = PORTAL_COL[k] || PORTAL_COL.grove; });
+  ['ashfield', 'magma'].forEach(function (k) { PORTAL_COL[k] = PORTAL_COL.volcano; });
+  ['iceCave', 'amethyst'].forEach(function (k) { PORTAL_COL[k] = PORTAL_COL.crystal; });
+  PORTAL_COL.library = PORTAL_COL.tower2;
   const sprites = Object.create(null);
 
   /* ---------- sprite portal (dirender sekali) ---------- */
@@ -64,6 +68,54 @@
     return (sprites[key] = c);
   }
 
+
+  /* ---------- sprite tambahan portal: tanah gosong retak, pusaran fBm, cincin rune melayang ---------- */
+  function groundSprite(col) {
+    const key = 'gr' + col[1];
+    if (sprites[key]) return sprites[key];
+    const S = 512, c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d'), o = S / 2, rnd = GA.Noise.rng(77);
+    g.translate(o, o);
+    const sc = g.createRadialGradient(0, 0, 40, 0, 0, o); sc.addColorStop(0, 'rgba(8,2,18,0.8)'); sc.addColorStop(0.6, 'rgba(8,2,18,0.35)'); sc.addColorStop(1, 'rgba(8,2,18,0)');
+    g.fillStyle = sc; g.beginPath(); g.arc(0, 0, o, 0, TAU); g.fill();                                  // gosong
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    for (let k = 0; k < 11; k++) {                                                                      // retakan tanah radial
+      let a = rnd() * TAU, d = 90 + rnd() * 20; const pts = [[Math.cos(a) * d, Math.sin(a) * d]];
+      for (let s = 0; s < 6; s++) { a += (rnd() - 0.5) * 0.7; d += 20 + rnd() * 26; pts.push([Math.cos(a) * d, Math.sin(a) * d]); }
+      g.strokeStyle = 'rgba(0,0,0,0.75)'; g.lineWidth = 5; g.beginPath(); pts.forEach(function (p, i) { if (i) g.lineTo(p[0], p[1]); else g.moveTo(p[0], p[1]); }); g.stroke();
+      g.strokeStyle = col[1]; g.globalAlpha = 0.7; g.lineWidth = 1.6; g.shadowColor = col[1]; g.shadowBlur = 8; g.stroke(); g.globalAlpha = 1; g.shadowBlur = 0;
+    }
+    return (sprites[key] = c);
+  }
+
+  function fbmSprite(col) {
+    const key = 'fb' + col[0];
+    if (sprites[key]) return sprites[key];
+    const S = 256, src = GA.Textures.fbm(21, 256, 5).getContext('2d').getImageData(0, 0, S, S).data, c = document.createElement('canvas'); c.width = c.height = S;
+    const g = c.getContext('2d'), img = g.createImageData(S, S), d = img.data, h = col[0].replace('#', ''), cr = parseInt(h.substr(0, 2), 16), cg = parseInt(h.substr(2, 2), 16), cb = parseInt(h.substr(4, 2), 16);
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const i = (y * S + x) * 4, dx = (x - 128) / 128, dy = (y - 128) / 128, rr = Math.sqrt(dx * dx + dy * dy), mask = Math.max(0, 1 - rr) * Math.min(1, rr * 5);      // lubang di pusat, memudar ke tepi
+      const n = src[i] / 255, v = Math.pow(Math.max(0, n - 0.35) / 0.65, 1.6) * mask;
+      d[i] = cr; d[i + 1] = cg; d[i + 2] = cb; d[i + 3] = Math.min(255, v * 380);
+    }
+    g.putImageData(img, 0, 0);
+    return (sprites[key] = c);
+  }
+
+  function runeRingSprite(col) {
+    const key = 'rr' + col[0];
+    if (sprites[key]) return sprites[key];
+    const S = 384, c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d'); g.translate(S / 2, S / 2);
+    g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = col[0]; g.shadowColor = col[1]; g.shadowBlur = 12; g.lineWidth = 3.4;
+    g.globalAlpha = 0.5; g.beginPath(); g.arc(0, 0, 168, 0, TAU); g.stroke(); g.beginPath(); g.arc(0, 0, 138, 0, TAU); g.stroke(); g.globalAlpha = 1;
+    for (let i = 0; i < 10; i++) {
+      g.save(); g.rotate(i / 10 * TAU); g.translate(153, 0); g.beginPath(); const k = i % 5;
+      if (k === 0) { g.moveTo(-6, -9); g.lineTo(0, 9); g.lineTo(6, -9); } else if (k === 1) { g.moveTo(0, -10); g.lineTo(0, 10); g.moveTo(-6, -2); g.lineTo(6, 3); }
+      else if (k === 2) { g.arc(0, 0, 7, 0.4, 5.6); } else if (k === 3) { g.moveTo(-7, 8); g.lineTo(0, -9); g.lineTo(7, 8); g.moveTo(-4, 3); g.lineTo(4, 3); } else { g.moveTo(-7, -7); g.lineTo(7, 7); g.moveTo(7, -7); g.lineTo(-7, 7); }
+      g.stroke(); g.restore();
+    }
+    return (sprites[key] = c);
+  }
+
   /* ---------- pengaturan jalur & portal ---------- */
   function entry(L, path, R) {
     const xs = path.xs, ys = path.ys, pl = L.play, st = path.step, PR = R * 2.2;
@@ -92,6 +144,7 @@
       for (let i = 0; i < n; i++) E.flies.push({ x: ext.x0 + Math.random() * ext.w, y: ext.y0 + Math.random() * ext.h, vx: (Math.random() - 0.5) * 12, vy: map.rise ? -(map.rise * (0.4 + Math.random())) : (Math.random() - 0.5) * 9, ph: Math.random() * TAU, s: 0.8 + Math.random() * 1.4 });
     }
     E.ripples = [];
+    if (GA.Birds) GA.Birds.reset(ext, GA.Theme.scene, map.birds, E.quality);
   }
 
   function easeOut(t) { return 1 - (1 - t) * (1 - t); }
@@ -103,6 +156,9 @@
     P.pulse = Math.max(0, P.pulse - dt * 3.2); P.flash = Math.max(0, P.flash - dt * 2.5); P.rot += dt;
     const k = easeOut(open), size = R * 2.45 * k, pw = 0.62 + 0.38 * Math.sin(t * 2.1) * 0.5 + P.pulse * 0.6 + P.flash;
     ctx.save(); ctx.translate(P.x, P.y);
+    // tanah gosong & retak di sekitar portal + bayangan cincin
+    const gsz = size * 3.1; ctx.globalAlpha = Math.min(1, k * 1.2) * 0.9; ctx.drawImage(groundSprite(col), -gsz / 2, -gsz / 2, gsz, gsz); ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(0,0,0,' + (0.3 * k).toFixed(2) + ')'; ctx.beginPath(); ctx.ellipse(size * 0.06, size * 0.1, size * 1.12, size * 1.1, 0, 0, TAU); ctx.fill();
     ctx.globalCompositeOperation = 'lighter';
     // cahaya luar (menerangi sekitar)
     const gl = ctx.createRadialGradient(0, 0, size * 0.4, 0, 0, size * 2.9);
@@ -122,11 +178,42 @@
     layers.forEach(function (l) {
       ctx.save(); ctx.rotate(P.rot * l[1]); ctx.globalAlpha = Math.min(1, l[3] * (0.55 + pw * 0.5)) * k; const s = size * 0.92 * 2 * l[2]; ctx.drawImage(l[0], -s / 2, -s / 2, s, s); ctx.restore();
     });
+    // pusaran fBm yang bergerak (dua lapis berlawanan arah) + lorong kedalaman: cincin yang menyusut ke pusat
+    if (E.quality >= 1) {
+      const fb = fbmSprite(col);
+      [[0.35, 0.82, 0.6], [-0.23, 1.0, 0.45]].forEach(function (l) { ctx.save(); ctx.rotate(P.rot * l[0]); ctx.globalAlpha = Math.min(1, l[2] * (0.6 + pw * 0.5)) * k; const s = size * 0.92 * 2 * l[1]; ctx.drawImage(fb, -s / 2, -s / 2, s, s); ctx.restore(); });
+      ctx.strokeStyle = col[0]; ctx.lineCap = 'round';
+      for (let i = 0; i < 5; i++) {
+        const u = (t * 0.45 + i / 5) % 1, rr = size * 0.9 * (1 - u * 0.92), a0 = P.rot * (1.4 + i * 0.3) + i * 1.9;
+        ctx.globalAlpha = Math.sin(Math.PI * u) * 0.5 * k; ctx.lineWidth = Math.max(1, size * 0.05 * (1 - u * 0.6));
+        ctx.beginPath(); ctx.arc(0, 0, rr, a0, a0 + 2.6); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, rr, a0 + 3.4, a0 + 5.6); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
     // inti terang
-    const cg = ctx.createRadialGradient(0, 0, 0, 0, 0, size * 0.34); cg.addColorStop(0, col[3]); cg.addColorStop(1, 'rgba(255,255,255,0)'); ctx.globalAlpha = Math.min(1, 0.5 + pw * 0.6) * k; ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(0, 0, size * 0.34, 0, TAU); ctx.fill();
+    const cg =ctx.createRadialGradient(0, 0, 0, 0, 0, size * 0.34); cg.addColorStop(0, col[3]); cg.addColorStop(1, 'rgba(255,255,255,0)'); ctx.globalAlpha = Math.min(1, 0.5 + pw * 0.6) * k; ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(0, 0, size * 0.34, 0, TAU); ctx.fill();
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     // cincin rune berputar
     ctx.save(); ctx.rotate(-P.rot * 0.28); const rsz = size * 2.08; ctx.globalAlpha = Math.min(1, k * 1.4); ctx.drawImage(GA.Theme.sprite('portal') || ringSprite(col), -rsz / 2, -rsz / 2 * 1.0, rsz, rsz); ctx.restore();
+    // cincin rune MELAYANG di atas portal (bayangan lembut di tanah), efek lensa di tepi, busur petir
+    if (E.quality >= 1) {
+      const fz = size * 2.5 * (1 + 0.02 * Math.sin(t * 1.7)), bob = Math.sin(t * 1.3) * size * 0.04;
+      ctx.save(); ctx.rotate(P.rot * 0.22); ctx.globalAlpha = 0.22 * k; ctx.drawImage(runeRingSprite([ '#000000', '#000000' ]), -fz / 2 + size * 0.05, -fz / 2 + size * 0.16, fz, fz); ctx.restore();
+      ctx.save(); ctx.translate(0, -bob); ctx.rotate(P.rot * 0.22); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = (0.55 + 0.3 * pw) * k; ctx.drawImage(runeRingSprite(col), -fz / 2, -fz / 2, fz, fz); ctx.restore();
+      ctx.globalCompositeOperation = 'lighter'; ctx.lineWidth = Math.max(1, size * 0.03); ctx.globalAlpha = 0.28 * k;
+      ctx.strokeStyle = 'rgba(255,90,120,1)'; ctx.beginPath(); ctx.arc(1.6, 0, size * 0.95, 0, TAU); ctx.stroke(); ctx.strokeStyle = 'rgba(90,150,255,1)'; ctx.beginPath(); ctx.arc(-1.6, 0, size * 0.95, 0, TAU); ctx.stroke();
+      if (k > 0.8 && P.bolts.length < 3 && Math.random() < dt * 3.5) {
+        const a = Math.random() * TAU, pts = []; let d = size * 0.98, aa = a;
+        for (let i = 0; i < 5; i++) { pts.push([Math.cos(aa) * d, Math.sin(aa) * d]); d += size * (0.1 + Math.random() * 0.14); aa += (Math.random() - 0.5) * 0.35; }
+        P.bolts.push({ pts: pts, life: 0.14 });
+      }
+      for (let i = P.bolts.length - 1; i >= 0; i--) {
+        const b = P.bolts[i]; b.life -= dt; if (b.life <= 0) { P.bolts.splice(i, 1); continue; }
+        const f = b.life / 0.14; ctx.lineJoin = 'round'; ctx.beginPath(); b.pts.forEach(function (p, j) { if (j) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]); });
+        ctx.strokeStyle = col[1]; ctx.globalAlpha = 0.6 * f * k; ctx.lineWidth = Math.max(2, size * 0.07); ctx.stroke(); ctx.strokeStyle = col[3]; ctx.globalAlpha = 0.95 * f * k; ctx.lineWidth = Math.max(1, size * 0.025); ctx.stroke();
+      }
+      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    }
     // riak di sekitar portal
     if (E.quality >= 1) {
       if (P.rip.length < 3 && k > 0.8 && Math.random() < dt * 1.3) P.rip.push(0);
@@ -247,7 +334,9 @@
 
   const Effects = {
     quality: 2, build: build, setPath: setPath,
-    setQuality: function (q) { E.quality = q; this.quality = q; },
+    setQuality: function (q) { E.quality = q; this.quality = q; if (GA.Birds) GA.Birds.setQuality(q); },
+    /** Burung (tampak atas, di bawah bola): update + gambar. Dipanggil dari main sebelum rantai. */
+    drawBirds: function (ctx, t, dt) { if (GA.Birds) { GA.Birds.update(dt, t); GA.Birds.draw(ctx, t); } },
     entryD: function () { return P.has ? P.d : 0; },
     portalPos: function () { return P.has ? { x: P.x, y: P.y, a: P.a } : null; },
     /** Kendali portal: reset(open) mengatur keadaan awal; open()/close() animasi; pulse() saat bola keluar. */
@@ -259,7 +348,7 @@
     /** Efek di bawah rantai (ruang logis): kolam, kabut, berkas cahaya. */
     drawUnder: function (ctx, t, dt) { drawPond(ctx, t, dt); drawMist(ctx, t); drawShafts(ctx, t); drawLights(ctx, t); },
     /** Efek paling atas: kunang-kunang dan burung. */
-    drawOver: function (ctx, t, dt) { drawFlies(ctx, t, dt); drawBird(ctx, t, dt); }
+    drawOver: function (ctx, t, dt) { drawFlies(ctx, t, dt); }
   };
 
   GA.Effects = Effects;

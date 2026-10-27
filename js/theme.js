@@ -50,7 +50,7 @@
      *   SHOOTER_BALL_SCALE  harus 1.0 (bola siap tembak = bola rantai)
      *   NEXT_BALL_SCALE     bola berikutnya (preview), sedikit lebih kecil agar hierarkinya jelas */
     SHOOTER_BALL_SCALE: 1.0,
-    NEXT_BALL_SCALE: 0.8,
+    NEXT_BALL_SCALE: 0.9,
 
     ball: {
       minScreenDiameter: 46,  // diameter bola (rantai & naga) di layar (px) minimal; radius dinaikkan otomatis di HP kecil
@@ -72,9 +72,10 @@
 
     /* ---- naga penjaga (js/dragon.js) ---- */
     dragon: {
+      wingSpan: 0.72,         // lebar sayap (skala; setengah bentang ≈ 1,85 × radius badan) — dibatasi agar tidak menutupi jalur, soket, atau soal
       radiusRatio: 1.45,      // radius badan = radiusRatio × radius bola
       headDist: 0.7,          // pusat kepala dari pusat badan (× radius badan)
-      mouthDist: 1.45,        // pusat bola api di mulut dari pusat badan (× radius badan)
+      mouthDist: 1.95,        // pusat bola api (tepat di depan ujung moncong) dari pusat badan (× radius badan)
       body: ['#a6f0b4', '#33b56e', '#14633f'],   // zamrud: terang, dasar, gelap
       belly: ['#fff1b8', '#f2c75c'],             // perut emas hangat
       wing: ['#ffb45a', '#e8742a'],              // selaput sayap oranye
@@ -122,7 +123,8 @@
   };
 
   // varian peta memakai warna dasar adegan induknya (jalur, sarang, penanda)
-  Theme.scenes.grove = Theme.scenes.forest; Theme.scenes.crystal = Theme.scenes.volcano; Theme.scenes.tower2 = Theme.scenes.tower;
+  // varian peta memakai warna latar zona induknya (js/maps/variants.js)
+  { const A = { forest: ['grove', 'swamp', 'swampDusk', 'coast', 'bloom'], volcano: ['crystal', 'ashfield', 'magma', 'iceCave', 'amethyst'], tower: ['tower2', 'library'] }; Object.keys(A).forEach(function (z) { A[z].forEach(function (id) { Theme.scenes[id] = Theme.scenes[z]; }); }); }
 
   GA.Theme = Theme;
 })(window.GA = window.GA || {});

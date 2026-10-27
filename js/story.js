@@ -8,16 +8,16 @@
   const names = { dragon: 'Naga Penjaga', dragonName: 'Draka', wizard: 'Penyihir Jahat', wizardName: 'Morvax', place: 'Lembah Telur' };
 
   const intro = [
-    { art: 'sleep', title: 'Penjaga Lembah Telur', text: '{dragon} bernama {dragonName} menjaga telur-telur naga di {place}. Setiap malam ia tidur dengan tenang di samping sarangnya.' },
-    { art: 'wizard', title: 'Bayangan di Malam Hari', text: '{wizard}, {wizardName}, ingin menguasai kekuatan telur naga. Ia memanggil bola-bola sihir yang menyimpan angka rahasia.' },
-    { art: 'steal', title: 'Telur-Telur Hilang!', text: 'Bola sihir itu menggulung masuk ke sarang, mencuri telur satu per satu. {dragonName} terbangun dan murka!' },
-    { art: 'hero', title: 'Semburkan Api Angka!', text: 'Tembak bola sihir dengan bola api yang membawa JAWABAN yang benar. Selamatkan telur-telurnya sebelum terlambat!' }
+    { art: 'sleep', title: 'story.1.t', text: 'story.1' },
+    { art: 'wizard', title: 'story.2.t', text: 'story.2' },
+    { art: 'steal', title: 'story.3.t', text: 'story.3' },
+    { art: 'hero', title: 'story.4.t', text: 'story.4' }
   ];
 
-  const win = { art: 'win', title: 'Telur-Telur Selamat!', text: '{wizardName} kalah dan sihirnya lenyap. {dragonName} memeluk semua telurnya. Lembah Telur aman kembali, berkat kamu!' };
-  const lose = { art: 'lose', title: 'Telur-Telur Dicuri…', text: 'Bola sihir berhasil membawa kabur telur-telurnya. Tapi {dragonName} belum menyerah. Ayo coba lagi!' };
+  const win = { art: 'win', title: 'story.win.t', text: 'story.win' };
+  const lose = { art: 'lose', title: 'story.lose.t', text: 'story.lose' };
 
-  function fmt(s) { return String(s).replace(/\{(\w+)\}/g, function (m, k) { return names[k] != null ? names[k] : m; }); }
+  function fmt(s) { s = GA.T(s); return String(s).replace(/\{(\w+)\}/g, function (m, k) { return names[k] != null ? names[k] : m; }); }
 
   function sky(ctx, w, h, a, b) {
     const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, a); g.addColorStop(1, b);

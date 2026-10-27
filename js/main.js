@@ -7,7 +7,7 @@
  */
 (function (GA) {
   'use strict';
-  const Theme = GA.Theme, FX = GA.FX, Path = GA.Path, Chain = GA.Chain, Shooter = GA.Shooter, Bullets = GA.Shooter.Bullets,
+  const T = GA.T, Theme = GA.Theme, FX = GA.FX, Path = GA.Path, Chain = GA.Chain, Shooter = GA.Shooter, Bullets = GA.Shooter.Bullets,
     Questions = GA.Questions, Obstacles = GA.Obstacles, Levels = GA.Levels, Bosses = GA.Bosses, UI = GA.UI, Audio = GA.Audio, Storage = GA.Storage, Story = GA.Story;
 
   const canvas = document.getElementById('game');
@@ -55,7 +55,21 @@
   }
   function makeObstacles(cfg, path, R, sh) {
     return Obstacles.create({ rocks: cfg.rocks, movers: cfg.movers, crystals: cfg.crystals }, path.shooter, L.portrait,
-      { clear: function (x, y) { return pathDist(path, x, y) - (R + Theme.ball.trackMargin); }, frogR: sh.r, unit: L.ballR / 25, bounds: { y0: L.play.y, y1: L.H } });
+      { clear: function (x, y) { return pathDist(path, x, y) - (R + Theme.ball.trackMargin); }, frogR: sh.r, muzzleR: sh.r * Theme.dragon.mouthDist, rObs: Bullets.rObs, unit: L.ballR / 25, bounds: { y0: L.play.y, y1: L.H } });
+  }
+
+  /** Rintangan zona (js/hazards.js) untuk run r: konteks berisi geometri, uji keadilan, dan kait ke permainan. */
+  function makeHaz(r) {
+    const sh = r.shooter;
+    return GA.Hazards.create(r.cfg.haz, {
+      R: r.R, play: L.play, bounds: { x0: 6, y0: L.play.y + 4, x1: L.W - 6, y1: L.H - 6 }, shooter: sh, muzzleR: sh.r * Theme.dragon.mouthDist, style: GA.Nest.styleFor(Theme.scene),
+      rObs: function () { return Bullets.rObs; },
+      clear: function (x, y) { let d = pathDist(r.path, x, y); if (r.path.second) d = Math.min(d, pathDist(r.path.second, x, y)); return d - (r.R + Theme.ball.trackMargin); },
+      targetsOpen: function () { if (!r.chain || run !== r) return true; const v = pendingVisible(); return !v.length || v.some(openLine); },
+      randomBall: function () { if (!r.chain || run !== r) return null; const v = pendingVisible().filter(function (b) { return b.qid !== r.qid; }); return v.length ? v[Math.floor(Math.random() * v.length)] : null; },
+      fog: function (x, y, rad, dur) { r.chain.balls.forEach(function (b) { if (b.kind === 'num' && r.chain.visible(b) && b.qid !== r.qid && Math.hypot(b.x - x, b.y - y) < rad + r.R) { b.fog = dur; b.fogAge = 0; } }); },
+      warn: function () { Audio.play('warn'); }
+    });
   }
 
   function sceneRef() { return run || attract; }
@@ -87,6 +101,7 @@
     fitShooter(r.shooter, np, newR);
     const on = r.obst.on;
     r.obst = makeObstacles(r.cfg, np, newR, r.shooter); r.obst.on = on; r.obst.alpha = on ? 1 : 0;
+    { const hon = r.haz.on; r.haz = makeHaz(r); r.haz.setOn(hon); }
     if (r.boss) { r.boss.x = np.boss.x; r.boss.y = np.boss.y; r.boss.R = Math.round(2.45 * L.ballR); }
     Bullets.setSize(newR); Bullets.clear();
     r.shooter.setAngle(-Math.PI / 2);
@@ -109,74 +124,117 @@
     if (a.chain.holeReached()) a.chain.fill(Math.min(24, Math.ceil(a.path.length * 0.2 / a.chain.D) + 1), a.path.length * 0.2, 0);
   }
 
-  /* ================= soal & label bola ================= */
+  /* ================= soal, dek & bola target ================= */
   /** Teks efektif sebuah bola (memperhitungkan animasi balik label). Kebenaran dinilai dari TEKS, jadi pecahan 1/2 ≠ 2/4. */
   function ballText(b) { return b.nt !== null && b.nt !== undefined ? b.nt : b.text; }
   function isCorrectText(txt) { return !!run.q && txt === run.q.answerText; }
 
-  function numLabel(b) {
-    const q = run.q;
-    if (!q) { b.value = 1 + Math.floor(Math.random() * 20); b.text = String(b.value); return; }
-    if (Math.random() < run.cfg.pCorrect) { b.value = q.answer; b.text = q.answerText; return; }
-    if (!run.bag.length) { run.bag = q.choices.slice(); for (let i = run.bag.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const x = run.bag[i]; run.bag[i] = run.bag[j]; run.bag[j] = x; } }
-    const c = run.bag.pop(); b.value = c.value; b.text = c.text;
-  }
-
+  /** Isi bola dari antrean gelombang: bola target membawa jawaban soal `qid` di dek; bola khusus tidak berangka. */
   function labelBall(b) {
-    const sp = run && run.cfg.specials;
-    if (sp && run.playing) {
-      let r = Math.random();
-      for (const k of ['curse', 'frost', 'egg']) {
-        const p = sp[k] || 0;
-        if (k === 'egg' && run.lives >= run.maxLives) continue;
-        if (r < p) { b.kind = k; b.value = 0; b.text = ''; return; }
-        r -= p;
+    if (b.want && b.want !== 'num') { b.kind = b.want; b.value = 0; b.text = ''; return; }
+    b.kind = 'num';
+    const q = run && run.deck && b.qid != null ? run.deck[b.qid] : null;
+    if (q) { b.value = q.answer; b.text = q.answerText; } else { b.value = 1 + Math.floor(Math.random() * 20); b.text = String(b.value); }
+  }
+
+  /** Penghalang garis tembak dari mulut naga ke bola b: null (terbuka) | { ball } (bola lain yang lebih dekat) | { obst } (rintangan). */
+  function lineBlocker(b) {
+    const sh = run.shooter; sh.muzzle(tmpM);
+    const dx = b.x - tmpM.x, dy = b.y - tmpM.y, dist = Math.hypot(dx, dy) || 1, ux = dx / dist, uy = dy / dist;
+    const o = run.obst.rayFirst(tmpM.x, tmpM.y, ux, uy, Bullets.rObs);
+    if (o && o.t < dist - run.R * 0.5) return { obst: o.o };
+    const hzb = run.haz.blocksLine(tmpM.x, tmpM.y, b.x, b.y, 0);
+    if (hzb) return { haz: hzb };
+    const rad = run.R * 0.92 + Bullets.r;
+    let best = null, bd = Infinity;
+    for (const c of run.chain.balls) {
+      if (c === b || !run.chain.visible(c)) continue;
+      const d = rayCircle(tmpM.x, tmpM.y, ux, uy, c.x, c.y, rad);
+      if (d < dist - run.R * 0.4 && d < bd) { bd = d; best = c; }
+    }
+    return best ? { ball: best } : null;
+  }
+  function openLine(b) { return !lineBlocker(b); }
+
+  /** Anti-macet: bila semua bola target yang terlihat terhalang bola khusus (kutukan/beku/emas) > 1 dtk, penghalangnya lenyap sendiri. */
+  function clearBlockers(vis) {
+    let removed = false;
+    vis.forEach(function (b) {
+      const blk = lineBlocker(b); if (!blk) return;
+      if (blk.haz) { run.haz.remove(blk.haz); FX.ring(blk.haz.x, blk.haz.y, '#ffd27a', 40); return; }      // rintangan zona menyingkir
+      if (blk.obst) {        // rintangan statis menyurut sementara (kembali setelah ±9 dtk dengan peringatan berkedip)
+        if (run.obst.isStatic(blk.obst)) { if (!(blk.obst.off > 0)) { run.obst.wilt(blk.obst, 9); FX.ring(blk.obst.x, blk.obst.y, '#9fe0a0', 40); } }
+        else if (!(run.obst.calmT > 0)) { run.obst.calm(3); FX.ring(blk.obst.x, blk.obst.y, '#ffd27a', 40); }      // lava/petir menyingkir sebentar
+        return;
       }
-    }
-    b.kind = 'num'; numLabel(b);
+      const c = blk.ball;
+      if (removed || c.kind === 'num') return;
+      removed = true;
+      run.chain.remove(c); FX.burst(c.x, c.y, ['#fff', '#c9a0ff', '#ffd27a'], 16); FX.ring(c.x, c.y, '#c9a0ff', 40);
+      if (c.kind === 'egg') { run.lives = Math.min(run.maxLives, run.lives + 1); FX.text(c.x, c.y - 20, T('fx.egg'), '#ffe27a', 28); Audio.play('egg'); } else Audio.play('swap');
+    });
   }
 
-  function relabelAll() {
-    run.bag = [];
-    run.chain.relabel(numLabel);
-    ensureCorrect();
+  /** Bola target yang soalnya belum selesai dan sudah muncul di jalur. */
+  function pendingVisible() {
+    const ch = run.chain, out = [];
+    for (const b of ch.balls) if (b.kind === 'num' && b.qid != null && !run.deck[b.qid].done && ch.visible(b)) out.push(b);
+    return out;
+  }
+  function activeBall() {
+    if (run.qid < 0) return null;
+    for (const b of run.chain.balls) if (b.kind === 'num' && b.qid === run.qid) return b;
+    return null;
+  }
+  function setActive(qid) { run.qSerial++; run.qid = qid; run.q = run.deck[qid]; run.qPop = 0.35; run.qTime = run.qTimeMax; run.blockedT = 0; }
+
+  /** Pilih soal aktif HANYA dari bola target yang sudah terlihat; utamakan yang garis tembaknya terbuka dan yang paling dekat sarang. */
+  function pickActive(avoid) {
+    const vis = pendingVisible();
+    if (!vis.length) { run.q = null; run.qid = -1; run.qSerial++; return false; }
+    let pool = vis.filter(openLine);
+    if (!pool.length) pool = vis;                       // semua terhalang sesaat: rintangan bergerak akan lewat
+    pool.sort(function (a, b) { return b.d - a.d; });
+    pool = pool.slice(0, 5);
+    if (avoid != null && pool.length > 1) { const f = pool.filter(function (b) { return b.qid !== avoid; }); if (f.length) pool = f; }
+    setActive(pool[Math.floor(Math.random() * pool.length)].qid);
+    return true;
   }
 
-  /** Pastikan minimal satu bola benar tersedia (di layar bila ada bola yang terlihat). */
-  function ensureCorrect() {
-    if (!run.q) return;
-    const ch = run.chain;
-    let visCorrect = 0, anyCorrect = 0;
-    const visNum = [], allNum = [];
-    for (const b of ch.balls) {
-      if (b.kind !== 'num') continue;
-      const ok = isCorrectText(ballText(b));
-      allNum.push(b); if (ok) anyCorrect++;
-      if (ch.visible(b)) { visNum.push(b); if (ok) visCorrect++; }
-    }
-    let pick = null;
-    if (visNum.length && visCorrect === 0) pick = visNum[Math.floor(Math.random() * visNum.length)];
-    else if (!visNum.length && !anyCorrect && allNum.length) pick = allNum[0];
-    if (!pick) return;
-    if (ch.visible(pick)) { pick.nv = run.q.answer; pick.nt = run.q.answerText; pick.flipT = 0.36; }
-    else { pick.value = run.q.answer; pick.text = run.q.answerText; }
+  /** Anti-macet: jaga selalu ada soal aktif yang bola targetnya terlihat & terjangkau. Dipanggil berkala. */
+  function validateActive() {
+    const vis = pendingVisible();
+    if (vis.length && !vis.some(openLine)) { run.noOpenT = (run.noOpenT || 0) + 0.3; if (run.noOpenT > 1.0) { run.noOpenT = 0; clearBlockers(vis); } } else run.noOpenT = 0;
+    const ab = activeBall();
+    if (run.qid < 0 || !ab || !run.chain.visible(ab)) { pickActive(run.qid); return; }
+    if (!openLine(ab)) {
+      run.blockedT += 0.3;
+      if (run.blockedT > 2.4) { if (pendingVisible().some(function (b) { return b.qid !== run.qid && openLine(b); })) pickActive(run.qid); run.blockedT = 0; }
+    } else run.blockedT = 0;
   }
 
-  function nextQuestion() {
-    run.q = run.qs.next();
-    run.qPop = 0.35;
-    const ph = run.boss ? run.boss.phase : null;
-    run.qTimeMax = (ph && ph.questionTime) || run.cfg.questionTime || 0;
-    run.qTime = run.qTimeMax;
-    if (run.chain) relabelAll();
+  /** Susun gelombang: soal dibagi `cfg.waves` kelompok yang keluar bergantian dari portal; bola khusus (tidak dihitung) disisipkan acak. */
+  function buildWaves(cfg, n, speed) {
+    const ids = [];
+    for (let i = 0; i < n; i++) ids.push(i);
+    for (let i = ids.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const x = ids[i]; ids[i] = ids[j]; ids[j] = x; }
+    const g = Math.max(2, Math.min(cfg.waves, n)), groups = [];
+    for (let k = 0; k < g; k++) groups.push([]);
+    ids.forEach(function (id, i) { groups[i % g].push({ qid: id, kind: 'num' }); });
+    const sp = cfg.specialsN || {}, kinds = [];
+    ['curse', 'frost', 'egg'].forEach(function (k) { for (let i = 0; i < (sp[k] || 0); i++) kinds.push(k); });
+    kinds.forEach(function (k, i) { const grp = groups[(1 + i * 2 + Math.floor(Math.random() * 2)) % g]; grp.splice(1 + Math.floor(Math.random() * grp.length), 0, { kind: k }); });
+    const out = [], gap = cfg.gapSec * speed;
+    groups.forEach(function (grp, gi) { grp.forEach(function (s, i) { s.gap = gi > 0 && i === 0 ? gap : 0; out.push(s); }); });
+    return out;
   }
 
-  /** Terapkan fase boss: kecepatan rantai, rintangan bergerak, jenis soal. */
+  /** Terapkan fase boss: kecepatan rantai dan rintangan bergerak (soal tetap dari dek 20 soal). */
   function applyPhase() {
     const b = run.boss, ph = b.phase;
     run.chain.speedMul = ph.speedMul;
-    run.obst.setMovers(ph.movers);
-    run.qs = new Questions.Session(b.topics, { maxChoices: run.cfg.maxChoices });
+    run.obst.setMovers(ph.movers); run.haz.setOn(ph.movers);
+    run.qTimeMax = ph.questionTime || 0;
   }
 
   /* ================= mantra & rintangan dinamis ================= */
@@ -203,7 +261,7 @@
   function castSpell(name) {
     Audio.play('spell'); FX.flash(0.25, '170,110,255');
     if (name === 'fog') fogBalls(3 + (run.boss.phaseIdx >= 2 ? 1 : 0), 6);
-    else if (name === 'frost') { run.shooter.freeze(1.4); Audio.play('frost'); FX.text(run.shooter.x, run.shooter.y - run.shooter.r - 16, 'Beku!', '#9fe0ff', 30); }
+    else if (name === 'frost') { run.shooter.freeze(1.4); Audio.play('frost'); FX.text(run.shooter.x, run.shooter.y - run.shooter.r - 16, T('fx.frozen'), '#9fe0ff', 30); }
     else if (name === 'swap') swapSomeBalls(2);
     FX.ring(run.boss.x, run.boss.y, '#c9a0ff', run.boss.R * 1.6);
   }
@@ -216,22 +274,25 @@
     const R = stageR(cfg);
     Theme.setScene(cfg.scene);
     const path = Path.forLayout(cfg.pathId, L, R);
-    cfg.maxBalls = Math.max(10, Math.round(path.length / (2 * R + 1) * 0.55 * cfg.maxBalls / 18));   // jumlah bola mengikuti panjang jalur
-    cfg.startBalls = Math.min(cfg.maxBalls, 14);
+    cfg.speed = path.length / cfg.travel;      // kecepatan rantai = panjang jalur ÷ durasi tempuh target (±3-5 menit per step)
     const shooter = new Shooter.Shooter(); fitShooter(shooter, path, R);
+    shooter.slip = cfg.nerf === 'ice';
     run = {
       cfg: cfg, path: path, R: R, baseR: L.ballR, shooter: shooter, chain: null, boss: null,
-      obst: makeObstacles(cfg, path, R, shooter), bats: cfg.bats ? new Obstacles.BatSwarm(cfg.bats) : null,
+      obst: makeObstacles(cfg, path, R, shooter), haz: null, bats: cfg.bats ? new Obstacles.BatSwarm(cfg.bats) : null,
       lives: adv.eggs, maxLives: adv.maxEggs, startEggs: adv.eggs, stepNo: cfg.step + 1,
       score: adv.score, scoreAtStart: adv.score, scoreShown: adv.score, combo: 0, maxCombo: 0, comboPulse: 0,
-      correct: 0, wrong: 0, shots: 0, progress: 0, qs: null, q: null, qPop: 0, qTime: 0, qTimeMax: 0, bag: [],
+      correct: 0, wrong: 0, shots: 0, progress: 0, total: cfg.total, deck: Questions.deck(cfg.topics, cfg.total), q: null, qid: -1, qSerial: 0, blockedT: 0, qPop: 0, qTime: 0, qTimeMax: 0,
+      fx: { aim: cfg.buff === 'aim', twin: cfg.buff === 'twin', twinReady: false, shield: cfg.buff === 'shield' ? 1 : 0, freeze: cfg.buff === 'freeze' ? 1 : 0,
+        heat: cfg.nerf === 'heat', ice: cfg.nerf === 'ice', current: cfg.nerf === 'current', note: '' },
       feedback: null, lifeLostT: 0, holeCd: 0, ensureT: 0, fogT: cfg.fog ? cfg.fog.every * 0.6 : 0,
       playing: false, clearT: 0, clearQ: null, dyingT: 0, reason: '', time: 0, bossDone: false, guide: []
     };
+    run.haz = makeHaz(run);
     if (cfg.isBoss) {
       run.boss = Bosses.create(cfg.boss, path.boss, Math.round(2.45 * L.ballR));
       run.boss.speech = ''; run.boss.speechT = 0; // dialog muncul setelah hitung mundur
-      run.obst.on = false; run.obst.alpha = 0;    // rintangan bergerak baru aktif di fase 2
+      run.obst.on = false; run.obst.alpha = 0; run.haz.setOn(false);    // rintangan baru aktif di fase 2
     }
     FX.reset(); Bullets.setSize(R); Bullets.clear();
     renderBg();
@@ -239,26 +300,28 @@
   }
 
   function introInfo(cfg) {
-    const d = Levels.describe(cfg), cat = Questions.categoryById(cfg.cat), sp = [], sps = cfg.specials || {};
+    const d = Levels.describe(cfg), cat = Questions.categoryById(cfg.cat), sp = [], sps = cfg.specialsN || {};
     ['curse', 'frost', 'egg'].forEach(function (k) { if ((sps[k] || 0) > 0) sp.push(k); });
     return {
-      tag: cfg.tag, place: cfg.place, story: cfg.story, catName: cfg.isBoss ? cat.name + ' + campuran' : cat.name, catIcon: cat.icon,
+      tag: cfg.tag, place: cfg.place, story: Story.fmt(cfg.story), catName: cfg.isBoss ? cat.name + ' + campuran' : cat.name, catIcon: GA.Icons.cat[cat.id],
       exampleHtml: GA.MathText.html(d.exampleText), rangeText: d.rangeText, notes: cfg.notes, specials: sp,
-      diffName: Levels.DIFF_NAMES[cfg.diff]
+      diffName: Levels.DIFF_NAMES[cfg.diff], total: cfg.total, buff: Levels.BUFFS[cfg.buff], nerf: Levels.NERFS[cfg.nerf]
     };
   }
 
   /** Mulai petualangan baru dengan pilihan menu `sel`. skipStory: lewati cerita meskipun belum pernah dilihat. */
-  function startAdventure(sel, skipStory) {
+  function startAdventure(sel, skipStory, first) {
     Audio.resume();
-    const cats = Levels.resolveCats(sel);
-    adv = { picks: [0, 1, 2].map(function (i) { return Levels.pick(i); }), sel: sel, cats: cats, key: sel.random ? null : Storage.runKey(cats, sel.diff), step: 0, eggs: Levels.START_EGGS, maxEggs: Levels.MAX_EGGS, score: 0,
-      stars: [0, 0, 0], correct: 0, wrong: 0, maxCombo: 0, snap: { eggs: Levels.START_EGGS, score: 0 } };
+    first = first || 0;
+    const cats = Levels.resolveCats(sel), n = Levels.count;
+    const picks = []; for (let i = 0; i < n; i++) picks.push(Levels.pick(i));
+    adv = { picks: picks, sel: sel, cats: cats, first: first, step: first, eggs: Levels.START_EGGS, maxEggs: Levels.MAX_EGGS, score: 0,
+      stars: new Array(n).fill(0), correct: 0, wrong: 0, maxCombo: 0, snap: { eggs: Levels.START_EGGS, score: 0 } };
     run = null; if (!attract) buildAttract();
     if (!skipStory && !Storage.introSeen) {
       state = 'story'; renderBg();
-      UI.showStory(Story.intro, { onDone: function () { Storage.introSeen = true; startStep(0, false); } });
-    } else startStep(0, false);
+      UI.showStory(Story.intro, { onDone: function () { Storage.introSeen = true; startStep(first, false); } });
+    } else startStep(first, false);
   }
 
   function startStep(n, skipIntro) {
@@ -267,7 +330,8 @@
     const cfg = Levels.build(n, adv.sel, adv.cats);
     cfg.pathId = adv.picks[n].path; cfg.scene = adv.picks[n].map;   // jalur & peta dipilih acak per petualangan; Ulangi memakai yang sama
     buildRun(cfg);
-    Audio.music(cfg.scene);
+    GA.Balls.warm(run.R, L.px);      // siapkan tekstur & bingkai rotasi bola selama layar pembuka
+    Audio.music({ swamp: 'forest', crystal: 'volcano' }[Levels.zoneOf(cfg.scene)] || Levels.zoneOf(cfg.scene));
     if (skipIntro) { state = 'countdown'; GA.Effects.openPortal(); UI.countdown(beginPlay); }
     else { state = 'intro'; UI.showIntro(introInfo(cfg)); }
   }
@@ -275,27 +339,36 @@
   function beginPlay() {
     const cfg = run.cfg, len = run.path.length;
     run.playing = true;
-    run.qs = new Questions.Session(run.boss ? run.boss.topics : cfg.topics, { maxChoices: cfg.maxChoices });
-    run.chain = new Chain.Chain(run.path, { r: run.R, speed: cfg.speed, maxBalls: cfg.maxBalls, labeler: labelBall });
-    run.chain.entryD = GA.Effects.entryD(); run.chain.zones = run.path.zones; run.chain.overWindows = run.path.overWindows;
+    run.chain = new Chain.Chain(run.path, { r: run.R, speed: cfg.speed, maxBalls: 999, labeler: labelBall });
+    run.chain.entryD = GA.Effects.entryD();
+    // zona kecepatan jalur + nerf Arus Deras: dua segmen tambahan tempat rantai melaju lebih cepat
+    run.zones = (run.path.zones || []).slice();
+    if (run.fx.current) CURRENT_ZONES.forEach(function (z) { run.zones.push({ from: len * z[0], to: len * z[1], mul: 1.5 }); });
+    run.chain.zones = run.zones; run.chain.overWindows = run.path.overWindows;
     run.chain.onEmerge = function (b) { GA.Effects.pulse(0.55); const p = GA.Effects.portalPos(); if (p) FX.embers(p.x, p.y, Math.cos(p.a) * 90, Math.sin(p.a) * 90, 4, run.R * 0.5, '#d9b8ff'); };
-    run.q = run.qs.next(); run.qPop = 0.35;
+    run.chain.setQueue(buildWaves(cfg, cfg.total, cfg.speed));      // 20 bola target + bola khusus keluar bergelombang dari portal
     if (run.boss) {
       applyPhase();
-      run.q = run.qs.next();
       run.boss.say(run.boss.phase.say, 3.4); run.boss.resetSpellTimer();
-      run.qTimeMax = run.boss.phase.questionTime || 0;
     } else run.qTimeMax = cfg.questionTime || 0;
-    run.qTime = run.qTimeMax;
-    const D = run.chain.D, front = len * 0.34;     // rantai awal menutup jalur dari pintu masuk sampai bola terdepan
-    run.chain.fill(Math.min(cfg.maxBalls, Math.ceil(front / D) + 1), front, Math.min(len * 0.22, 520));
-    ensureCorrect();
+    run.qTime = run.qTimeMax; run.qid = -1; run.q = null;
     run.shooter.reset();
+    if (cfg.buff === 'gold' && run.lives < run.maxLives) { run.lives++; FX.text(run.shooter.x, run.shooter.y - run.shooter.r - 20, T('fx.egg'), '#ffe27a', 30); Audio.play('egg'); }
     state = 'playing';
+    if (!Storage.coachSeen) {      // coachmark pendek, hanya pertama kali
+      Storage.coachSeen = true;
+      GA.Kit.coach(T('coach.1'), 2400); setTimeout(function () { GA.Kit.coach(T('coach.2'), 2400); }, 2600); setTimeout(function () { GA.Kit.coach(T('coach.3'), 2400); }, 5200);
+    }
   }
 
   /* ================= telur (nyawa) & akibat tembakan ================= */
   function loseEgg(reason) {
+    if (run.fx.shield > 0) {      // buff Perisai Telur: satu kesalahan dimaafkan
+      run.fx.shield--; run.shooter.react('hurt'); FX.flash(0.25, '120,200,255');
+      FX.text(run.shooter.x, run.shooter.y - run.shooter.r - 18, T('fx.shield'), '#9fe0ff', 30); Audio.play('frost');
+      return;
+    }
+    { const nest = Path.holeXY(run.path), ep = GA.Nest.eggPos(nest, run.R, Math.max(0, run.lives - 1), run.maxLives), el = GA.Eggs.el[GA.Eggs.elFor(Theme.scene, run.lives - 1)]; FX.eggBreak(ep.x, ep.y, run.R, null); }   // telur pecah di sarang
     run.lives = Math.max(0, run.lives - 1);
     run.lifeLostT = 0.6; run.combo = 0; run.reason = reason;
     run.shooter.react('hurt');
@@ -315,72 +388,82 @@
   function ballColors(b) { return Theme.ballColors[b.ci % 8]; }
 
   function onCorrect(bullet, ball) {
+    run.qSerial++;      // jawaban benar membatalkan penilaian peluru lain yang masih melayang untuk soal ini
     run.combo++; run.maxCombo = Math.max(run.maxCombo, run.combo); run.comboPulse = 0.5;
-    const pts = (100 + 25 * Math.min(run.combo - 1, 8)) * bullet.ammo.mult;
+    const pts = (100 + 25 * Math.min(run.combo - 1, 8)) * bullet.ammo.mult * (bullet.twin ? 2 : 1);
     run.score += pts; run.correct++;
+    run.deck[ball.qid].done = true;
+    if (run.fx.twin && run.correct % 5 === 0 && !run.fx.twinReady) { run.fx.twinReady = true; FX.text(run.shooter.x, run.shooter.y - run.shooter.r - 18, T('fx.twinready'), '#ffd27a', 26); }
     run.chain.remove(ball);
     FX.shatter(ball.x, ball.y, ballColors(ball), run.R);
     FX.fireImpact(bullet.x, bullet.y, true, run.R);
     FX.pop(ball.x, ball.y - 24, '+' + pts, 'score', 30);
-    if (run.combo >= 3) FX.pop(ball.x, ball.y - 62, ['Hebat!', 'Mantap!', 'Luar biasa!'][run.combo % 3] + ' ×' + run.combo, 'combo', 24);
+    if (run.combo >= 3) FX.pop(ball.x, ball.y - 62, [T('fx.c1'), T('fx.c2'), T('fx.c3')][run.combo % 3] + ' ×' + run.combo, 'combo', 24);
     Audio.play('correct', run.combo);
-    run.chain.retreat((run.cfg.retreat + Math.min(run.combo, 5) * 20) * (1 + 0.4 * (run.R / 25 - 1)));
+    run.chain.retreat((run.cfg.retreatSec * run.cfg.speed + Math.min(run.combo, 5) * 20) * (1 + 0.4 * (run.R / 25 - 1)));
     run.shooter.react('happy');
     run.feedback = null;
+    run.progress = run.correct / run.total;
 
     if (run.boss) {
       const r = run.boss.hit();
-      run.progress = (run.boss.maxHp - run.boss.hp) / run.boss.maxHp;
       Audio.play('bossHit'); FX.shake(8);
       FX.text(run.boss.x, run.boss.y - run.boss.R - 4, '-1', '#c9a0ff', 34);
       if (r === 'defeat') { startClearing(true); return; }
       if (r === 'phase') { Audio.play('phase'); FX.confetti(run.boss.x, run.boss.y, 26); applyPhase(); }
-    } else {
-      run.progress = run.correct / run.cfg.goal;
-      if (run.correct >= run.cfg.goal) { startClearing(false); return; }
-    }
-    nextQuestion();
+    } else if (run.correct >= run.total) { startClearing(false); return; }
+    pickActive(run.qid);
   }
 
   function onWrong(bullet, ball, why) {
     run.wrong++;
     FX.fireImpact(bullet.x, bullet.y, false, run.R);
-    if (ball) { ball.wob = 0.5; ball.red = 0.5; FX.pop(ball.x, ball.y - 24, 'Salah!', 'bad', 30); FX.ring(ball.x, ball.y, '#ff4d5e', 50); }
+    if (ball) { ball.wob = 0.5; ball.red = 0.5; FX.pop(ball.x, ball.y - 24, T('fx.wrong'), 'bad', 30); FX.ring(ball.x, ball.y, '#ff4d5e', 50); }
     Audio.play('wrong');
-    setFeedback((why || 'Salah!') + ' ' + run.q.explain, run.q.hint, false);
+    if (run.q) setFeedback((why || T('fx.wrong')) + ' ' + run.q.explain, run.q.hint, false); else setFeedback(why || T('fx.wrong'), '', false);
     if (run.boss) { run.boss.attack(); Audio.play('bossAttack'); FX.shake(10); }
-    if (run.cfg.freezeOnWrong) { run.shooter.freeze(run.cfg.freezeOnWrong); Audio.play('frost'); FX.text(run.shooter.x, run.shooter.y - run.shooter.r - 16, 'Beku!', '#9fe0ff', 28); }
+    if (run.cfg.freezeOnWrong) { run.shooter.freeze(run.cfg.freezeOnWrong); Audio.play('frost'); FX.text(run.shooter.x, run.shooter.y - run.shooter.r - 16, T('fx.frozen'), '#9fe0ff', 28); }
     loseEgg('Jawaban salah');
   }
 
   function ballHit(bullet, ball) {
     switch (ball.kind) {
       case 'num':
-        if (isCorrectText(ballText(ball))) onCorrect(bullet, ball); else onWrong(bullet, ball);
+        if (isCorrectText(ballText(ball))) onCorrect(bullet, ball);
+        else if (!run.q || bullet.serial !== run.qSerial) {      // peluru ditembakkan untuk soal sebelumnya (soal berganti saat peluru melayang): tidak dihukum
+          FX.fireImpact(bullet.x, bullet.y, false, run.R); FX.pop(ball.x, ball.y - 24, T('fx.changed'), 'bad', 22);
+        } else onWrong(bullet, ball);
         break;
       case 'curse':
-        run.chain.remove(ball); FX.burst(ball.x, ball.y, ['#6a2f8f', '#c9a0ff', '#222'], 30); FX.text(ball.x, ball.y - 20, 'KUTUKAN!', '#c9a0ff', 32);
-        Audio.play('curse'); setFeedback('Bola kutukan! Jangan ditembak.', '', false); loseEgg('Menembak bola kutukan');
+        run.chain.remove(ball); FX.burst(ball.x, ball.y, ['#6a2f8f', '#c9a0ff', '#222'], 30); FX.text(ball.x, ball.y - 20, T('fx.curse'), '#c9a0ff', 32);
+        Audio.play('curse'); setFeedback(T('fb.curse'), '', false); loseEgg('Menembak bola kutukan');
         break;
       case 'frost':
-        run.chain.remove(ball); run.chain.slowT = 6; FX.burst(ball.x, ball.y, ['#d4f1ff', '#7fd0ff', '#fff'], 20); FX.text(ball.x, ball.y - 20, 'Lambat!', '#7fd0ff', 28); Audio.play('frost');
+        run.chain.remove(ball); run.chain.slowT = 6; FX.burst(ball.x, ball.y, ['#d4f1ff', '#7fd0ff', '#fff'], 20); FX.text(ball.x, ball.y - 20, T('fx.slow'), '#7fd0ff', 28); Audio.play('frost');
         break;
       case 'egg':
-        run.chain.remove(ball); run.lives = Math.min(run.maxLives, run.lives + 1); FX.burst(ball.x, ball.y, ['#ffe27a', '#fff', '#ffb02e'], 24); FX.text(ball.x, ball.y - 20, '+1 telur', '#ffe27a', 30); Audio.play('egg');
+        run.chain.remove(ball); run.lives = Math.min(run.maxLives, run.lives + 1); FX.burst(ball.x, ball.y, ['#ffe27a', '#fff', '#ffb02e'], 24); FX.text(ball.x, ball.y - 20, T('fx.egg'), '#ffe27a', 30); Audio.play('egg');
         break;
     }
-    if (state === 'playing') ensureCorrect();
+    if (state === 'playing') validateActive();
   }
 
   /** Peluru bergerak satu langkah kecil. true = peluru habis. */
-  function onBulletStep(b) {
+  function onBulletStep(b, sd) {
+    const hz = run.haz.bullet(b, sd || 0.01);      // rintangan zona (js/hazards.js)
+    if (hz === 'kill') {
+      FX.burst(b.x, b.y, ['#ffb02e', '#ff5a1a', '#fff'], 14); FX.text(b.x, b.y - 22, T('fx.warn'), '#ff9a9a', 26); Audio.play('rock');
+      setFeedback(T('fb.obst'), T('fb.obst2'), false); loseEgg('Peluru mengenai rintangan'); return true;
+    }
+    if (hz === 'absorb') { FX.burst(b.x, b.y, ['#7fe3ff', '#fff'], 10); return true; }
+    if (hz === 'bounce') { Audio.play('crystal'); FX.burst(b.x, b.y, ['#7fe3ff', '#fff'], 10); return false; }
     const o = run.obst.collide(b.x, b.y, Bullets.rObs);
     if (o) {
       run.obst.hitFlash(o);
       const lava = o.kind === 'lava' || o.kind === 'bolt';
-      FX.burst(b.x, b.y, lava ? ['#ffb02e', '#ff5a1a', '#fff'] : ['#8a5a30', '#4e3018', '#6ac060'], 14); FX.text(b.x, b.y - 22, 'Awas!', '#ff9a9a', 26);
+      FX.burst(b.x, b.y, lava ? ['#ffb02e', '#ff5a1a', '#fff'] : ['#8a5a30', '#4e3018', '#6ac060'], 14); FX.text(b.x, b.y - 22, T('fx.warn'), '#ff9a9a', 26);
       Audio.play(lava ? 'rock' : 'thorn');
-      setFeedback(lava ? 'Peluru terkena lahar/petir!' : 'Peluru terkena akar berduri!', 'Tunggu celah atau bidik dari sudut lain.', false);
+      setFeedback(T('fb.obst'), T('fb.obst2'), false);
       loseEgg('Peluru mengenai rintangan');
       return true;
     }
@@ -403,10 +486,12 @@
 
   function fire() {
     const sh = run.shooter;
-    if (state !== 'playing' || !sh.canFire() || run.chain.pending > 1) return; // tunggu rantai selesai meluncur masuk
+    if (state !== 'playing' || !sh.canFire() || run.chain.settling()) return; // tunggu rantai selesai bergeser / menutup celah
     sh.muzzle(tmpM);
-    Bullets.fire(tmpM.x, tmpM.y, sh.angle, sh.takeShot());
-    FX.muzzle(tmpM.x, tmpM.y, sh.angle, run.R); FX.shake(2.5);
+    const bl = Bullets.fire(tmpM.x, tmpM.y, sh.aim, sh.takeShot());
+    FX.muzzle(tmpM.x, tmpM.y, sh.aim, run.R); FX.shake(2.5);
+    bl.twin = false; bl.serial = run.qSerial;
+    if (run.fx.twinReady) { run.fx.twinReady = false; bl.twin = true; sh.reload = 0; FX.text(tmpM.x, tmpM.y - 30, T('fx.twin2'), '#ffd27a', 26); }   // buff Api Ganda: tembakan bonus, tanpa jeda isi ulang, skor ×2
     run.shots++;
     Audio.play('fire');
   }
@@ -416,10 +501,10 @@
   /* ================= selesai step ================= */
   function startClearing(boss) {
     state = 'clearing'; run.clearT = 0; run.bossDone = !!boss; GA.Effects.closePortal();
-    run.chain.paused = true; Bullets.clear(); run.obst.setMovers(false); run.shooter.react('cheer');
+    run.chain.paused = true; run.chain.ff = false; run.chain.spawnQ.length = 0; Bullets.clear(); run.obst.setMovers(false); run.haz.clearAll(); run.shooter.react('cheer');
     run.clearQ = run.chain.balls.filter(function (b) { return run.chain.visible(b); });
     run.score += run.lives * 100; // bonus telur tersisa
-    FX.text(L.W / 2, L.play.y + 60, boss ? 'PENYIHIR KALAH!' : 'STEP SELESAI!', '#ffd23f', 40);
+    FX.text(L.W / 2, L.play.y + 60, boss ? T('fx.boss') : T('fx.stepdone'), '#ffd23f', 40);
     FX.confetti(L.W / 2, L.H * 0.55, 40);
     Audio.play('win');
   }
@@ -445,31 +530,21 @@
     const cfg = run.cfg, lost = Math.max(0, run.startEggs - run.lives);
     const stars = lost === 0 ? 3 : (lost <= 2 ? 2 : 1);
     adv.stars[cfg.step] = stars;
-    if (adv.key) Storage.recordStep(adv.key, cfg.step, stars);
     syncAdv(); Storage.noteScore(adv.score);
-    const total = run.correct + run.wrong, acc = total ? Math.round(run.correct * 100 / total) : 100;
+    Storage.recordStep(cfg.diff, cfg.step, stars, adv.score);
     if (cfg.isBoss) { finishAdventure(true); return; }
     const bonus = adv.eggs < adv.maxEggs;
     if (bonus) adv.eggs++;
-    const next = Levels.STEPS[cfg.step + 1];
     state = 'stepdone';
-    UI.showStepDone({
-      eyebrow: cfg.tag + ' · ' + cfg.place, title: 'Step ' + (cfg.step + 1) + ' Selesai!', subtitle: 'Berikutnya: ' + next.place,
-      stars: stars, score: adv.score, eggs: adv.eggs, maxEggs: adv.maxEggs, bonus: bonus,
-      detail: 'Benar ' + run.correct + ' · Salah ' + run.wrong + ' · Akurasi ' + acc + '% · Kombo ×' + run.maxCombo,
-      nextLabel: 'Ke Step ' + (cfg.step + 2)
-    });
+    UI.showStepDone({ n: cfg.step + 1, tag: cfg.place, stars: stars, score: adv.score, eggs: adv.eggs, maxEggs: adv.maxEggs, bonus: bonus,
+      correct: run.correct, wrong: run.wrong, combo: run.maxCombo, nextN: cfg.step + 2 });
   }
 
   function finishAdventure(win) {
-    const rec = adv.key ? Storage.recordRun(adv.key, adv.score, win) : { newBest: false };
-    const total = adv.correct + adv.wrong, acc = total ? Math.round(adv.correct * 100 / total) : 100;
+    const rec = Storage.recordRun(adv.score);
     const res = {
-      win: win, title: win ? 'Telur-Telur Selamat!' : 'Telur Dicuri…',
-      subtitle: win ? 'Penyihir Jahat berhasil dikalahkan!' : (run && run.reason ? 'Penyebab: ' + run.reason.toLowerCase() + '.' : ''),
-      steps: Levels.STEPS.map(function (s, i) { return { name: 'Step ' + (i + 1) + ' · ' + s.place, stars: adv.stars[i] }; }),
-      score: adv.score, newBest: rec.newBest, high: Storage.data.highScore, eggs: win ? adv.eggs : 0, maxEggs: adv.maxEggs,
-      detail: 'Benar ' + adv.correct + ' · Salah ' + adv.wrong + ' · Akurasi ' + acc + '% · Kombo ×' + adv.maxCombo
+      win: win, steps: Levels.STEPS.map(function (s, i) { return { name: (i + 1) + " · " + s.place, stars: adv.stars[i], i: i }; }).filter(function (s) { return s.i >= (adv.first || 0); }),
+      score: adv.score, newBest: rec.newHigh, high: Storage.data.highScore, eggs: win ? adv.eggs : 0, maxEggs: adv.maxEggs, correct: adv.correct, wrong: adv.wrong, combo: adv.maxCombo
     };
     state = 'story';
     UI.showStory(win ? [Story.win] : [Story.lose], { skippable: false, onDone: function () { state = 'result'; UI.showResult(res); } });
@@ -488,9 +563,10 @@
   function computeGuide(r) {
     const sh = r.shooter, segs = [], rad = r.R * 0.92 + Bullets.r;
     sh.muzzle(tmpM);
-    let x = tmpM.x, y = tmpM.y, dx = Math.cos(sh.angle), dy = Math.sin(sh.angle);
+    let x = tmpM.x, y = tmpM.y, dx = Math.cos(sh.aim), dy = Math.sin(sh.aim);
     for (let k = 0; k < 2; k++) {
-      let best = 640, hit = null;
+      let best = k ? 360 : (r.fx.aim ? 900 : 330), hit = null;
+      if (r.haz && r.haz.blind > 0.3 && !k) best = Math.min(best, 80);      // asap kutukan menutup garis bidik
       for (const b of r.chain.balls) {
         if (!r.chain.visible(b)) continue;
         const d = rayCircle(x, y, dx, dy, b.x, b.y, rad); if (d < best) best = d;
@@ -515,6 +591,7 @@
       if (keys.ArrowLeft || keys.a) sh.setAngle(sh.angle - 2.4 * dt);
       if (keys.ArrowRight || keys.d) sh.setAngle(sh.angle + 2.4 * dt);
     }
+    sh.off = r.fx.heat ? Math.sin(t * 9.1) * 0.02 + Math.sin(t * 5.3 + 1) * 0.014 : 0;   // nerf Hawa Panas: bidikan bergetar
     sh.update(dt);
     r.obst.update(dt);
     if (r.boss) r.boss.update(dt);
@@ -527,13 +604,13 @@
     r.slowT = r.chain ? Math.max(0, r.chain.slowT) : 0;
 
     if (state === 'playing') {
-      r.chain.update(dt);
+      r.chain.update(dt); r.haz.update(dt);
       Bullets.update(dt, L.W, L.H, onBulletStep);
       if (state !== 'playing') return;
 
       // kelelawar penyihir (tukar dua bola) & kabut sihir terjadwal
       if (r.bats) r.bats.update(dt, { chain: r.chain, W: L.W, H: L.H, active: !r.boss || r.boss.phaseIdx >= 2,
-        onSwap: function (a, b) { r.chain.swapLabels(a, b); FX.ring(a.x, a.y, '#c9a0ff', 44); FX.ring(b.x, b.y, '#c9a0ff', 44); Audio.play('swap'); FX.text(a.x, a.y - 24, 'Tukar!', '#c9a0ff', 24); ensureCorrect(); } });
+        onSwap: function (a, b) { r.chain.swapLabels(a, b); FX.ring(a.x, a.y, '#c9a0ff', 44); FX.ring(b.x, b.y, '#c9a0ff', 44); Audio.play('swap'); FX.text(a.x, a.y - 24, T('fx.swap'), '#c9a0ff', 24); validateActive(); } });
       if (r.cfg.fog) { r.fogT -= dt; if (r.fogT <= 0) { r.fogT = r.cfg.fog.every; fogBalls(r.cfg.fog.count, r.cfg.fog.dur); } }
       if (r.boss) { const sp = r.boss.tick(dt); if (sp) castSpell(sp); }
 
@@ -543,28 +620,38 @@
         const f = r.chain.balls[0];
         const hp = Path.holeXY(r.path);
         r.chain.remove(f);
-        FX.burst(hp.x, hp.y, ['#7a5cff', '#c9b6ff', '#fff'], 22); FX.text(hp.x, hp.y - 50, 'Telur dicuri!', '#ff9a9a', 28);
-        Audio.play('steal');
-        r.chain.retreat(650, 900); r.chain.hold = 0.5; r.holeCd = 1.8;
-        setFeedback('Awas! Bola sihir sampai di sarang.', 'Tembak lebih cepat agar rantai mundur.', false);
-        loseEgg('Bola sihir sampai di sarang');
-        if (state !== 'playing') return;
-        ensureCorrect();
+        FX.burst(hp.x, hp.y, ['#7a5cff', '#c9b6ff', '#fff'], 22);
+        if (f.kind === 'num') {
+          // bola target lolos: satu telur hilang, rantai mundur, tetapi progres soal TIDAK hilang — soalnya keluar lagi dari portal
+          FX.text(hp.x, hp.y - 50, T('fx.stolen'), '#ff9a9a', 28); Audio.play('steal');
+          r.chain.requeue({ qid: f.qid, kind: 'num', gap: r.chain.D * 2.5 });
+          r.chain.retreat(650, 900); r.chain.hold = 0.5; r.holeCd = 1.8;
+          setFeedback(T('fb.hole'), T('fb.hole2'), false);
+          loseEgg('Bola sihir sampai di sarang');
+          if (state !== 'playing') return;
+        } else r.holeCd = 0.4;      // bola khusus yang lolos lenyap tanpa hukuman
+        validateActive();
       }
 
-      // batas waktu soal
-      if (r.qTimeMax) {
+      // buff Waktu Beku: sekali, otomatis saat bola terdepan hampir sampai di sarang
+      if (r.fx.freeze > 0 && r.chain.balls.length && r.path.length - r.chain.frontD() < r.R * 9) {
+        r.fx.freeze--; r.chain.slowT = 7; FX.text(r.shooter.x, r.shooter.y - r.shooter.r - 18, T('fx.freeze'), '#9fe0ff', 30); Audio.play('frost');
+      }
+
+      // batas waktu soal (fase terakhir boss)
+      if (r.qTimeMax && r.q) {
         r.qTime -= dt;
         if (r.qTime <= 0) {
           r.wrong++; Audio.play('wrong');
-          setFeedback('Waktu habis! ' + r.q.explain, r.q.hint, false);
+          setFeedback(T('fb.time') + ' ' + r.q.explain, r.q.hint, false);
           if (r.boss) { r.boss.attack(); Audio.play('bossAttack'); FX.shake(10); }
           loseEgg('Waktu habis');
-          if (state === 'playing') nextQuestion();
+          if (state === 'playing') pickActive(r.qid);
         }
       }
       r.ensureT -= dt;
-      if (r.ensureT <= 0) { r.ensureT = 0.6; ensureCorrect(); }
+      if (r.ensureT <= 0) { r.ensureT = 0.3; validateActive(); }
+      r.chain.ff = r.qid < 0 && r.chain.spawnQ.length + r.chain.balls.length > 0;   // tidak ada target terlihat: percepat sampai kelompok berikutnya muncul
 
       computeGuide(r);
     } else if (state === 'clearing') {
@@ -592,6 +679,20 @@
     ctx.beginPath(); ctx.arc(e.x1, e.y1, 9, 0, 6.283); ctx.stroke();
   }
 
+  /** Nerf Arus Deras: dua segmen jalur tempat rantai melaju lebih cepat, ditandai pita air bergerak. */
+  const CURRENT_ZONES = [[0.2, 0.33], [0.58, 0.72]], tmpP = { x: 0, y: 0, a: 0 };
+  function drawCurrent(r) {
+    const len = r.path.length;
+    ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.setLineDash([16, 22]); ctx.lineDashOffset = -t * 70;
+    ctx.lineWidth = r.R * 1.5; ctx.strokeStyle = 'rgba(150,225,255,' + (0.17 + 0.06 * Math.sin(t * 3)).toFixed(2) + ')';
+    CURRENT_ZONES.forEach(function (z) {
+      ctx.beginPath();
+      for (let d = len * z[0], e = len * z[1], first = true; d <= e; d += 8) { r.path.at(d, tmpP); if (first) { ctx.moveTo(tmpP.x, tmpP.y); first = false; } else ctx.lineTo(tmpP.x, tmpP.y); }
+      ctx.stroke();
+    });
+    ctx.restore();
+  }
+
   /** fase 1: peta, sarang, boss, rintangan, rantai. fase 2: garis bidik, kelelawar, naga, peluru, efek. Penutup depan peta digambar di antaranya. */
   function drawScene(sc, showGuide, phase) {
     const R = sc.R;
@@ -600,12 +701,14 @@
       if (sc.chain) sc.chain.drawOver(ctx, t, L.px);
       if (showGuide && sc.guide && sc.guide.length) drawGuide(sc.shooter, t, sc.guide);
       if (sc.bats) sc.bats.draw(ctx, t);
+      if (sc.haz) sc.haz.drawOver(ctx, t, sc.shooter.aim);
       sc.shooter.draw(ctx, t, L.px);
       if (sc === run) Bullets.draw(ctx, L.px, t);
       FX.draw(ctx);
       return;
     }
     GA.Scenery.drawAmbient(ctx, t, frameDt);
+    GA.Effects.drawBirds(ctx, t, frameDt);
     FX.drawDecals(ctx, frameDt);
     GA.Effects.drawPortal(ctx, t, frameDt);
     Path.drawMarkers(ctx, sc.path, R, t, center, L.portrait ? 16 : 15);
@@ -615,6 +718,8 @@
       sc.boss.drawHP(ctx, sc.boss.x, sc.boss.y + sc.boss.R * 1.08 + 12, Math.min(L.W * 0.6, 340));
     }
     if (sc.obst) sc.obst.draw(ctx, t);
+    if (sc.haz) sc.haz.draw(ctx, t);
+    if (sc === run && sc.fx.current && sc.chain) drawCurrent(sc);
     if (sc.chain) sc.chain.draw(ctx, t, L.px);
   }
 
@@ -754,7 +859,7 @@
   }
 
   const handlers = {
-    start: function (sel) { startAdventure(sel, false); },
+    start: function (sel, first) { startAdventure(sel, false, first || 0); },
     introGo: function () { state = 'countdown'; GA.Effects.openPortal(); UI.countdown(beginPlay); },
     resume: resumeGame,
     pause: pauseGame,
@@ -763,15 +868,16 @@
     restart: function () { adv.eggs = adv.snap.eggs; adv.score = adv.snap.score; startStep(adv.step, true); UI.hide(); },
     quit: toTitle,
     nextStep: function () { startStep(adv.step + 1, false); },
-    again: function () { startAdventure(adv.sel, true); },
+    again: function () { startAdventure(adv.sel, true, adv.first || 0); },
     toMenu: toMenu,
     toggleSound: function () { const on = !Audio.isEnabled(); Audio.setEnabled(on); Storage.sound = on; UI.syncSound(); if (on) Audio.play('click'); },
-    toggleQuality: function () { Storage.quality = GA.Quality.cycle(); UI.syncSound(); },
+    setQuality: function (m) { GA.Quality.setMode(m); Storage.quality = GA.Quality.mode; UI.syncSound(); },
     toggleMusic: function () { const on = !Audio.isMusic(); Audio.setMusic(on); Storage.music = on; UI.syncSound(); },
     replayStory: function () { UI.showStory(Story.intro, { onDone: function () { UI.show('settings'); } }); }
   };
 
   /* ================= mulai ================= */
+  GA.Dragon.Dragon.onFlap = function () { if (state === 'playing') Audio.play('flap'); };     // bunyi kepakan sinkron dengan animasi sayap
   Theme.loadSprites();
   GA.Assets.onReady = function () { GA.Background.invalidate(); renderBg(); };
   GA.Background.onArtReady = function () { renderBg(); };
@@ -797,5 +903,5 @@
   requestAnimationFrame(function (n) { last = n; frame(n); });
 
   // untuk uji coba / debugging
-  GA.game = { get state() { return state; }, get run() { return run; }, get adv() { return adv; }, get layout() { return L; }, tick: tick, startAdventure: startAdventure, startStep: startStep, fire: fire, handlers: handlers, ensureCorrect: ensureCorrect };
+  GA.game = { get state() { return state; }, get run() { return run; }, get adv() { return adv; }, get layout() { return L; }, tick: tick, startAdventure: startAdventure, startStep: startStep, fire: fire, handlers: handlers, validateActive: validateActive, pickActive: pickActive, openLine: openLine, pendingVisible: pendingVisible, buildWaves: buildWaves };
 })(window.GA = window.GA || {});

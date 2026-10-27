@@ -30,10 +30,19 @@
     };
     lobe(1.04, 0.85, [[0, 'rgba(255,120,30,0.95)'], [0.5, 'rgba(230,60,20,0.85)'], [1, 'rgba(160,20,10,0)']]);
     lobe(1.0, 1, [[0, '#fff6c0'], [0.3, '#ffcf55'], [0.62, '#ff8a22'], [0.92, '#d9341a'], [1, 'rgba(160,20,10,0.8)']]);
-    lobe(0.7, 0.95, [[0, '#ffffff'], [0.4, '#fff0a0'], [1, 'rgba(255,200,60,0.2)']]);
-    // pusaran panas di dalam
-    g.strokeStyle = 'rgba(255,255,220,0.55)'; g.lineWidth = Math.max(1.2, r * 0.08); g.lineCap = 'round';
-    for (let k = 0; k < 3; k++) { const a = ph + k * 2.1; g.beginPath(); g.arc(0, 0, r * (0.42 + k * 0.1), a, a + 1.5); g.stroke(); }
+    // pusaran panas di cincin api (di luar inti)
+    g.strokeStyle = 'rgba(255,255,220,0.5)'; g.lineWidth = Math.max(1.2, r * 0.07); g.lineCap = 'round';
+    for (let k = 0; k < 3; k++) { const a = ph + k * 2.1; g.beginPath(); g.arc(0, 0, r * (0.8 + k * 0.07), a, a + 1.3); g.stroke(); }
+    // INTI: cakram bara gelap (arang menyala / segel naga) — tempat angka berada. Api berputar di sekelilingnya, TIDAK di bawah angka.
+    const cr = r * 0.64;
+    const cg = g.createRadialGradient(-cr * 0.2, -cr * 0.25, cr * 0.1, 0, 0, cr); cg.addColorStop(0, '#3a1a0e'); cg.addColorStop(0.7, '#1b0a05'); cg.addColorStop(1, '#0b0402');
+    g.fillStyle = cg; g.beginPath(); g.arc(0, 0, cr, 0, TAU); g.fill();
+    const rnd = GA.Noise.rng(5 + f);
+    g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = 'rgba(255,110,30,' + (0.45 + 0.2 * Math.sin(ph)).toFixed(2) + ')'; g.lineWidth = Math.max(1, r * 0.035);
+    for (let k = 0; k < 6; k++) { let a = k * TAU / 6 + 0.4, d = cr * 0.78; g.beginPath(); g.moveTo(Math.cos(a) * d, Math.sin(a) * d); for (let s = 0; s < 3; s++) { a += (rnd() - 0.5) * 0.9; d -= cr * 0.18; g.lineTo(Math.cos(a) * d, Math.sin(a) * d); } g.stroke(); }
+    g.strokeStyle = 'rgba(255,236,160,0.85)'; g.lineWidth = Math.max(1.4, r * 0.06); g.beginPath(); g.arc(0, 0, cr, 0, TAU); g.stroke();                       // tepi panas cakram
+    g.strokeStyle = 'rgba(255,120,30,0.7)'; g.lineWidth = Math.max(1.2, r * 0.05); g.beginPath(); g.arc(0, 0, cr + r * 0.06, 0, TAU); g.stroke();
+    g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = Math.max(1, r * 0.04); g.beginPath(); g.arc(0, 0, cr * 0.9, 0.3, 2.8); g.stroke();                          // inner shadow bawah
     return c;
   }
 
@@ -43,23 +52,18 @@
     return store.map[key] || (store.n++, store.map[key] = { c: frame(qr, f, px), pad: qr * 0.95 });
   }
 
-  function plaque(ctx, x, y, r) {
-    const pr = r * 0.6;
-    ctx.fillStyle = 'rgba(28,8,4,0.78)'; ctx.beginPath(); ctx.arc(x, y, pr, 0, TAU); ctx.fill();
-    ctx.lineWidth = Math.max(1.4, r * 0.06); ctx.strokeStyle = 'rgba(255,190,90,0.85)'; ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.beginPath(); ctx.arc(x, y, pr * 0.9, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();
-  }
-
   /** Gambar bola api di (x,y). dir = arah gerak (radian) atau null (diam: lidah api ke atas). Pengali ammo.mult mengatur besar nyala. */
-  function drawBall(ctx, x, y, r, ammo, px, t, dir) {
+  function drawBall(ctx, x, y, r, ammo, px, t, dir, noLabel) {
     const qr = Math.max(4, Math.round(r / 2) * 2), f = ((t * 14) | 0) % FR, s = get(qr, f, px), k = r / qr, m = MULT[ammo.mult] || 1;
     const d = (qr * 2 + s.pad * 2) * k, o = (qr + s.pad) * k;
     ctx.save(); ctx.translate(x, y); ctx.rotate(dir == null ? 0 : dir + Math.PI * 1.5);
     ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.25 + 0.3 * m; ctx.drawImage(s.c, -o * 1.06, -o * 1.06, d * 1.06, d * 1.06);
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; ctx.drawImage(s.c, -o, -o, d, d);
     ctx.restore();
-    plaque(ctx, x, y, r);
-    GA.Chain.drawLabel(ctx, '×' + ammo.mult, x, y, r * 0.95);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';      // percikan bara yang mengorbit
+    for (let i = 0; i < 3; i++) { const a = t * 3.2 + i * 2.09, d = r * (1.12 + 0.1 * Math.sin(t * 5 + i)); ctx.fillStyle = 'rgba(255,' + (170 + i * 25) + ',80,0.9)'; ctx.beginPath(); ctx.arc(x + Math.cos(a) * d, y + Math.sin(a) * d, r * 0.06, 0, TAU); ctx.fill(); }
+    ctx.restore();
+    if (!noLabel) GA.Chain.drawLabel(ctx, '×' + ammo.mult, x, y, r * 0.95);
   }
 
   /** Ekor api + cahaya dinamis untuk peluru yang melesat (additive, memanjang ke belakang). */

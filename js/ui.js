@@ -2,7 +2,7 @@
  * Teks antarmuka: Bahasa Indonesia. */
 (function (GA) {
   'use strict';
-  const Theme = GA.Theme, Storage = GA.Storage, MT = GA.MathText;
+  const Theme = GA.Theme, Storage = GA.Storage, MT = GA.MathText, T = GA.T;
 
   const I = function (n, c) { return GA.Icons.html(n, c); };
   let root = null, H = null, countdownTimer = null, hudBtn = null, pauseOpen = false, toastTimer = 0, mascotRaf = 0;
@@ -75,58 +75,44 @@
     '</section>';
   }
 
-  /* ---------- template layar ---------- */
+  /* ---------- template layar (dibangun dari UI kit: js/ui/kit.js) ---------- */
+  const K = GA.Kit;
   const TPL = {
-    title:
-      '<section class="screen" id="s-title"><div class="menu-card">' +
-      '<div class="logo"><span class="l1">Naga</span><span class="l2">Penjaga</span></div>' +
-      '<p class="tagline">Semburkan bola api berangka, selamatkan telur-telur naga dari Penyihir Jahat!</p>' +
-      '<button class="btn btn-primary btn-big" data-act="play">' + I('play') + ' Mulai Petualangan</button>' +
-      '<div class="row"><button class="btn btn-small" data-act="howto">' + I('help') + ' Cara Bermain</button>' +
-      '<button class="btn btn-small" data-act="settings">' + I('gear') + ' Pengaturan</button></div>' +
-      '<p class="stat">Skor tertinggi <b id="t-hi">0</b> · ★ <b id="t-stars">0</b></p>' +
-      '</div></section>',
+    title: '<section class="screen" id="s-title">' + K.panel({ cls: 'k-titlecard', body:
+      '<div class="k-logo"><span class="l1">Naga</span><span class="l2">Penjaga</span></div>' +
+      '<p class="k-text">' + T('title.tag') + '</p>' +
+      K.button({ act: 'play', icon: 'play', label: T('title.play'), size: 'big' }) +
+      '<div class="k-row">' + K.button({ act: 'howto', icon: 'help', label: T('title.howto'), variant: 'secondary', size: 'small' }) +
+      K.button({ act: 'settings', icon: 'gear', label: T('title.settings'), variant: 'secondary', size: 'small' }) + '</div>' +
+      '<div id="t-res" style="display:flex;justify-content:center"></div>' }) + '</section>',
 
-    settings:
-      '<section class="screen dim" id="s-settings"><div class="panel">' +
-      '<h2>Pengaturan</h2>' +
-      '<button class="btn" data-act="sound"><span data-sound-label></span></button>' +
-      '<button class="btn" data-act="music"><span data-music-label></span></button>' +
-      '<button class="btn" data-act="quality" aria-describedby="q-note"><span data-quality-label></span></button>' +
-      '<p class="stat" id="q-note">Otomatis menurunkan efek bila FPS di bawah 50.</p>' +
-      '<button class="btn" data-act="replay-story">' + I('book') + ' Lihat Cerita Lagi</button>' +
-      '<button class="btn btn-danger" data-act="reset" id="btn-reset">Hapus Semua Progres</button>' +
-      '<button class="btn btn-primary" data-act="back">' + I('back') + ' Kembali</button>' +
-      '</div></section>',
+    settings: '<section class="screen dim scroll" id="s-settings">' + K.panel({ title: T('set.title'), back: 'back', body:
+      K.toggle({ act: 'sound', icon: 'sound', label: T('set.sound'), sync: 'sound' }) +
+      K.toggle({ act: 'music', icon: 'music', label: T('set.music'), sync: 'music' }) +
+      '<p class="k-eyebrow">' + T('set.quality') + '</p><div id="q-seg"></div>' +
+      K.button({ act: 'replay-story', icon: 'book', label: T('set.story'), variant: 'secondary' }) +
+      K.button({ act: 'reset', icon: 'restart', label: T('set.reset'), variant: 'danger', size: 'small' }) }) + '</section>',
 
-    howto:
-      '<section class="screen scroll dim" id="s-howto"><div class="panel wide"><h2>Cara Bermain</h2>' +
-      '<ul class="howto">' +
-      '<li><b>' + I('dragon') + ' Tujuan</b> Soal tampil di atas layar. Semburkan bola api ke <b>bola sihir yang berisi jawaban yang benar</b>. Ada 3 step; step terakhir melawan Penyihir Jahat.</li>' +
-      '<li><b>' + I('swords') + ' Membidik</b> Mouse: arahkan lalu klik. Layar sentuh: geser untuk membidik, lepas untuk menembak. Papan ketik: ← → membidik, Spasi menembak, Q menukar, P jeda.</li>' +
-      '<li><b>' + I('restart') + ' Tukar bola api</b> Ketuk naga (atau bola kecil di dadanya) untuk menukar. Angka <b>×1 ×2 ×3</b> adalah pengali skor.</li>' +
-      '<li><b>' + I('egg') + ' Telur</b> Kamu punya 5 telur. Satu telur hilang jika jawaban salah, peluru kena rintangan, atau bola sihir sampai ke sarang. Telur emas menambah satu telur!</li>' +
-      '<li class="legend"><span data-icon="curse"></span><span><b>Bola kutukan</b> jangan ditembak!</span></li>' +
-      '<li class="legend"><span data-icon="frost"></span><span><b>Bola beku</b> memperlambat rantai.</span></li>' +
-      '<li class="legend"><span data-icon="egg"></span><span><b>Telur emas</b> menyembuhkan satu telur.</span></li>' +
-      '<li><b>' + I('flame') + ' Rintangan</b> Step 1: akar berduri, kabut sihir. Step 2: kristal pemantul, lahar &amp; petir, kelelawar penukar angka, dan naga bisa beku sejenak.</li>' +
-      '<li><b>' + I('star') + ' Boss</b> Penyihir Jahat punya 3 fase dengan mantra kabut, es, dan tukar angka. Fase 3 mencampur semua kategori dan ada batas waktu.</li>' +
-      '</ul><button class="btn btn-primary" data-act="back">' + I('back') + ' Kembali</button></div></section>',
+    howto: '<section class="screen scroll dim" id="s-howto">' + K.panel({ title: T('how.title'), back: 'back', cls: 'k-wide', body:
+      '<div class="k-how">' +
+        '<div class="k-howc"><span class="k-pic">' + I('target') + '</span><div><b>' + T('how.aim') + '</b><br><small>' + T('how.aim2') + '</small></div></div>' +
+        '<div class="k-howc"><span class="k-pic">' + I('flame') + '</span><div><b>' + T('how.hit') + '</b><br><small>' + T('how.hit2') + '</small></div></div>' +
+        '<div class="k-howc"><span class="k-pic">' + I('egg') + '</span><div><b>' + T('how.egg') + '</b><br><small>' + T('how.egg2') + '</small></div></div>' +
+      '</div>' +
+      '<div class="k-chips">' + K.chip(T('how.goal'), { icon: 'target' }) + '</div>' +
+      '<div class="k-legend"><span class="k-leg"><span data-icon="curse"></span>' + T('sp.curse') + '</span><span class="k-leg"><span data-icon="frost"></span>' + T('sp.frost') + '</span><span class="k-leg"><span data-icon="egg"></span>' + T('sp.egg') + '</span></div>' }) + '</section>',
 
-    story:
-      '<section class="screen dim scroll" id="s-story"><div class="panel story" role="dialog" aria-modal="true" aria-labelledby="st-title">' +
-      '<canvas id="st-art" class="st-art" width="480" height="300" aria-hidden="true"></canvas>' +
-      '<h2 id="st-title"></h2><p class="st-text" id="st-text"></p>' +
-      '<div class="st-dots" id="st-dots" aria-hidden="true"></div>' +
-      '<div class="row"><button class="btn btn-small" data-act="story-skip" id="st-skip">Lewati</button>' +
-      '<button class="btn btn-primary" data-act="story-next" id="st-next">Lanjut ' + I('play') + '</button></div>' +
-      '</div></section>',
+    story: '<section class="screen dim scroll" id="s-story">' + K.panel({ cls: 'k-story', role: 'dialog', body:
+      '<canvas id="st-art" class="k-story-art" width="480" height="300" aria-hidden="true"></canvas>' +
+      '<h2 class="k-title" id="st-title"></h2><p class="k-text k-story-text" id="st-text"></p><div class="k-dots" id="st-dots" aria-hidden="true"></div>' +
+      '<div class="k-row">' + K.button({ act: 'story-skip', id: 'st-skip', label: T('common.skip'), variant: 'wood', size: 'small' }) +
+      K.button({ act: 'story-next', id: 'st-next', icon: 'play', label: T('common.next') }) + '</div>' }) + '</section>',
 
-    intro: '<section class="screen dim scroll" id="s-intro"><div class="panel intro" id="intro-card"></div></section>',
+    intro: '<section class="screen dim scroll" id="s-intro"></section>',
 
     pause: pauseHTML(),
 
-    result: '<section class="screen dim scroll" id="s-result"><div class="panel" id="result-card"></div></section>'
+    result: '<section class="screen dim scroll" id="s-result"></section>'
   };
 
   /* ---------- API UI (DOM) ---------- */
@@ -136,6 +122,7 @@
       root = document.getElementById('ui');
       Object.keys(TPL).forEach(function (k) { const n = el(TPL[k]); root.appendChild(n); screens[k] = n; });
       root.appendChild(el('<div id="countdown" class="countdown" aria-live="assertive"></div>'));
+      GA.Kit.mount(root);
       // tombol jeda sungguhan (fokus & papan ketik) di atas tombol yang digambar di canvas HUD
       hudBtn = el('<button type="button" id="pause-hud" aria-label="Jeda permainan"></button>');
       root.appendChild(hudBtn);
@@ -164,7 +151,7 @@
       });
       // ikon bola khusus di halaman "Cara Bermain"
       root.querySelectorAll('[data-icon]').forEach(function (n) { n.appendChild(UI.specialIcon(n.getAttribute('data-icon'), 44)); });
-      this.syncSound();
+      this.syncSound(); this.refreshTitle();
     },
 
     /** Daftarkan layar tambahan (mis. menu pilih kategori dari menu.js). */
@@ -183,24 +170,22 @@
     act: function (a, b) {
       switch (a) {
         case 'play': GA.Menu.open(); break;
-        case 'settings': this.resetArm(false); this.show('settings'); break;
+        case 'settings': this.syncSound(); this.show('settings'); break;
         case 'howto': this.show('howto'); break;
         case 'back': this.refreshTitle(); this.show('title'); break;
         case 'sound': H.toggleSound(); break;
         case 'music': H.toggleMusic(); break;
-        case 'quality': H.toggleQuality(); break;
+        case 'quality-set': H.setQuality(b.dataset.id); break;
         case 'replay-story': H.replayStory(); break;
-        case 'reset':
-          if (!b.dataset.armed) { this.resetArm(true); } else { Storage.reset(); this.resetArm(false); this.refreshTitle(); b.textContent = 'Progres dihapus ✓'; }
-          break;
+        case 'reset': GA.Kit.confirm({ title: T('set.resetq'), text: T('set.resetx'), yes: T('set.resetyes'), onYes: function () { Storage.reset(); UI.refreshTitle(); GA.Kit.toast(T('set.resetdone')); } }); break;
         case 'story-next': this.storyNext(); break;
         case 'story-skip': this.storyEnd(); break;
         case 'go': H.introGo(); break;
         case 'p-resume': H.resume(); break;
         case 'p-sound': H.toggleSound(); break;
         case 'p-booster': this.onBoosterClick(); break;
-        case 'p-restart': this.confirmOr('Ulangi step ini?', 'Progres step ini akan hilang dan kamu mulai lagi dari awal step.', 'Ya, ulangi', H.restart, b); break;
-        case 'p-quit': this.confirmOr('Kembali ke menu?', 'Progres petualangan ini akan hilang.', 'Ya, ke menu', H.quit, b); break;
+        case 'p-restart': this.confirmOr('Ulangi step?', 'Progres step hilang.', 'Ya, ulangi', H.restart, b); break;
+        case 'p-quit': this.confirmOr('Ke menu?', 'Progres hilang.', 'Ya, ke menu', H.quit, b); break;
         case 'c-no': this.closeConfirm(true); break;
         case 'c-yes': { const fn = this._confirmFn; this.closeConfirm(false); if (fn) fn(); break; }
         case 'next-step': H.nextStep(); break;
@@ -209,12 +194,6 @@
         case 'quit': H.quit(); break;
         default: if (this.extra) this.extra(a, b);
       }
-    },
-
-    resetArm: function (on) {
-      const b = document.getElementById('btn-reset'); if (!b) return;
-      if (on) { b.dataset.armed = '1'; b.textContent = 'Yakin? Ketuk lagi untuk menghapus'; }
-      else { delete b.dataset.armed; b.textContent = 'Hapus Semua Progres'; }
     },
 
     show: function (name) {
@@ -229,21 +208,23 @@
       Object.keys(screens).forEach(function (k) { screens[k].classList.remove('show'); });
     },
     isOpen: function () { return Object.keys(screens).some(function (k) { return screens[k].classList.contains('show'); }); },
-
     syncSound: function () {
-      const on = GA.Audio.isEnabled(), mu = GA.Audio.isMusic();
-      root.querySelectorAll('[data-sound-label]').forEach(function (n) { n.innerHTML = I(on ? 'sound' : 'mute') + (on ? ' Efek Suara: Nyala' : ' Efek Suara: Mati'); });
-      root.querySelectorAll('[data-music-label]').forEach(function (n) { n.innerHTML = I('music') + (mu ? ' Musik: Nyala' : ' Musik: Mati'); });
-      root.querySelectorAll('[data-quality-label]').forEach(function (n) { n.innerHTML = I('gear') + ' Grafik: ' + GA.Quality.label(); });
+      const on = GA.Audio.isEnabled(), mu = GA.Audio.isMusic(), K = GA.Kit;
+      [['sound', on], ['music', mu]].forEach(function (p) {
+        root.querySelectorAll('[data-sync="' + p[0] + '"]').forEach(function (n) { n.classList.toggle('on', p[1]); n.setAttribute('aria-checked', p[1] ? 'true' : 'false'); });
+      });
+      const seg = document.getElementById('q-seg');
+      if (seg) seg.innerHTML = K.segmented({ act: 'quality-set', label: T('set.quality'), items: ['auto', 'tinggi', 'sedang', 'rendah'].map(function (m) {
+        return { id: m, label: T({ auto: 'set.auto', tinggi: 'set.high', sedang: 'set.mid', rendah: 'set.low' }[m]), on: GA.Quality.mode === m };
+      }) });
       const sw = root.querySelector('.pz-toggle');
       if (sw) { sw.setAttribute('aria-checked', on ? 'true' : 'false'); document.getElementById('pz-state').textContent = on ? 'NYALA' : 'MATI'; }
     },
 
     refreshTitle: function () {
-      document.getElementById('t-hi').textContent = Storage.data.highScore;
-      document.getElementById('t-stars').textContent = Storage.totalStars();
+      const el2 = document.getElementById('t-res');
+      if (el2) el2.innerHTML = GA.Kit.resbar({ eggs: GA.Levels.START_EGGS, stars: Storage.totalStars(), score: Storage.data.highScore });
     },
-
     /* ---------- cerita (panel bergambar) ---------- */
     /** list: Story.intro / win / lose. opts: { onDone, skippable }. */
     showStory: function (list, opts) {
@@ -260,7 +241,7 @@
       document.getElementById('st-text').textContent = p.text;
       let dots = ''; for (let i = 0; i < s.list.length; i++) dots += '<i' + (i === s.i ? ' class="on"' : '') + '></i>';
       document.getElementById('st-dots').innerHTML = dots;
-      document.getElementById('st-next').innerHTML = (s.i >= s.list.length - 1 ? 'Mulai ' : 'Lanjut ') + I('play');
+      document.getElementById('st-next').innerHTML = '<i class="k-gloss"></i>' + I('play') + '<span>' + (s.i >= s.list.length - 1 ? T('common.go') : T('common.next')) + '</span>';
     },
     storyNext: function () {
       const s = this._story; if (!s) return;
@@ -286,26 +267,20 @@
     },
     stopStoryAnim: function () { cancelAnimationFrame(this._storyRaf); this._storyRaf = 0; },
 
-    /** Layar pembuka step. info: { tag, place, story, catName, catIcon, exampleHtml, rangeText, notes[], specials[], diffName } */
+    /** Layar pembuka step. info: { tag, place, story, catName, catIcon, exampleHtml, specials[], diffName, total, buff, nerf } */
     showIntro: function (info) {
-      const sp = info.specials || [];
-      const legend = { curse: ['Bola kutukan', 'jangan ditembak!'], frost: ['Bola beku', 'rantai melambat'], egg: ['Telur emas', '+1 telur'] };
-      let lg = '';
-      sp.forEach(function (k) { if (legend[k]) lg += '<li><span data-icon="' + k + '"></span><span><b>' + legend[k][0] + '</b> ' + legend[k][1] + '</span></li>'; });
-      const notes = (info.notes || []).map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('');
-      const card = document.getElementById('intro-card');
-      card.innerHTML =
-        '<p class="eyebrow">' + esc(info.tag) + ' · ' + esc(info.diffName) + '</p>' +
-        '<h2>' + esc(info.place) + '</h2>' +
-        '<p class="hintline">' + esc(info.story) + '</p>' +
-        '<p class="chip">' + esc(info.catIcon) + ' ' + esc(info.catName) + '</p>' +
-        '<div class="example"><span class="ex-label">Contoh soal</span><span class="ex-text">' + info.exampleHtml + '</span></div>' +
-        '<p class="hintline">' + I('star', 'ic-inline') + ' ' + esc(info.rangeText) + '.</p>' +
-        (notes ? '<ul class="obst-list">' + notes + '</ul>' : '') +
-        (lg ? '<ul class="legend-list">' + lg + '</ul>' : '') +
-        '<p class="startnote"><b>Portal</b>: bola sihir muncul di sini · ' + I('egg', 'ic-inline') + ' <b>Sarang</b>: jangan sampai bola sampai ke sini!</p>' +
-        '<button class="btn btn-primary btn-big" data-act="go">Mulai! ' + I('play') + '</button>';
-      card.querySelectorAll('[data-icon]').forEach(function (n) { n.appendChild(UI.specialIcon(n.getAttribute('data-icon'), 34)); });
+      const K = GA.Kit, sp = info.specials || [];
+      const bn = function (kind, o) { return '<div class="k-bnc ' + kind + '">' + K.tip('<span class="k-bi">' + I(o.icon) + '</span>', o.desc || '') + '<b>' + esc(o.name) + '</b><small>' + T('intro.' + kind) + '</small></div>'; };
+      const leg = sp.map(function (k) { return '<span class="k-leg"><span data-icon="' + k + '"></span>' + esc(T('sp.' + k)) + '</span>'; }).join('');
+      screens.intro.innerHTML = K.panel({ title: info.place, body:
+        '<p class="k-eyebrow">' + esc(info.tag) + ' · ' + esc(info.diffName) + '</p>' +
+        '<p class="k-text">' + esc(info.story) + '</p>' +
+        '<div class="k-chips">' + K.chip(info.catName, { icon: info.catIcon }) + K.chip(info.total + ' ' + T('common.questions'), { icon: 'target' }) + '</div>' +
+        '<div class="k-example"><span class="k-eyebrow">' + T('common.example') + '</span><span class="k-extext">' + info.exampleHtml + '</span></div>' +
+        (info.buff && info.nerf ? '<div class="k-bn">' + bn('buff', info.buff) + bn('nerf', info.nerf) + '</div>' : '') +
+        (leg ? '<div class="k-legend">' + leg + '</div>' : '') +
+        K.button({ act: 'go', icon: 'play', label: T('common.go'), size: 'big' }) });
+      screens.intro.querySelectorAll('[data-icon]').forEach(function (n) { n.appendChild(UI.specialIcon(n.getAttribute('data-icon'), 30)); });
       this.show('intro');
     },
 
@@ -424,36 +399,35 @@
     },
     setHudButton: function (on) { hudBtn.classList.toggle('on', !!on); },
 
-    /** Selesai satu step (bukan terakhir). r: { title, subtitle, stars, score, detail, bonus, eggs, maxEggs, nextLabel } */
+    /** Selesai satu step (bukan terakhir). r: { n, tag, stars, score, eggs, maxEggs, bonus, correct, wrong, combo, nextN } */
     showStepDone: function (r) {
-      document.getElementById('result-card').innerHTML =
-        '<p class="eyebrow">' + esc(r.eyebrow || '') + '</p>' +
-        '<h2 class="good">' + esc(r.title) + '</h2>' +
-        (r.subtitle ? '<p class="stat">' + esc(r.subtitle) + '</p>' : '') +
-        '<div class="stars">' + starsHTML(r.stars) + '</div>' +
-        '<p class="big-score">Skor <b>' + r.score + '</b></p>' +
-        '<p class="eggrow" aria-label="Telur tersisa ' + r.eggs + ' dari ' + r.maxEggs + '">' + eggsHTML(r.eggs, r.maxEggs) + (r.bonus ? ' <b class="good">+1 telur!</b>' : '') + '</p>' +
-        '<p class="stat">' + esc(r.detail || '') + '</p>' +
-        '<button class="btn btn-primary btn-big" data-act="next-step">' + esc(r.nextLabel || 'Lanjut') + ' ' + I('play') + '</button>' +
-        '<button class="btn btn-small" data-act="quit">' + I('home') + ' Menu Utama</button>';
+      const K = GA.Kit;
+      screens.result.innerHTML = K.panel({ title: T('step.done', { n: r.n }), body:
+        '<p class="k-eyebrow">' + esc(r.tag) + '</p>' +
+        '<div style="text-align:center">' + K.stars(r.stars, 3).replace('class="k-stars"', 'class="k-stars big"') + '</div>' +
+        '<p class="k-big-score">' + T('common.score') + ' <b>' + r.score + '</b></p>' +
+        '<div style="text-align:center">' + K.eggs(r.eggs, r.maxEggs) + (r.bonus ? ' ' + K.badge(T('step.egg'), { tone: 'buff' }) : '') + '</div>' +
+        '<p class="k-stat">' + esc(T('res.stats', { c: r.correct, w: r.wrong, k: r.combo })) + '</p>' +
+        K.button({ act: 'next-step', icon: 'play', label: T('step.next', { n: r.nextN }), size: 'big' }) +
+        K.button({ act: 'quit', icon: 'home', label: T('common.menu'), variant: 'wood', size: 'small' }) });
       this.show('result');
     },
 
-    /** Hasil akhir. r: { win, title, subtitle, steps:[{name,stars}], score, newBest, high, eggs, maxEggs, detail } */
+    /** Hasil akhir. r: { win, steps:[{name,stars}], score, newBest, high, eggs, maxEggs, correct, wrong, combo } */
     showResult: function (r) {
-      const steps = (r.steps || []).map(function (s) { return '<li><span>' + esc(s.name) + '</span><span class="stars sm">' + starsHTML(s.stars) + '</span></li>'; }).join('');
-      document.getElementById('result-card').innerHTML =
-        '<h2 class="' + (r.win ? 'good' : 'bad') + '">' + esc(r.title) + '</h2>' +
-        (r.subtitle ? '<p class="stat">' + esc(r.subtitle) + '</p>' : '') +
-        (steps ? '<ul class="step-stars">' + steps + '</ul>' : '') +
-        '<p class="big-score">Skor <b>' + r.score + '</b></p>' +
-        '<p class="stat">Skor tertinggi <b>' + r.high + '</b>' + (r.newBest ? ' · <b class="good">Rekor baru!</b>' : '') + '</p>' +
-        '<p class="eggrow" aria-label="Telur tersisa ' + r.eggs + ' dari ' + r.maxEggs + '">' + eggsHTML(r.eggs, r.maxEggs) + '</p>' +
-        '<p class="stat">' + esc(r.detail || '') + '</p>' +
-        '<button class="btn btn-primary btn-big" data-act="again">' + I('restart') + ' Main Lagi</button>' +
-        '<div class="row"><button class="btn btn-small" data-act="to-menu">' + I('mix') + ' Ganti Kategori</button><button class="btn btn-small" data-act="quit">' + I('home') + ' Menu Utama</button></div>';
+      const K = GA.Kit;
+      const steps = (r.steps || []).map(function (s) { return '<li><span>' + esc(s.name) + '</span>' + K.stars(s.stars, 3) + '</li>'; }).join('');
+      screens.result.innerHTML = K.panel({ title: r.win ? T('res.win') : T('res.lose'), body:
+        (steps ? '<ul class="k-sum">' + steps + '</ul>' : '') +
+        '<p class="k-big-score">' + T('common.score') + ' <b>' + r.score + '</b></p>' +
+        '<p class="k-stat">' + T('res.hi') + ' <b>' + r.high + '</b></p>' + (r.newBest ? '<div style="text-align:center">' + K.badge(T('res.best'), { tone: 'buff', icon: 'star' }) + '</div>' : '') +
+        '<div style="text-align:center">' + K.eggs(r.eggs, r.maxEggs) + '</div>' +
+        '<p class="k-stat">' + esc(T('res.stats', { c: r.correct, w: r.wrong, k: r.combo })) + '</p>' +
+        K.button({ act: 'again', icon: 'restart', label: T('common.again'), size: 'big' }) +
+        '<div class="k-row">' + K.button({ act: 'to-menu', icon: 'mix', label: T('menu.cat'), variant: 'secondary', size: 'small' }) + K.button({ act: 'quit', icon: 'home', label: T('common.menu'), variant: 'wood', size: 'small' }) + '</div>' });
       this.show('result');
     },
+
 
     /* ---------- HUD (canvas) ---------- */
     hudMetrics: function (L) { return GA.HUD.metrics(L); },
@@ -469,7 +443,8 @@
 
   /** Bunyi UI menurut jenis tindakan: pilih (kartu/slot/kesulitan), kembali, konfirmasi (mulai/lanjut), klik biasa. */
   function uiSound(a) {
-    if (a === 'back' || a === 'm-back' || a === 'c-no' || a === 'story-skip') return 'back';
+    if (a === 'back' || a === 'm-back' || a === 's-back' || a === 'c-no' || a === 'story-skip') return 'back';
+    if (a === 's-go') return 'confirm';
     if (a === 'm-cat' || a === 'm-slot' || a === 'm-diff' || a === 'm-same' || a === 'm-random' || a === 'sound' || a === 'music' || a === 'quality' || a === 'p-sound') return 'select';
     if (a === 'play' || a === 'm-start' || a === 'go' || a === 'next-step' || a === 'again' || a === 'c-yes' || a === 'p-resume') return 'confirm';
     return 'click';

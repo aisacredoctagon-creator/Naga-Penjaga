@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Cinzel+Decorative:wght@700&family=Cinzel:wght@700&display=swap">
-  <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="css/ui.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/kit.css">
   <link rel="stylesheet" href="css/pause.css">
 </head>
 <body>
@@ -18,6 +18,7 @@
     <div id="ui"></div>
   </div>
 
+  <script src="js/strings.js"></script>
   <script src="js/theme.js"></script>
   <script src="js/ui/icons.js"></script>
   <script src="js/storage.js"></script>
@@ -27,11 +28,15 @@
   <script src="js/fx.js"></script>
   <script src="js/render/noise.js"></script>
   <script src="js/render/textures.js"></script>
+  <script src="js/render/eggs.js"></script>
+  <script src="js/render/birds.js"></script>
   <script src="js/render/decor.js"></script>
   <script src="js/render/decor2.js"></script>
+  <script src="js/render/decor3.js"></script>
   <script src="js/maps/forest.js"></script>
   <script src="js/maps/volcano.js"></script>
   <script src="js/maps/tower.js"></script>
+  <script src="js/maps/variants.js"></script>
   <script src="js/render/effects.js"></script>
   <script src="js/render/background.js"></script>
   <script src="js/scenery.js"></script>
@@ -45,13 +50,23 @@
   <script src="js/shooter.js"></script>
   <script src="js/questions.js"></script>
   <script src="js/obstacles.js"></script>
+  <script src="js/hazards.js"></script>
   <script src="js/levels.js"></script>
   <script src="js/boss.js"></script>
   <script src="js/story.js"></script>
   <script src="js/ui/skin.js"></script>
+  <script src="js/ui/kit.js"></script>
   <script src="js/ui/hud.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/menu.js"></script>
   <script src="js/main.js"></script>
+  <script>
+    // Alat dev (hanya dimuat dengan ?test=1 atau ?debug=orbs): js/dev/orbs.js (halaman uji keterbacaan) dan js/dev/tests.js (uji otomatis)
+    (function () {
+      var q = location.search, t = /[?&]test(=|&|$)/.test(q), o = /[?&]debug=orbs/.test(q);
+      function load(src, next) { var s = document.createElement("script"); s.src = src; if (next) s.onload = next; document.body.appendChild(s); }
+      if (t) load("js/dev/orbs.js", function () { load("js/dev/tests.js"); }); else if (o) load("js/dev/orbs.js");
+    })();
+  </script>
 </body>
 </html>

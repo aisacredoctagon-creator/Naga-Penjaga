@@ -29,7 +29,7 @@
         return (list || []).map(function (r, i) {
           const rr = (r.r || 20) * K, pts = [];
           for (let k = 0; k < 9; k++) pts.push(0.82 + ((Math.sin(i * 7.7 + k * 12.9898) * 43758.5453) % 1 + 1) % 1 * 0.3);
-          const lo = dragonR + rr + 10;
+          const lo = Math.max(dragonR + rr + 10, (opts.muzzleR || 0) + rr * 0.95 + (opts.rObs || 12) + 8);   // jangan menimpa lintasan mulut naga: peluru yang keluar tidak boleh langsung menabrak
           const fit = function (a) { let d = Math.max(r.dist * K, lo), best = d, bc = -1e9; for (; d >= lo; d -= 3) { const c = clear(cx + Math.cos(a) * d, cy + Math.sin(a) * d); if (c > bc) { bc = c; best = d; } if (c >= rr + 4) { best = d; break; } } return { x: cx + Math.cos(a) * best, y: cy + Math.sin(a) * best }; };
           const a0 = r.a * Math.PI / 180; let pos = fit(a0);
           if (bnd && (pos.y > bnd.y1 - rr - 6 || pos.y < bnd.y0 + rr + 6)) { const alt = fit(-a0); if (alt.y <= bnd.y1 - rr - 6 && alt.y >= bnd.y0 + rr + 6) pos = alt; }
@@ -64,11 +64,14 @@
     }
 
     setMovers(on) { this.on = !!on; }
+    /** Anti-macet: rintangan bergerak menyingkir (memudar) sementara. */
+    calm(sec) { this.calmT = sec; }
     get hasMovers() { return this.movers.length > 0; }
 
     update(dt) {
       this.t += dt;
-      const target = this.on ? 1 : 0;
+      if (this.calmT > 0) this.calmT -= dt;
+      const target = this.on && !(this.calmT > 0) ? 1 : 0;
       this.alpha += (target - this.alpha) * Math.min(1, dt * 4);
       for (const m of this.movers) {
         if (m.flash > 0) m.flash -= dt;
@@ -80,20 +83,20 @@
           if (this.portrait) { m.x = this.cx + m.offset; m.y = this.cy + s; } else { m.x = this.cx + s; m.y = this.cy + m.offset; }
         }
       }
-      for (const r of this.rocks) if (r.flash > 0) r.flash -= dt;
-      for (const c of this.crystals) if (c.flash > 0) c.flash -= dt;
+      for (const r of this.rocks) { if (r.flash > 0) r.flash -= dt; if (r.off > 0) r.off -= dt; }
+      for (const c of this.crystals) { if (c.flash > 0) c.flash -= dt; if (c.off > 0) c.off -= dt; }
     }
 
     /** Kembalikan rintangan pelukai (akar, lava, petir) yang bersentuhan dengan lingkaran (x,y,r), atau null. */
     collide(x, y, r) {
-      for (const o of this.rocks) { const rr = o.r * 0.92 + r; if ((o.x - x) * (o.x - x) + (o.y - y) * (o.y - y) < rr * rr) return o; }
+      for (const o of this.rocks) { if (o.off > 0) continue; const rr = o.r * 0.92 + r; if ((o.x - x) * (o.x - x) + (o.y - y) * (o.y - y) < rr * rr) return o; }
       if (this.alpha > 0.5) for (const o of this.movers) { const rr = o.r + r * 0.55; if ((o.x - x) * (o.x - x) + (o.y - y) * (o.y - y) < rr * rr) return o; }
       return null;
     }
 
     /** Kristal yang bersentuhan dengan lingkaran (x,y,r), atau null. */
     crystalHit(x, y, r) {
-      for (const o of this.crystals) { const rr = o.r * 0.95 + r; if ((o.x - x) * (o.x - x) + (o.y - y) * (o.y - y) < rr * rr) return o; }
+      for (const o of this.crystals) { if (o.off > 0) continue; const rr = o.r * 0.95 + r; if ((o.x - x) * (o.x - x) + (o.y - y) * (o.y - y) < rr * rr) return o; }
       return null;
     }
 
@@ -102,6 +105,7 @@
       m = m == null ? 10 : m;   // m = radius tabrakan peluru dengan rintangan (Bullets.rObs), supaya garis bidik persis sama dengan tabrakan
       let best = null;
       const test = function (o, rad, crystal) {
+        if (o.off > 0) return;
         const fx = o.x - x, fy = o.y - y, proj = fx * dx + fy * dy;
         if (proj < 0) return;
         const d2 = fx * fx + fy * fy - proj * proj;
@@ -120,6 +124,30 @@
 
     hitFlash(o) { o.flash = 0.3; }
 
+    /** Posisi rintangan bergerak `ahead` detik dari sekarang (gerakannya deterministik). */
+    moverAt(m, ahead, out) {
+      const t = this.t + ahead;
+      if (m.type === 'orbit') { const a = m.phase + t * m.speed; out.x = this.cx + Math.cos(a) * m.radius; out.y = this.cy + Math.sin(a) * m.radius; }
+      else { const s = Math.sin(m.phase + t * m.speed) * m.range; if (this.portrait) { out.x = this.cx + m.offset; out.y = this.cy + s; } else { out.x = this.cx + s; out.y = this.cy + m.offset; } }
+      return out;
+    }
+
+    /** Ray test prediktif: akankah peluru (kecepatan `speed`) dari (x0,y0) ke (x1,y1) menabrak rintangan bergerak di tengah jalan? Mengembalikan rintangan itu atau null.
+     *  `m` = jari-jari tabrakan peluru. Dipakai uji otomatis (dan bisa dipakai pemilih soal). */
+    predictedHit(x0, y0, x1, y1, speed, m) {
+      if (this.alpha <= 0.5 || !this.movers.length) return null;
+      const dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy) || 1, n = Math.max(1, Math.ceil(L / 20)), p = { x: 0, y: 0 };
+      for (let k = 1; k <= n; k++) {
+        const s = k / n, x = x0 + dx * s, y = y0 + dy * s, tau = L * s / speed;
+        for (const o of this.movers) { this.moverAt(o, tau, p); const rr = o.r + m; if ((p.x - x) * (p.x - x) + (p.y - y) * (p.y - y) < rr * rr) return o; }
+      }
+      return null;
+    }
+
+    /** Rintangan statis menyurut sementara (anti-macet): tidak menghalangi tembakan; 1 detik terakhir berkedip sebagai peringatan sebelum tumbuh lagi. */
+    wilt(o, sec) { o.off = sec; }
+    isStatic(o) { return this.rocks.indexOf(o) >= 0 || this.crystals.indexOf(o) >= 0; }
+
     draw(ctx, t) {
       // jalur orbit (petunjuk visual)
       for (const m of this.movers) {
@@ -129,8 +157,10 @@
           break;
         }
       }
-      for (const o of this.rocks) drawThorn(ctx, o, t);
-      for (const c of this.crystals) drawCrystal(ctx, c, t);
+      const ghost = function (o) { return o.off > 0 ? (o.off < 1 ? 0.35 + 0.3 * Math.sin(t * 16) : 0.14) : 1; };
+      for (const o of this.rocks) { const a = ghost(o); ctx.globalAlpha = a; drawThorn(ctx, o, t); }
+      for (const c of this.crystals) { const a = ghost(c); ctx.globalAlpha = a; drawCrystal(ctx, c, t); }
+      ctx.globalAlpha = 1;
       if (this.alpha < 0.03) return;
       ctx.globalAlpha = this.alpha;
       for (const m of this.movers) {

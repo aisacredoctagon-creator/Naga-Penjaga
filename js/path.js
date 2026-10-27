@@ -129,7 +129,7 @@
   /** Bangun jalur untuk layout tertentu. layout.play = {x,y,w,h}, layout.portrait */
   function forLayout(presetId, layout, R) {
     R = R || layout.ballR || 32;
-    const def = GA.Paths && GA.Paths.resolve(presetId, layout.portrait, layout);   // arketipe jalur (maps/paths.js): sudah dipilah landscape/portrait
+    const def = GA.Paths && GA.Paths.resolve(presetId, layout.portrait, layout, R);   // arketipe jalur (maps/paths.js): sudah dipilah landscape/portrait
     const pr = def || presets[presetId] || presets.arc;
     const pl = layout.play;
     const tr = !def && layout.portrait && pr.mode === 'transpose';
@@ -145,7 +145,12 @@
     path.boss = pr.boss ? (function () { const b = map(pr.boss); return { x: b[0], y: b[1] }; })() : null;
     path.presetId = presetId; path.play = pl;
     path.ctrl = pr.pts.map(map);
-    return GA.Paths && def ? GA.Paths.refine(path, R, layout, def) : path;
+    const out = GA.Paths && def ? GA.Paths.refine(path, R, layout, def) : path;
+    if (pr.pts2 && GA.Paths && def) {      // jalur kedua (dua sarang)
+      const p2 = new Path(pr.pts2.map(map)); p2.shooter = out.shooter; p2.boss = out.boss; p2.presetId = presetId + ':2'; p2.play = pl; p2.ctrl = pr.pts2.map(map);
+      out.second = GA.Paths.refine(p2, R, layout, def); GA.Paths.crossCheck(out, R);
+    }
+    return out;
   }
 
   /* ---------- gambar alur, lubang, START & FINISH ---------- */
@@ -164,40 +169,8 @@
     return { x: path.xs[path.xs.length - 1], y: path.ys[path.ys.length - 1] };
   }
 
-  const EGG_TINTS = [['#fff3c4', '#f2c75c'], ['#ffd6ea', '#e88ab8'], ['#d2f3ff', '#6cc3ea'], ['#e2ffd2', '#7dcf5a'], ['#e8d9ff', '#a98af0']];
-
-  /** Sarang telur di ujung jalur: jerami, cahaya, dan telur naga (satu per nyawa). lost = telur terakhir yang hilang berayun. */
-  /** threat 0..1: seberapa dekat bola sihir ke sarang. Telur bergetar, retak, dan sarang berpendar merah saat terancam. */
-  function drawNest(ctx, path, r, t, eggs, maxEggs, shake, threat) {
-    threat = threat || 0;
-    const p = holeXY(path), R = r * 2.1, C = GA.Theme.sceneColors(), N = maxEggs || 5, have = eggs == null ? N : eggs;
-    ctx.save(); ctx.translate(p.x + (shake > 0 ? Math.sin(t * 70) * 3 : 0), p.y);
-    const pulse = 0.55 + 0.25 * Math.sin(t * 2.2);
-    const gl = ctx.createRadialGradient(0, 0, R * 0.5, 0, 0, R * 1.9); gl.addColorStop(0, C.glow); gl.addColorStop(1, 'rgba(255,220,120,0)');
-    ctx.globalAlpha = pulse * 0.7; ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(0, 0, R * 1.9, 0, 6.283); ctx.fill(); ctx.globalAlpha = 1;
-    if (threat > 0.15) { const rg = ctx.createRadialGradient(0, 0, R * 0.4, 0, 0, R * 1.8); rg.addColorStop(0, 'rgba(255,60,40,0.5)'); rg.addColorStop(1, 'rgba(255,60,40,0)'); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = threat * (0.5 + 0.5 * Math.sin(t * 9)); ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(0, 0, R * 1.8, 0, 6.283); ctx.fill(); ctx.restore(); }
-    const nestImg = GA.Theme.sprite('nest');
-    if (nestImg) ctx.drawImage(nestImg, -R * 1.15, -R * 1.15, R * 2.3, R * 2.3);
-    else {
-    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(0, R * 0.12, R * 1.0, R * 0.9, 0, 0, 6.283); ctx.fill();
-    const ng = ctx.createRadialGradient(0, 0, R * 0.2, 0, 0, R); ng.addColorStop(0, '#7a5214'); ng.addColorStop(0.6, '#c99b4c'); ng.addColorStop(1, '#8d6420');
-    ctx.fillStyle = ng; ctx.beginPath(); ctx.arc(0, 0, R, 0, 6.283); ctx.fill();
-    ctx.strokeStyle = 'rgba(90,55,10,0.6)'; ctx.lineWidth = Math.max(1.5, r * 0.06); ctx.lineCap = 'round';
-    for (let i = 0; i < 26; i++) { const a = i * 0.6, rr = R * (0.72 + ((i * 37) % 30) / 100); ctx.beginPath(); ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr); ctx.lineTo(Math.cos(a + 0.5) * (rr + R * 0.22), Math.sin(a + 0.5) * (rr + R * 0.22)); ctx.stroke(); }
-    }
-    // telur: satu slot per telur, melingkar di dalam sarang
-    for (let i = 0; i < N; i++) {
-      const a = -Math.PI / 2 + i * 6.283 / N, jx = Math.sin(t * 34 + i * 1.7) * threat * 1.6, jy = Math.cos(t * 29 + i) * threat * 1.2, ex = Math.cos(a) * R * 0.48 + jx, ey = Math.sin(a) * R * 0.48 + R * 0.05 + jy, w = r * 0.5, h = r * 0.66;
-      if (i >= have) { ctx.fillStyle = 'rgba(60,35,5,0.45)'; ctx.beginPath(); ctx.ellipse(ex, ey + h * 0.35, w * 0.8, h * 0.4, 0, 0, 6.283); ctx.fill(); continue; }
-      const tint = EGG_TINTS[i % EGG_TINTS.length], bob = Math.sin(t * 2 + i) * 1.2;
-      const g = ctx.createRadialGradient(ex - w * 0.3, ey - h * 0.4 + bob, 1, ex, ey + bob, h * 1.1); g.addColorStop(0, '#fff'); g.addColorStop(0.35, tint[0]); g.addColorStop(1, tint[1]);
-      ctx.fillStyle = g; ctx.strokeStyle = 'rgba(80,40,10,0.55)'; ctx.lineWidth = Math.max(1.5, r * 0.05);
-      GA.Chain.eggPath(ctx, ex, ey + bob, w, h); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.beginPath(); ctx.ellipse(ex - w * 0.3, ey - h * 0.35 + bob, w * 0.18, h * 0.22, -0.4, 0, 6.283); ctx.fill();
-      if (threat > 0.55) { ctx.strokeStyle = 'rgba(70,30,10,0.85)'; ctx.lineWidth = Math.max(1, r * 0.04); ctx.beginPath(); ctx.moveTo(ex - w * 0.55, ey - h * 0.05 + bob); ctx.lineTo(ex - w * 0.1, ey + h * 0.18 + bob); ctx.lineTo(ex + w * 0.15, ey - h * 0.08 + bob); ctx.lineTo(ex + w * 0.6, ey + h * 0.12 + bob); ctx.stroke(); }
-    }
-    ctx.restore();
-  }
+  /** Sarang di ujung jalur (js/render/eggs.js): cincin batu, ranting, telur bersisik, cahaya. threat 0..1 = bola sihir mendekat. */
+  function drawNest(ctx, path, r, t, eggs, maxEggs, shake, threat) { GA.Nest.draw(ctx, holeXY(path), r, t, eggs, maxEggs, shake, threat); }
   function drawHole(ctx, path, r, t) { drawNest(ctx, path, r, t, null, 5, 0); }   // kompatibilitas lama
 
   function pill(ctx, text, x, y, bg, fg, size) {

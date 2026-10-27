@@ -16,49 +16,87 @@ jalan lewat `file://`. Lewat server lokal (opsional): `python -m http.server 800
 
 ## Alur permainan
 
-Judul → **Main Menu** (pilih kategori & kesulitan) → cerita pembuka (3–5 panel, sekali saja, bisa dilewati) →
-**Step 1 Hutan Berbisik** → **Step 2 Gua Lava** → **Step 3 Menara Penyihir (boss)** → hasil (bintang, skor, Main Lagi /
-Ganti Kategori / Menu Utama).
+Judul → **Main Menu** (kategori & kesulitan) → **Pilih Step** (peta 5 simpul: kunci, bintang, skor terbaik) → cerita pembuka (sekali, bisa dilewati) →
+layar pembuka step (kategori, contoh, **1 buff + 1 nerf**) → hitung mundur → step → … → hasil.
 
-Sebelum tiap step ada layar pembuka (nama tempat, kategori, contoh soal, rintangan, legenda bola khusus) lalu hitung mundur 3-2-1.
-Jalur punya penanda **MUNCUL** (bola masuk) dan **SARANG** (tujuan bola sihir).
+Step terbuka berurutan per kesulitan (step n+1 terbuka setelah step n selesai). `?unlock=1` membuka semuanya (untuk uji coba).
+
+### Aturan 20 soal (inti)
+
+- Tiap step punya **tepat 20 soal**; tiap soal berpasangan dengan **satu bola sihir target** (total 20 bola target). Step selesai
+  **hanya** setelah semua 20 soal dijawab benar. Progres ditampilkan sebagai ikon bola + angka (mis. `12/20`) di plakat soal.
+- **Soal aktif** dipilih hanya dari bola target yang sudah muncul dan terlihat di jalur (utamakan yang garis tembaknya terbuka dan
+  yang paling dekat sarang). **Jawaban tiap soal dalam satu step unik** (`Questions.deck`, rentang topik dilebarkan otomatis bila terlalu
+  sempit). Bola pengecoh alami = jawaban soal-soal lain yang belum selesai.
+- **Gelombang:** 20 bola dibagi 4–6 kelompok (`TUNE.waves`) yang keluar bergantian dari portal dengan jeda `gapSec`. Saat tidak ada target
+  terlihat, rantai dipercepat 4× sampai kelompok berikutnya muncul. Kecepatan rantai = panjang jalur ÷ `TUNE.travel`.
+- **Anti-macet:** (1) bila bola target lolos ke sarang, satu telur hilang, rantai mundur, tetapi **soalnya masuk antrean lagi** dan keluar dari
+  portal — progres jawaban benar tidak hilang; (2) jika soal aktif terhalang > 2,4 dtk dan ada target lain yang terbuka, soal berganti;
+  (3) jika semua target terhalang > 1,2 dtk, bola khusus penghalang lenyap dan rintangan statis menyurut sementara (kembali setelah ±9 dtk
+  dengan kedipan peringatan 1 detik); (4) peluru yang ditembakkan untuk soal sebelumnya (soal berganti saat melayang) tidak dihukum;
+  (5) tembakan ditahan sejenak selama rantai masih bergeser menutup celah.
+- **Bola khusus** (kutukan, beku, telur emas) tidak dihitung dalam 20 dan tidak pernah membuat step mustahil; yang lolos ke sarang lenyap tanpa hukuman.
 
 ### Main Menu
 
 - **8 kategori:** Penjumlahan, Pengurangan, Perkalian, Pembagian, Bilangan Bulat, Pecahan, Desimal, Campuran.
-- **3 slot:** Step 1, Step 2, Boss. Pilih satu slot lalu kategorinya, atau nyalakan **Satu kategori untuk semua**, atau **Acak**.
-- **Kesulitan:** Mudah / Sedang / Sulit. Mengatur rentang angka, jumlah digit, kerumitan soal (mis. penyebut pecahan,
-  jumlah angka di belakang koma), kecepatan rantai, kerapatan rintangan, dan banyaknya bola pengecoh.
-- Ringkasan pilihan + bintang terbaik + rekor ditampilkan sebelum **Mulai Petualangan**. Pilihan terakhir, bintang tiap step,
-  skor tertinggi, dan pengaturan suara/musik disimpan di `localStorage`.
+- **5 slot:** Step 1–4 dan Boss. Default **Satu kategori untuk semua**; matikan untuk memilih per step; atau **Acak**. Step 5 (boss) mencampur
+  kategori yang dipilih.
+- **Kesulitan:** Mudah / Sedang / Sulit (rentang angka, kerumitan soal, kecepatan rantai, jeda gelombang, kerapatan rintangan).
+- Pilihan terakhir, bintang & skor terbaik per step, skor tertinggi, dan pengaturan disimpan di `localStorage`.
 
-### Aturan
+### Telur, bintang, kontrol
 
-- Kamu punya **5 telur** (nyawa), dibawa dari step ke step (maksimal 6). Telur hilang jika jawaban salah, peluru kena rintangan,
-  menembak bola kutukan, atau bola sihir sampai di sarang. Selesai Step 1 dan 2 kamu mendapat **+1 telur**.
-  **Telur emas** (bola khusus) menyembuhkan satu telur.
-- Bintang tiap step: 3 jika tidak ada telur hilang, 2 jika hilang ≤ 2, selain itu 1.
-- Pecahan **bersusun** (pembilang di atas penyebut) di soal dan di bola. Jawaban pecahan harus **bentuk paling sederhana** (1/2 ≠ 2/4),
-  desimal memakai **koma**, tanda negatif memakai "−" dan kurung bila perlu, tidak ada pembagian dengan nol.
-- Kontrol: mouse/sentuh (geser untuk membidik, lepas untuk menembak), ketuk naga atau bola kecil di dadanya untuk menukar bola api;
-  papan ketik ← → membidik, Spasi menembak, Q menukar, P/Esc jeda.
+- **5 telur** (nyawa) dibawa antar-step (maks. 6). Hilang bila jawaban salah, peluru kena rintangan, menembak bola kutukan, atau bola target sampai
+  di sarang. Selesai satu step = **+1 telur**. **Telur emas** menyembuhkan satu telur.
+- Bintang: 3 jika tidak ada telur hilang, 2 jika hilang ≤ 2, selain itu 1.
+- Pecahan **bersusun**; jawaban pecahan harus **bentuk paling sederhana** (1/2 ≠ 2/4), desimal memakai **koma**, tanda negatif "−".
+- Kontrol: mouse/sentuh (geser untuk membidik, lepas untuk menembak), ketuk naga/bola kecil untuk menukar bola api; papan ketik ← → membidik,
+  Spasi menembak, Q menukar, P/Esc jeda.
 
-### Step, rintangan, dan boss
+### Lima step, buff & nerf (data di `js/levels.js`)
 
-| Step | Latar & jalur | Rintangan |
-|------|---------------|-----------|
-| 1 Hutan Berbisik | hutan, jalur spiral/kait lebar | akar berduri, kabut sihir (menyembunyikan angka), bola kutukan |
-| 2 Gua Lava | gunung berapi, jalur zig-zag (S) | kristal pemantul (peluru memantul sekali, garis bidik menunjukkan pantulan), lahar & petir bergerak, bola beku (rantai melambat), kelelawar penyihir (menukar dua bola), naga beku sebentar setelah salah tembak |
-| 3 Menara Penyihir | menara malam, arena U | **Penyihir Jahat**, 3 fase |
+| Step | Tema: tiga peta (`js/maps/`) | Buff | Nerf | Rintangan zona (kumulatif) |
+|------|------------------------------|------|------|----------------------------|
+| 1 | Lembah Hutan Naga: `forest`, `grove`, `bloom` | Bidik Panjang | Kabut Pagi | semak berduri, akar menyapu (2 jenis) |
+| 2 | Rawa Berkabut: `swamp`, `swampDusk`, `coast` | Api Ganda | Arus Deras | + ombak, teratai (4) |
+| 3 | Gunung Api: `volcano`, `ashfield`, `magma` | Perisai Telur | Hawa Panas | + lahar menyembur, batu panas jatuh (6) |
+| 4 | Gua Kristal Beku: `crystal`, `iceCave`, `amethyst` | Waktu Beku | Es Licin | + stalaktit jatuh, kristal pemantul, kelelawar (8) |
+| 5 | Menara Penyihir: `tower`, `tower2`, `library` | Telur Emas | Serangan Boss | + petir rune, tangan bayangan, jamur spora (11) + boss |
 
-Boss (`js/boss.js`): **Fase 1** rantai lambat. **Fase 2** mantra kabut / es / tukar angka, rantai lebih cepat, rintangan bergerak.
-**Fase 3** soal campuran dari ketiga kategori pilihanmu, ada batas waktu per soal (waktu habis = telur hilang), mantra lebih sering.
+Step 5 masih **satu sarang** di mesin permainan; geometri dua sarang (dua jalur, dua portal) sudah ada sebagai arketipe `dualU/dualW/dualC` dan divalidasi, tetapi mesinnya (dua rantai, dua sarang) menyusul di tahap boss.
+
+### Rintangan zona (`js/hazards.js`)
+
+Semua **sementara** dan diberi **peringatan ±1 detik** (lingkaran bergaris berdenyut + tanda seru) sebelum aktif; tidak ada yang permanen.
+Mekanik: **slow** (semak berduri memperlambat api), **deflect** (ombak membelokkan api), **reflect** (teratai/kristal memantulkan sekali), **strike** (lahar, batu panas, stalaktit, akar menyapu, petir rune lajur: peluru hancur saat aktif, telur hilang), **veil** (spora menyamarkan angka bola, kecuali soal aktif), **blind** (tangan bayangan menutup garis bidik).
+Aturan keadilan (diuji otomatis): busur bidik tertutup ≤ 30%; tidak muncul di alur / lintasan mulut / menimpa rintangan lain; sebelum muncul diuji masih ada bola target dengan garis tembak terbuka; bila semua target terhalang > 1 detik, rintangan menyingkir. Jenis, jeda muncul dan jumlah: `HAZ_TIERS`/`HAZ_BASE` di `js/levels.js`; tampilan menyesuaikan zona (hijau, arang, es, rune).
+Menambah jenis: tambahkan ke `KINDS` (hazards.js: mekanik, radius, waktu peringatan/aktif), gambar di `drawBody`, lalu ke `HAZ_TIERS`.
+
+### Jalur & peta
+
+- Arketipe jalur di `js/maps/paths.js` (landscape + portrait, divalidasi untuk radius bola 26–32): `hook`, `serp3`, `serp3w`, `serp4`, `serp4w` (padat; jumlah baris menyesuaikan radius bola), `s2`, `zigzag`, `figure8` (persilangan + jembatan), `horseshoe`, `bossU/bossU2/bossBowl`, dan dua-sarang `dualU/dualW/dualC`. Tiap step memilih acak dari 3–4 jalur dan 3 peta (disimpan agar "Ulangi" memakai yang sama). Panjang jalur ≈ 1,3–3,6 × diagonal area main (batas: ruang penembak 2,5R+8 antar-segmen dan zona bebas naga membatasi jumlah baris, terutama di landscape).
+- Peta rawa memakai dekorasi baru `js/render/decor3.js` (kolam teratai berbunga, alang-alang, kayu apung). Menambah peta: salin satu entri di `js/maps/variants.js`, daftarkan di `Levels.POOL`, `Levels.ZONE`, dan alias warna di `js/theme.js`.
+- **Belum ada:** arketipe spiral dan "dua jalur bertemu".
+
+Buff/nerf: **Bidik Panjang** (garis bidik panjang; tanpa buff ini garis pendek), **Api Ganda** (tiap 5 jawaban benar: tembakan bonus tanpa jeda isi ulang,
+skor ×2), **Perisai Telur** (satu kesalahan dimaafkan), **Waktu Beku** (sekali, otomatis memperlambat rantai saat hampir sampai di sarang),
+**Telur Emas** (+1 telur di awal), **Kabut Pagi** (angka samar sesaat; jawaban aktif tetap terbaca), **Arus Deras** (dua segmen jalur tempat rantai
+melaju 1,5×, ditandai pita air), **Hawa Panas** (bidikan bergetar), **Es Licin** (sudut bidik berinersia).
+
+Boss (`js/boss.js`): setiap jawaban benar melukai boss (20 soal = boss kalah); fase berubah pada soal ke-7 dan ke-14 (`TUNE.hits = [7, 7, 6]`).
+
+### Uji otomatis
+
+Buka `index.html?test=1` (lewat server lokal): `js/dev/tests.js` memeriksa dek 20 soal berjawaban unik untuk semua kategori × kesulitan, pembagian gelombang,
+penyimpanan step, anti-macet (bola lolos ke sarang), dan menjalankan **bot** yang menamatkan step 1–5 (tanpa render) sambil memastikan 20/20 soal selesai,
+selalu ada target terjangkau, dan durasi wajar. Hasil tampil di pojok layar dan di `GA.Tests.results`.
 
 ## Struktur proyek
 
 ```
 index.html          halaman tunggal
-css/style.css       gaya layar & menu          css/pause.css   popup Jeda (desain Figma)
+css/base.css + kit.css  dasar halaman + komponen UI kit   css/pause.css   popup Jeda (desain Figma)
 js/theme.js         warna, ukuran bola, naga, latar tiap step (satu-satunya tempat untuk ganti tampilan)
 js/storage.js       localStorage (pilihan, bintang, rekor, pengaturan)
 js/audio.js         efek suara + musik latar sederhana (Web Audio, tanpa berkas)
@@ -70,7 +108,7 @@ js/dragon.js        Naga Penjaga (kepala/leher mengikuti bidikan, ekspresi, anim
 js/shooter.js       naga + bola api + peluru
 js/questions.js     generator soal, kategori & tabel kesulitan
 js/obstacles.js     akar berduri, kristal, lahar/petir, kelelawar
-js/levels.js        3 step + tabel kesulitan (data)
+js/levels.js        5 step, buff/nerf, tabel kesulitan (data)
 js/boss.js          Penyihir Jahat (modul terpisah, bisa diganti)
 js/story.js         cerita & akhir (nama tokoh bisa diatur)
 js/ui.js            layar (DOM) + HUD (canvas)     js/menu.js   Main Menu
@@ -81,7 +119,7 @@ js/main.js          loop, layout responsif, input, alur petualangan
 
 - **Kategori soal:** tambahkan ke `CATEGORIES` dan isi `TABLE` (tiga kesulitan) di `js/questions.js`. Generator baru ditambahkan ke `GEN`
   (kembalikan lewat `make({ expr, answer, answerText, cands, ... })`; jawaban dinilai dari **teks**).
-- **Kesulitan / kecepatan / jumlah soal:** `TUNE` di `js/levels.js` (nilai per kesulitan untuk Step 1, 2, 3).
+- **Kesulitan / kecepatan / jumlah soal:** `TUNE` di `js/levels.js` (nilai per kesulitan: durasi tempuh, gelombang, jeda, retreat).
 - **Step atau rintangan baru:** tambahkan objek ke `STEPS` di `js/levels.js` (`scene`, `pathId`, fungsi `obst(d)`). Preset jalur baru
   ada di `presets` pada `js/path.js` (koordinat ternormalisasi; `mode: 'transpose'` untuk potret). Latar baru di `Theme.scenes`.
   Jenis rintangan baru: tambahkan di `js/obstacles.js` dan hubungkan di `onBulletStep` (`js/main.js`).
@@ -114,11 +152,19 @@ Aksesibilitas: `role="dialog"`, fokus terkunci, Esc menutup konfirmasi dulu lalu
 `GA.game.startStep(n, true)` (n = 0..2), dan `GA.game.tick(dt, noRender)` untuk menjalankan waktu game secara manual
 (berguna di panel yang tidak menjalankan `requestAnimationFrame`).
 
+### UI kit tunggal
+
+Semua layar (judul, pengaturan, cara main, cerita, menu, pilih step, pembuka step, hasil, konfirmasi) dibangun dari **satu UI kit**; popup Jeda tetap desain Figma (`css/pause.css`) dengan warna selaras.
+
+- `js/ui/kit.js`: komponen yang menghasilkan HTML — `Kit.panel` (papan kayu + perkamen, paku emas, kepala naga ORIGINAL yang mengintip), `button` (hijau utama / oranye sekunder / merah bahaya / kayu; mengilap, tebal, beroutline; keadaan tekan & nonaktif), `badge`, `chip`, `toggle`, `segmented`, `progress` (api/energi), `card` (kategori berwarna & step), `stars`, `eggs`, `resbar` (bilah sumber daya berikon), `tip` (tooltip), plus `toast`, `confirm` (modal), `coach` (coachmark ≤ 6 kata, hanya pertama kali). Ikon di `js/ui/icons.js` (satu gaya SVG).
+- `css/kit.css` (komponen), `css/base.css` (reset, lapisan layar, hitung mundur). Token warna/tekstur: `Theme.ui` (`js/theme.js`) → CSS variables (`js/ui/skin.js`); tekstur prosedural kayu/batu/perkamen dari `js/render/textures.js`. Bevel/bayangan sama di semua elemen. Target sentuh ≥ 44 px, fokus keyboard terlihat, `prefers-reduced-motion` dihormati.
+- **Kebijakan teks** (`js/strings.js`): semua teks UI di satu tempat (`GA.T('kunci')`); label ≤ 2 kata, keterangan ≤ ~5 kata; "Cara Main" = 3 kartu bergambar; cerita 4 panel satu kalimat. Lint: tes "teks UI ringkas" di `?test=1` atau `powershell -File tools/lint-strings.ps1`.
+- Cara menambah layar: bangun HTML dengan `GA.Kit.*`, daftarkan lewat `UI.addScreen(nama, node)`, tombol memakai `data-act` yang ditangani `UI.act`/`Menu.act`.
+
 ## UI & tema visual
 
 - **Token desain** di `Theme.ui` (js/theme.js): material kayu, emas, perkamen, batu, api, warna status, radius. `js/ui/skin.js` menerjemahkannya menjadi CSS variables (`--wood-*`, `--gold-*`, `--parch-*`, `--stone-*`, `--r-*`, `--font-*`) dan tekstur material prosedural (`--tex-wood`, `--tex-stone`, `--tex-parch`). HUD canvas memakai token yang sama, jadi mengubah `Theme.ui` mengubah seluruh UI. Opsi aset gambar: letakkan `assets/ui/wood.webp`, `stone.webp`, `parchment.webp` untuk menggantikan tekstur prosedural.
 - **Font**: judul `Cinzel Decorative` dan UI `Baloo 2` dimuat dari Google Fonts (`display=swap`); bila gagal dimuat, tumpukan cadangan (Palatino/Georgia dan Trebuchet/sistem) dipakai. Angka di bola tidak bergantung pada font eksternal untuk sprite.
-- `css/ui.css`: panel perkamen berbingkai kayu dengan paku emas, tombol kayu/emas (hover, tekan, nonaktif), kartu kategori dari batu, slot dan kesulitan dari kayu, transisi antar layar. `prefers-reduced-motion` mematikan animasi layar, kilau tombol, dan mengurangi getar/kilatan/goyangan dedaunan.
 - `js/ui/icons.js`: ikon SVG inline (garis 2,3 bulat) untuk tombol, kategori, dan status. `js/ui/hud.js`: HUD canvas (bingkai kayu bertrim emas di-cache; plakat skor odometer, plakat step permata, plakat soal perkamen dengan animasi ganti soal, bilah progres api, telur bercahaya, tombol Jeda).
 - Popup melayang bergaya `FX.pop(x, y, teks, 'score|combo|good|bad|info')`. Bunyi UI: ketuk (klik), denting (pilih), gema (kembali), fanfare kecil (konfirmasi) lewat Web Audio.
 
@@ -141,6 +187,19 @@ Gambar bawaan semuanya prosedural. Untuk memakai ilustrasi sendiri, daftarkan be
 - **Mode debug** `index.html?debug=1`: menampilkan jalur (cyan), titik kontrol bernomor, pelanggaran jarak (merah), tikungan tajam (oranye), persilangan (hijau), zona kecepatan (magenta), ruang penembak/boss, titik portal, dan laporan validator.
 - Peta (`GA.Maps`): `forest`, `grove` (Step 1); `volcano`, `crystal` (Step 2); `tower`, `tower2` (Step 3). Satu file data per tema berisi palet, jenis dasar (`moss|basalt|cave|flags`), komposisi dekorasi (`mix`), elemen depan (`front`: `leaf|stone|hall`), dan opsi efek. Untuk menambah peta: salin salah satu file, ubah palet/`mix`, lalu daftarkan idnya di `Levels` (`POOL`) dan `Theme.scenes`.
 - Zona kecepatan: `zones` pada arketipe (mis. `serp3`) mempercepat rantai di bagian jalur tertentu.
+
+## Bola sihir, bola api, portal, telur & sarang
+
+- **Bola sihir (`js/render/balls.js`)**: obsidian gelap berurat energi (urat dari noise punggungan, warna per bola + ungu/hijau), retakan dan rune bercahaya. Permukaan dibangkitkan sekali per warna sebagai peta ekuirektangular lalu dirender sebagai bola SUNGGUHAN (proyeksi per piksel) menjadi **24 bingkai rotasi** (16 sedang, 12 rendah), di-cache dan dibuat malas, dipanaskan saat layar pembuka (`Balls.warm`). Bola menggelinding (sudut = jarak ÷ radius, sumbu tegak lurus arah jalur). Pencahayaan tetap (sisi gelap, pantulan lingkungan, rim light, spekular) di lapisan terpisah; asap tipis dari permukaan; jejak kabut gelap di belakang bola terakhir tiap kelompok. **8 motif rune berbeda** per warna (aman buta warna). Pecah = pecahan obsidian + asap + riak energi.
+- **Angka** berada di segel gelap hampir opak: isi krem `#fff4d6`, outline gelap, pendar tipis; mendukung negatif, pecahan bersusun, desimal. Kontras diuji otomatis (≥ 4,5:1; terukur ±15:1 untuk bola sihir dan ±5:1 untuk bola api) dan bisa dilihat di **`?debug=orbs`** (semua warna × jenis angka × ukuran rantai/preview + bola api ×1–×3).
+- **Bola api (`js/render/fire.js`)**: api berlapis (lidah turbulen, 8 bingkai, ekor, bara mengorbit, cahaya aditif) mengelilingi **cakram bara gelap** (arang menyala + retakan, tepi panas) di tengah; angka ×N hanya di atas cakram, tidak pernah di atas api terang. Preview bola berikutnya ada di **soket rune** di sisi naga (jangkauan jempol, digambar di atas naga), ukuran = 0,9 × bola siap tembak (`NEXT_BALL_SCALE`), jadi font ≥ 0,85 ×.
+- **Portal (`js/render/effects.js`)**: tanah gosong dengan retakan bercahaya, bayangan cincin, tiga lapis pusaran + dua lapis fBm berlawanan arah, lorong kedalaman (cincin menyusut ke pusat), cincin rune MELAYANG (bayangan di tanah), efek lensa kromatik di tepi, busur petir, partikel tersedot/terlontar, denyut tiap bola keluar, buka/tutup. Lapisan berat dimatikan di kualitas rendah.
+- **Telur & sarang (`js/render/eggs.js`)**: telur bersisik (relief sisik, bintik, urat, cahaya dalam, rim light) dengan 3 elemen (api/es/hutan) dan keadaan ok/terancam (bergetar, merah)/retak/kosong; pecah dengan pecahan cangkang saat hilang (`FX.eggBreak`). Sarang: bayangan kontak, cincin batu (lumut / basal / es / rune menurut tema), ranting, tulang, sisik, abu & bara; cahaya telur menyinari sarang. Telur HUD memakai sprite yang sama. Gambar sarang sendiri: `sprites.nest` di manifest.
+
+## Naga top-down & burung
+
+- **Naga (`js/dragon.js`)**: dilihat dari ATAS dan melayang. Badan bersisik dengan pelat punggung, kaki belakang bercakar, leher dan ekor bersegmen (simulasi pegas), dua sayap bertulang (lengan, pergelangan, empat jari, selaput bergerigi tembus cahaya dengan urat & tekstur kulit) yang mengepak berirama (pelan saat melayang, cepat saat menembak/bersorak, lesu saat sedih; foreshortening saat terangkat). **Kepala tampak atas**: moncong memanjang dengan lubang hidung di ujung, dua mata di sisi atas, tanduk & jumbai ke belakang; saat menyembur rongga mulut terbuka tampak gelap dengan gigi di tepi, lidah dan tenggorokan jingga; bola api muncul tepat di depan ujung moncong (`mouthDist`) dan digambar di atas kepala agar angka ×N terbaca. Animasi: napas, ekor bergoyang, kedip, recoil, mengaum (kombo), kaget (salah), sayap membentang (menang), lesu (kalah). **Bayangan terbang** di tanah (offset menurut ketinggian, 3 lapis lembut). Setiap ayunan turun: `Dragon.onFlap` (bunyi `flap`), hembusan debu/daun dari ujung sayap, dan denyut `Dragon.pulse` yang membuat telur di sarang bergetar sedikit. Footprint sayap dibatasi `Theme.dragon.wingSpan` (setengah bentang ≈ 1,85 × radius badan).
+- **Burung (`js/render/birds.js`)**: tampak atas; sayap berbulu (bulu primer & sekunder bergerak, melipat, meluncur) atau selaput kelelawar; spesies per zona (gagak & elang di hutan, camar di rawa, kelelawar di gua & menara); kawanan longgar (boids: kohesi, keselarasan, pemisahan), goyangan angin, bayangan yang berubah menurut ketinggian, dan sesekali hinggap di tepi peta. Digambar DI BAWAH bola (tidak pernah menutupi bola/angka), tidak menerima input, dikurangi di kualitas rendah (mati) / sedang (satu kawanan).
 
 ## Render berlapis (js/render/, js/maps/)
 

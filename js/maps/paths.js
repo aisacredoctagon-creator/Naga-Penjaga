@@ -10,6 +10,7 @@
   'use strict';
   const TAU = Math.PI * 2;
   const T = function (pts) { return pts.map(function (p) { return [p[1], p[0]]; }); };          // transpose: u↔v
+  const TV = function (pts) { return pts.map(function (p) { return [p[1], p[0]]; }); };          // transpose (baris → kolom)
   const MIR = function (pts) { return pts.map(function (p) { return [1 - p[0], p[1]]; }); };     // cermin kiri-kanan
 
   /** Serpentin horizontal: n baris bolak-balik, baris ke-i di v = v0 + i·dv. Tikungan berbentuk setengah lingkaran (kedalaman = dv/2 piksel,
@@ -22,7 +23,7 @@
       if (!right) row.reverse();
       row[0][0] = right ? off : 1 - off; row[row.length - 1][0] = right ? 1 - off : off;
       row.forEach(function (p) { pts.push(p); });
-      if (i < n - 1) { const cx = right ? 1 - off : off, sg = right ? 1 : -1, cy = v + dv / 2; [-0.78, 0, 0.78].forEach(function (a) { pts.push([cx + sg * off * Math.cos(a), cy + dv / 2 * Math.sin(a)]); }); }
+      if (i < n - 1) { const cx = right ? 1 - off : off, sg = right ? 1 : -1, cy = v + dv / 2; [-1.1, -0.55, 0, 0.55, 1.1].forEach(function (a) { pts.push([cx + sg * off * Math.cos(a), cy + dv / 2 * Math.sin(a)]); }); }
     }
     return pts;
   }
@@ -44,6 +45,14 @@
   const BOSS_U = [[0.0, -0.2], [0.03, 0.14], [0.04, 0.6], [0.14, 0.9], [0.5, 1.0], [0.86, 0.9], [0.96, 0.6], [0.97, 0.3], [0.95, 0.08]];
   const SERP_ZONE = [{ from: 0.36, to: 0.56, mul: 1.45 }];   // bagian jalur tempat rantai melaju lebih cepat
 
+  /** Jumlah baris & jarak baris serpentin yang MUAT untuk radius bola d.R: jarak baris >= 1,1 × (2,5R + 8) (spline melorot sedikit di tikungan) dan ruang penembak terjaga. */
+  function fitRows(d, n0, sv) {
+    const R = d.R, need = (2.5 * R + 8) * 1.1, sh = 1.45 * R * 1.5 + R + 12, span = (d.ih * sv - sh) * 0.97, n = Math.max(3, Math.min(n0, 1 + Math.floor(span / need)));
+    return { n: n, dv: Math.min(0.3, Math.max(need / d.ih, span / (n - 1) / d.ih)) };
+  }
+  /** Jarak kolom (u) untuk dua-sarang: >= 1,1 × (2,5R + 8). */
+  function colStep(d, base) { return Math.max(base, (2.5 * d.R + 8) * 1.1 / d.iw); }
+
   const ARCH = {
     // --- Step 1 (hutan) ---
     hook: legacy('hook'),
@@ -61,10 +70,18 @@
       const pts = figure8(), sh = [0.75, 0.5];
       return portrait ? { pts: T(pts), shooter: [sh[1], sh[0]], bridge: true } : { pts: pts, shooter: sh, bridge: true };
     },
+    // --- varian padat (tahap f): lebih banyak baris = jalur lebih panjang; tikungan setengah lingkaran dilunakkan validator bila perlu ---
+    serp4: function (portrait, d) { const f = fitRows(d, portrait ? 7 : 4, portrait ? 0.98 : 0.995); return { pts: serp(f.n, 0, f.dv, d.asp), shooter: [0.5, portrait ? 0.98 : 0.995], zones: SERP_ZONE }; },
+    serp4w: function (portrait, d) { const f = fitRows(d, portrait ? 6 : 4, portrait ? 0.97 : 0.995); return { pts: serp(f.n, 0, f.dv, d.asp, portrait ? 0.012 : 0.008), shooter: [0.5, portrait ? 0.97 : 0.995] }; },
+    serp3w: function (portrait, d) { return portrait ? { pts: serp(5, 0, 0.17, d.asp, 0.025), shooter: [0.5, 0.96], zones: SERP_ZONE } : { pts: serp(3, 0, 0.27, d.asp, 0.05), shooter: [0.5, 0.93] }; },
     horseshoe: function (portrait) {
       const pts = [[-0.12, 0.03], [0.05, 0.05], [0.02, 0.5], [0.1, 0.92], [0.3, 1.0], [0.7, 1.0], [0.92, 0.92], [1.0, 0.5], [0.95, 0.1], [0.75, 0.0], [0.55, 0.02]];
       return { pts: portrait ? T(pts) : pts };
     },
+    // --- DUA SARANG (Step 5): dua jalur dari dua portal (kiri-atas, kanan-atas) menuju dua sarang di kiri & kanan; naga di tengah, boss di tengah-atas ---
+    dualU: function (portrait, d) { const A = TV(serp(portrait ? 2 : 3, 0, colStep(d, portrait ? 0.19 : 0.15), 1 / d.asp)); return { pts: A, pts2: MIR(A), shooter: portrait ? [0.5, 0.85] : [0.5, 0.74], boss: portrait ? [0.5, 0.1] : [0.5, 0.2] }; },
+    dualW: function (portrait, d) { const A = TV(serp(portrait ? 2 : 3, 0, colStep(d, portrait ? 0.2 : 0.17), 1 / d.asp, 0.02)); return { pts: A, pts2: MIR(A), shooter: portrait ? [0.5, 0.85] : [0.5, 0.74], boss: portrait ? [0.5, 0.1] : [0.5, 0.2] }; },
+    dualC: function (portrait, d) { const A = TV(serp(2, 0, colStep(d, portrait ? 0.2 : 0.19), 1 / d.asp, 0.03)); return { pts: A, pts2: MIR(A), shooter: portrait ? [0.5, 0.85] : [0.5, 0.74], boss: portrait ? [0.5, 0.1] : [0.5, 0.2] }; },
     // --- Step 3 (menara, arena boss: penembak di bawah, boss di atas) ---
     bossU: legacy('bossU'),
     bossU2: function () { return { pts: MIR(BOSS_U), shooter: [0.5, 0.66], boss: [0.5, 0.2] }; },
@@ -74,9 +91,9 @@
   };
 
   function has(id) { return !!ARCH[id]; }
-  function resolve(id, portrait, L) {
+  function resolve(id, portrait, L, R) {
     const pl = L && L.play, pad = L && L.pad != null ? L.pad : 40, iw = pl ? pl.w - 2 * pad : 440, ih = pl ? pl.h - 2 * pad : 356;
-    return ARCH[id] ? ARCH[id](!!portrait, { iw: iw, ih: ih, asp: ih / iw }) : null;
+    return ARCH[id] ? ARCH[id](!!portrait, { iw: iw, ih: ih, asp: ih / iw, R: R || 29 }) : null;
   }
 
   /* ---------- validator ---------- */
@@ -131,6 +148,14 @@
     return { ok: !issues.length, issues: issues, minGap: minGap > 1e8 ? null : minGap, need: need, minRadius: minR > 1e8 ? null : minR, shooterClear: shClear, bossClear: bossClear, crossings: cross, violations: viol, sharp: sharp, length: path.length };
   }
 
+  /** Dua jalur (Step 5): jarak minimum antar-jalur harus >= 2,5R + 8 supaya dua rantai tidak saling menimpa. */
+  function crossCheck(a, R) {
+    const b = a.second; if (!b) return; const need = 2.5 * R + 8; let m = 1e9;
+    for (let i = 0; i < a.xs.length; i += 6) for (let j = 0; j < b.xs.length; j += 6) { const dx = a.xs[i] - b.xs[j], dy = a.ys[i] - b.ys[j], d = dx * dx + dy * dy; if (d < m) m = d; }
+    m = Math.sqrt(m); a.report.pairGap = m;
+    if (m < need) { a.report.issues.push({ kind: 'pair', msg: 'jarak dua jalur ' + Math.round(m) + ' < ' + Math.round(need) }); a.report.ok = false; }
+  }
+
   /** Lunakkan tikungan tajam: ambil titik tiap ~28 px, haluskan (rata-rata tetangga), bangun ulang jalur. */
   function soften(path, passes) {
     const xs = path.xs, ys = path.ys, pts = [];
@@ -183,6 +208,6 @@
     ctx.restore();
   }
 
-  GA.Paths = { has: has, resolve: resolve, refine: refine, analyze: analyze, drawDebug: drawDebug, ids: Object.keys(ARCH) };
+  GA.Paths = { crossCheck: crossCheck, has: has, resolve: resolve, refine: refine, analyze: analyze, drawDebug: drawDebug, ids: Object.keys(ARCH) };
   GA.debug = /[?&]debug(=1|&|$)/.test(location.search);
 })(window.GA = window.GA || {});

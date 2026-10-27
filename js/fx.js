@@ -47,11 +47,13 @@
 
     /** Pecahan kristal + gelombang cahaya + percik debu sihir. r = radius bola. */
     shatter: function (x, y, cols, r) {
-      const u = this.unit;
+      const u = this.unit, shard = ['#1a0f2a', cols[1] || cols[0], '#2a1840', cols[0]];     // pecahan OBSIDIAN gelap dengan tepi bercahaya
       for (let i = 0; i < 16; i++) {
         const a = Math.random() * 6.283, s = (110 + Math.random() * 300) * u;
-        this.spawn(x, y, Math.cos(a) * s, Math.sin(a) * s - 70 * u, 0.55 + Math.random() * 0.5, r * (0.18 + Math.random() * 0.22), cols[i % cols.length], 4, 520);
+        this.spawn(x, y, Math.cos(a) * s, Math.sin(a) * s - 70 * u, 0.55 + Math.random() * 0.5, r * (0.18 + Math.random() * 0.22), shard[i % shard.length], 4, 520);
       }
+      for (let i = 0; i < 4; i++) { const a = Math.random() * 6.283; this.spawn(x, y, Math.cos(a) * 26, Math.sin(a) * 26 - 20, 0.8 + Math.random() * 0.5, r * (0.5 + Math.random() * 0.4), '#2a1840', 6, -30); }      // asap sihir
+      this.ring(x, y, cols[0], r * 2.2);                                                                                                                                              // riak energi
       for (let i = 0; i < 10; i++) { const a = Math.random() * 6.283, s = 40 + Math.random() * 120; this.spawn(x, y, Math.cos(a) * s, Math.sin(a) * s - 30, 0.7 + Math.random() * 0.6, r * 0.12, cols[1] || cols[0], 5, -30); }
       this.spawn(x, y, 0, 0, 0.38, r * 2.4, cols[0], 7, 0);
       this.spawn(x, y, 0, 0, 0.5, r * 1.2, '#ffffff', 7, 0);
@@ -66,6 +68,14 @@
       for (let i = 0; i < 5; i++) { const a = Math.random() * 6.283; this.spawn(x, y, Math.cos(a) * 30, Math.sin(a) * 30 - 40, 0.9 + Math.random() * 0.6, r * (0.4 + Math.random() * 0.3), '#3a3a44', 6, -40); }
       if (good) for (let i = 0; i < 6; i++) { const a = Math.random() * 6.283, s = 140 + Math.random() * 220; this.spawn(x, y, Math.cos(a) * s, Math.sin(a) * s - 80, 0.7 + Math.random() * 0.4, 4 * u, '#ffd23f', 1, 380); }
       this.scorch(x, y, r * 0.9);
+    },
+
+    /** Telur pecah: pecahan cangkang krem + kilatan hangat + debu. tint = warna elemen. */
+    eggBreak: function (x, y, r, tint) {
+      const u = this.unit;
+      for (let i = 0; i < 12; i++) { const a = Math.random() * 6.283, s = (70 + Math.random() * 200) * u; this.spawn(x, y, Math.cos(a) * s, Math.sin(a) * s - 90 * u, 0.6 + Math.random() * 0.5, r * (0.12 + Math.random() * 0.14), i % 3 ? '#f4e6c4' : (tint || '#ffd27a'), 4, 520); }
+      this.spawn(x, y, 0, 0, 0.4, r * 2.2, '#ffd27a', 7, 0);
+      for (let i = 0; i < 3; i++) { const a = Math.random() * 6.283; this.spawn(x, y, Math.cos(a) * 20, Math.sin(a) * 20 - 20, 0.8, r * 0.5, '#6a5a48', 6, -30); }
     },
 
     /** Bara kecil (aditif). */

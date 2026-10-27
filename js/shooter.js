@@ -22,6 +22,7 @@
       this.cur = makeAmmo(); this.nxt = makeAmmo();
       this.reload = 0; this.swapT = 0;
       this.guideLen = 400;
+      this.off = 0; this.slip = false; this.goal = this.angle;   // getaran bidik (Hawa Panas) & bidikan licin (Es Licin)
       this.dragon = new GA.Dragon.Dragon();
     }
     /** ballR = radius bola. Semua ukuran turunan dari konstanta di Theme. */
@@ -37,15 +38,19 @@
     get frozen() { return this.dragon.frozen > 0; }
     aimAt(px, py) {
       if (Math.hypot(px - this.x, py - this.y) < 20) return;
-      this.angle = Math.atan2(py - this.y, px - this.x);
-      this.dragon.setAim(this.angle);
+      const a = Math.atan2(py - this.y, px - this.x);
+      if (this.slip) { this.goal = a; return; }       // nerf Es Licin: sudut menyusul pelan (berinersia)
+      this.goal = a; this.angle = a;
+      this.dragon.setAim(this.aim);
     }
-    setAngle(a) { this.angle = a; this.dragon.setAim(a); }
+    setAngle(a) { this.angle = a; this.goal = a; this.dragon.setAim(this.aim); }
+    /** Sudut tembak sebenarnya = sudut bidik + getaran (nerf Hawa Panas). */
+    get aim() { return this.angle + this.off; }
     canFire() { return this.reload <= 0 && this.dragon.frozen <= 0; }
     /** Titik peluru keluar: pusat bola api di mulut naga. */
     muzzle(out) {
-      const d = this.r * Theme.dragon.mouthDist - this.dragon.kick * this.r * 0.3;
-      out.x = this.x + Math.cos(this.angle) * d; out.y = this.y + Math.sin(this.angle) * d;
+      const d = this.r * Theme.dragon.mouthDist - this.dragon.kick * this.r * 0.3, a = this.aim;
+      out.x = this.x + Math.cos(a) * d; out.y = this.y + Math.sin(a) * d;
       return out;
     }
     /** Ambil bola siap tembak dan isi ulang. */
@@ -68,16 +73,21 @@
       const b = this.bubble();
       return Math.hypot(px - b.x, py - b.y) < Math.max(this.nextR + 14, (minR || 0) * 0.7);
     }
-    /** Bola berikutnya: di dada/sayap naga (berlawanan arah kepala, tidak pernah menimpa bola di mulut). */
+    /** Soket rune bola berikutnya: di sisi naga (di luar sayap, dalam jangkauan jempol), selalu di atas gambar naga. Tidak ikut berputar mengikuti bidikan. */
     bubble() {
-      const a = this.dragon.angle, d = this.r * 0.72;
-      return { x: this.x - Math.cos(a) * d, y: this.y - Math.sin(a) * d };
+      const V = GA.view || { W: 960, H: 540 }, side = this.x > V.W * 0.55 ? -1 : 1, rr = this.nextR + 8;
+      const x = Math.max(rr + 6, Math.min(V.W - rr - 6, this.x + side * this.r * 2.7)), y = Math.min(V.H - rr - 6, this.y + this.r * 0.55);
+      return { x: x, y: y };
     }
 
     update(dt) {
       if (this.reload > 0) this.reload -= dt;
       if (this.swapT > 0) this.swapT -= dt;
-      this.dragon.setAim(this.angle);
+      if (this.slip && this.goal !== undefined) {
+        let df = this.goal - this.angle; while (df > Math.PI) df -= 2 * Math.PI; while (df < -Math.PI) df += 2 * Math.PI;
+        this.angle += df * Math.min(1, dt * 3.2);
+      }
+      this.dragon.setAim(this.aim);
       this.dragon.update(dt, this.reload <= 0);
       const FX = GA.FX, ex = this.dragon.expr;
       if (!this.quiet) {
@@ -99,16 +109,20 @@
         drawAmmo(ctx, wx, wy, self.ammoR * (0.6 + 0.4 * grow), self.cur, px, t, null);
       });
 
-      // bola berikutnya di dekat dada naga (ketuk naga untuk menukar)
-      const b = this.bubble(), br = this.nextR + 6;
-      ctx.fillStyle = 'rgba(30,16,70,0.55)';
-      ctx.beginPath(); ctx.arc(b.x, b.y, br, 0, 6.283); ctx.fill();
-      ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(255,214,140,0.85)'; ctx.stroke();
-      drawAmmo(ctx, b.x, b.y, this.nextR, this.nxt, px, t, null);
-      ctx.strokeStyle = '#ffe9b8'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
-      const ra = br + 5, sp = t * 1.5;
-      ctx.beginPath(); ctx.arc(b.x, b.y, ra, sp + 0.3, sp + 1.9); ctx.stroke();
-      ctx.beginPath(); ctx.arc(b.x, b.y, ra, sp + 3.44, sp + 5.04); ctx.stroke();
+      // bola berikutnya di soket rune (ketuk soket atau naga untuk menukar)
+      const b = this.bubble(), br = this.nextR + 7, pop = this.swapT > 0 ? 1 + this.swapT * 0.9 : 1;
+      ctx.save(); ctx.translate(b.x, b.y); ctx.scale(pop, pop);
+      ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(2, br * 0.3, br * 1.08, br * 0.95, 0, 0, 6.283); ctx.fill();                                        // bayangan
+      const rg = ctx.createLinearGradient(-br, -br, br, br); rg.addColorStop(0, '#8a5a2a'); rg.addColorStop(0.5, '#5a3418'); rg.addColorStop(1, '#2a160a');
+      ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(0, 0, br + 5, 0, 6.283); ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#1c0e05'; ctx.stroke();                          // bingkai kayu
+      const gg = ctx.createLinearGradient(0, -br, 0, br); gg.addColorStop(0, '#fff0b0'); gg.addColorStop(0.5, '#e8b84a'); gg.addColorStop(1, '#9a6a14');
+      ctx.strokeStyle = gg; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, br + 1, 0, 6.283); ctx.stroke();                                                         // trim emas
+      const dg = ctx.createRadialGradient(0, -br * 0.2, br * 0.1, 0, 0, br); dg.addColorStop(0, '#2a1a3a'); dg.addColorStop(1, '#0c0614');
+      ctx.fillStyle = dg; ctx.beginPath(); ctx.arc(0, 0, br - 2, 0, 6.283); ctx.fill();                                                                                      // lubang soket
+      ctx.strokeStyle = 'rgba(184,144,255,' + (0.55 + 0.25 * Math.sin(t * 2.4)).toFixed(2) + ')'; ctx.lineWidth = 2; ctx.lineCap = 'round';                                      // rune bercahaya mengelilingi
+      for (let i = 0; i < 8; i++) { const a = i * 0.7854 + t * 0.4; ctx.beginPath(); ctx.arc(0, 0, br - 5, a, a + 0.42); ctx.stroke(); }
+      ctx.restore();
+      drawAmmo(ctx, b.x, b.y, this.nextR * pop, this.nxt, px, t, null);
     }
   }
 
@@ -145,7 +159,7 @@
           b.px = b.x; b.py = b.y;
           b.x += b.vx * sd; b.y += b.vy * sd;
           if ((b.trail = (b.trail || 0) + sd) > 0.012) { b.trail = 0; GA.FX.embers(b.x - b.vx * 0.012, b.y - b.vy * 0.012, -b.vx * 0.1, -b.vy * 0.1, 1, this.chainR * 0.55); }
-          if (onStep(b)) { b.on = false; break; }
+          if (onStep(b, sd)) { b.on = false; break; }
           if (b.x < -60 || b.x > W + 60 || b.y < -60 || b.y > H + 60) { b.on = false; break; }
         }
       }

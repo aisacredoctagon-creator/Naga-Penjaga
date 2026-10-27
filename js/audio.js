@@ -77,6 +77,8 @@
     crystal: function () { tone(1320, 1760, 0.12, 'triangle', 0.2); tone(1760, 2200, 0.1, 'sine', 0.12, 0.05); },
     spell: function () { tone(220, 660, 0.35, 'sawtooth', 0.14); tone(330, 990, 0.35, 'triangle', 0.12, 0.08); noise(0.25, 0.14, 0, 2000); },
     steal: function () { tone(500, 200, 0.4, 'triangle', 0.22); tone(420, 160, 0.4, 'triangle', 0.16, 0.1); },
+    warn: function () { tone(1000, 1000, 0.07, 'square', 0.1); tone(1000, 1000, 0.07, 'square', 0.1, 0.12); },
+    flap: function () { noise(0.16, 0.13, 0, 650); tone(95, 55, 0.13, 'sine', 0.13); },
     egg: function () { tone(784, 784, 0.09, 'triangle', 0.22); tone(1047, 1047, 0.09, 'triangle', 0.22, 0.09); tone(1568, 1568, 0.25, 'triangle', 0.22, 0.18); }
   };
 

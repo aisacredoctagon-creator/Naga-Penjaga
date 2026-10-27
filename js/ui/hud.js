@@ -81,19 +81,9 @@
   }
 
   /* ---------- isi dinamis ---------- */
+  /** Telur di HUD: sprite telur bersisik yang sama dengan di sarang (elemen mengikuti tema); kosong = siluet redup. */
   function egg(ctx, x, y, s, filled, t, i) {
-    const tints = [['#fff3c4', '#f2c75c'], ['#ffd6ea', '#e88ab8'], ['#d2f3ff', '#6cc3ea'], ['#e2ffd2', '#7dcf5a'], ['#e8d9ff', '#a98af0'], ['#ffe1c4', '#f08a4a']][i % 6];
-    ctx.save(); ctx.translate(x, y);
-    if (filled) {
-      const gl = ctx.createRadialGradient(0, 0, 0, 0, 0, s * 0.62); gl.addColorStop(0, 'rgba(255,200,110,' + (0.4 + 0.15 * Math.sin(t * 2.4 + i)).toFixed(2) + ')'); gl.addColorStop(1, 'rgba(255,160,60,0)');
-      ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(0, 0, s * 0.62, 0, TAU); ctx.fill(); ctx.globalCompositeOperation = 'source-over';
-    } else ctx.globalAlpha = 0.28;
-    const w = s * 0.31, h = s * 0.42, g = ctx.createRadialGradient(-w * 0.3, -h * 0.35, 1, 0, 0, h * 1.1);
-    if (filled) { g.addColorStop(0, '#fff'); g.addColorStop(0.4, tints[0]); g.addColorStop(1, tints[1]); } else { g.addColorStop(0, '#d9d2c4'); g.addColorStop(1, '#6a645a'); }
-    ctx.fillStyle = g; ctx.strokeStyle = filled ? 'rgba(255,255,255,0.9)' : '#a8a296'; ctx.lineWidth = 2; ctx.lineJoin = 'round'; GA.Chain.eggPath(ctx, 0, 0, w, h); ctx.fill(); ctx.stroke();
-    if (filled) { ctx.fillStyle = 'rgba(255,255,255,0.65)'; ctx.beginPath(); ctx.ellipse(-w * 0.3, -h * 0.35, w * 0.16, h * 0.22, -0.4, 0, TAU); ctx.fill(); }
-    else { ctx.strokeStyle = 'rgba(30,20,10,0.7)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-w * 0.5, -h * 0.1); ctx.lineTo(0, h * 0.15); ctx.lineTo(w * 0.4, -h * 0.2); ctx.stroke(); }   // retak saat hilang
-    ctx.restore();
+    GA.Eggs.draw(ctx, x, y, s * 0.31, { el: GA.Eggs.elFor(GA.Theme.scene, i), state: filled ? 'ok' : 'empty', t: t, i: i, rot: 0, hud: true });
   }
 
   function gem(ctx, x, y, s, state, t) {
@@ -148,10 +138,10 @@
     }
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
 
-    // step: tiga permata + "STEP n/3"
+    // step: lima permata + "n/5"
     const sp = G.step; ctx.fillStyle = '#c9a060'; ctx.font = '700 11px ' + Fo.title; ctx.textAlign = 'center'; ctx.fillText('STEP', sp.x + sp.w / 2, sp.y + 14);
-    for (let i = 0; i < 3; i++) gem(ctx, sp.x + sp.w / 2 + (i - 1) * (sp.w * 0.27), sp.y + sp.h * 0.5, sp.w * 0.1, i < run.stepNo - 1 ? 2 : (i === run.stepNo - 1 ? 1 : 0), t);
-    ctx.fillStyle = U.gold[0]; ctx.font = '800 ' + (por ? 15 : 14) + 'px ' + Fo.ui; ctx.fillText(run.stepNo + '/3', sp.x + sp.w / 2, sp.y + sp.h - 7);
+    for (let i = 0; i < 5; i++) gem(ctx, sp.x + sp.w / 2 + (i - 2) * (sp.w * 0.19), sp.y + sp.h * 0.5, sp.w * 0.07, i < run.stepNo - 1 ? 2 : (i === run.stepNo - 1 ? 1 : 0), t);
+    ctx.fillStyle = U.gold[0]; ctx.font = '800 ' + (por ? 15 : 14) + 'px ' + Fo.ui; ctx.fillText(run.stepNo + '/5', sp.x + sp.w / 2, sp.y + sp.h - 7);
     ctx.textAlign = 'left';
 
     // telur
@@ -167,7 +157,7 @@
       const hasNote = !!qt.note, inner = q.h - (hasNote ? 30 : 20), ease = pop * pop;
       ctx.save(); rr(ctx, q.x + 6, q.y + 6, q.w - 12, q.h - 12, 11); ctx.clip();
       ctx.translate(q.x + q.w / 2, q.y + q.h / 2 + (hasNote ? -6 : 1) + ease * 16); ctx.globalAlpha = 1 - ease * 0.85; ctx.scale(1 + ease * 0.08, 1 + ease * 0.08);
-      const size = MT.fit(ctx, qt.text, q.w - 44, inner, por ? 44 : 42);
+      const size = MT.fit(ctx, qt.text, q.w - 140, inner, por ? 44 : 42);
       MT.draw(ctx, qt.text, 0, 0, size, '#2a1a3a', null);
       ctx.restore();
       if (pop > 0) {   // kilau menyapu plakat saat soal berganti
@@ -175,6 +165,17 @@
         sg.addColorStop(0, 'rgba(255,255,255,0)'); sg.addColorStop(0.5, 'rgba(255,255,255,0.55)'); sg.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = sg; ctx.fillRect(sx - 30, q.y, 60, q.h); ctx.restore();
       }
       if (hasNote) { ctx.font = '700 13px ' + Fo.ui; ctx.fillStyle = '#9a3a10'; ctx.textAlign = 'center'; ctx.fillText(qt.note, q.x + q.w / 2, q.y + q.h - 10); ctx.textAlign = 'left'; }
+    }
+    if (!qt) {   // belum ada bola target terlihat: tiga titik berdenyut
+      for (let i = 0; i < 3; i++) { ctx.fillStyle = 'rgba(90,50,20,' + (0.25 + 0.55 * Math.max(0, Math.sin(t * 4 - i * 0.9))).toFixed(2) + ')'; ctx.beginPath(); ctx.arc(q.x + q.w / 2 + (i - 1) * 18, q.y + q.h / 2, 5, 0, TAU); ctx.fill(); }
+    }
+    // progres soal "12/20" di sisi kiri plakat: ikon bola + angka
+    {
+      const bx = q.x + 18, by2 = q.y + q.h / 2, br = Math.min(11, q.h * 0.2);
+      const og = ctx.createRadialGradient(bx - br * 0.3, by2 - br * 0.3, 1, bx, by2, br); og.addColorStop(0, '#d8b8ff'); og.addColorStop(0.6, '#7a3ae0'); og.addColorStop(1, '#2a1060');
+      ctx.fillStyle = og; ctx.beginPath(); ctx.arc(bx, by2, br, 0, TAU); ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#1a0a40'; ctx.stroke();
+      ctx.font = '800 ' + (por ? 17 : 16) + 'px ' + Fo.ui; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#5a2a08';
+      ctx.fillText(run.correct + '/' + run.total, bx + br + 6, by2 + 1); ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     }
     if (run.qTimeMax) {   // batas waktu: sumbu menyala di tepi bawah plakat
       const f = Math.max(0, run.qTime / run.qTimeMax), tw = q.w - 44;
@@ -199,6 +200,11 @@
     };
     if (run.slowT > 0) chip('Lambat ' + Math.ceil(run.slowT) + 'd', '#3aa0e0');
     if (run.shooter && run.shooter.frozen) chip('Naga beku', '#5a80e0');
+    if (run.fx) {
+      if (run.fx.shield > 0) chip('Perisai', '#2f9ad0');
+      if (run.fx.twinReady) chip('Api Ganda siap', '#e8782a');
+      if (run.fx.freeze > 0) chip('Waktu Beku', '#4a8ad8');
+    }
 
     if (run.feedback && run.feedback.t > 0) {
       const f = run.feedback, a = Math.min(1, f.t * 3); ctx.globalAlpha = a;

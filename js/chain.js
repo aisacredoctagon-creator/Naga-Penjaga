@@ -59,8 +59,9 @@
   }
 
   /** Angka di dalam bola. Pecahan ("3/4") digambar bersusun; teks panjang otomatis diperkecil agar tidak keluar bola. */
+  const LABEL_FILL = '#fff4d6', LABEL_EDGE = 'rgba(10,4,26,0.96)';
   function drawLabel(ctx, text, x, y, r, color) {
-    const fill = color || '#fff', edge = 'rgba(15,10,50,0.88)';
+    const fill = color || LABEL_FILL, edge = LABEL_EDGE;
     if (GA.MathText.isFrac(text.replace(/\s/g, ''))) {
       const size = GA.MathText.fit(ctx, text, r * 1.7, r * 1.7, r * 0.95);
       GA.MathText.draw(ctx, text, x, y, size, fill, edge);
@@ -74,7 +75,9 @@
       size *= Math.max(0.8, maxW / ctx.measureText(text).width); ctx.font = '800 ' + size.toFixed(1) + 'px ' + Theme.fonts.ui;
     }
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(3, size * 0.22);
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = size * 0.52; ctx.strokeStyle = 'rgba(190,150,255,0.2)'; ctx.strokeText(text, x, y + size * 0.04);      // pendar tipis
+    ctx.lineWidth = Math.max(3, size * 0.22);
     ctx.strokeStyle = edge;
     ctx.strokeText(text, x, y + size * 0.04);
     ctx.fillStyle = fill;
@@ -82,11 +85,11 @@
   }
 
   /** Gambar bola (orb sihir atau, bila ci < 0, bola api) + teks. px = piksel perangkat per unit logis. */
-  function drawBall(ctx, x, y, r, ci, text, px, sx, rot, t) {
+  function drawBall(ctx, x, y, r, ci, text, px, sx, rot, t, heading, base) {
     const img = Theme.sprite('ball');
     if (sx !== undefined && sx !== 1) { ctx.save(); ctx.translate(x, y); ctx.scale(sx, 1); x = 0; y = 0; }
     if (img) ctx.drawImage(img, x - r, y - r, r * 2, r * 2);
-    else if (ci >= 0 && GA.Balls) GA.Balls.drawOrb(ctx, x, y, r, ci, rot || 0, px || 1, !!text, t);
+    else if (ci >= 0 && GA.Balls) GA.Balls.drawOrb(ctx, x, y, r, ci, rot || 0, px || 1, !!text, t, heading || 0, base);
     else {
       const s = getSprite(ci, r, px || 1);
       const k = r / s.qr, d = (s.qr * 2 + 8) * k;   // sprite terdekat diskalakan ke radius sebenarnya
@@ -153,6 +156,7 @@
   class Chain {
     constructor(path, opts) {
       this.zones = null; this.overWindows = null;   // zona kecepatan; jendela jembatan (bola di sini digambar di atas jembatan)
+      this.spawnQ = []; this.useQueue = false; this.ff = false;   // antrean gelombang & percepatan saat tidak ada target terlihat
       this.entryD = 0; this.onEmerge = null;   // jarak titik portal; bola yang melewatinya "keluar" dari portal
       this.path = path;
       this.r = opts.r;
@@ -178,12 +182,19 @@
       for (const b of this.balls) b.d *= ratio;
     }
 
-    makeBall(d) {
-      const b = { id: this.nextId++, d: d, kind: 'num', value: 0, text: '', ci: 0, x: 0, y: 0, a: 0, flipT: 0, nv: null, nt: null, wob: 0, red: 0, fog: 0, fogAge: 0, out: d >= this.entryD, rot: 0 };
+    /** spec (mode gelombang): { qid, kind, gap }. qid = indeks soal di dek (bola target), kind = 'num' | 'curse' | 'frost' | 'egg'. */
+    makeBall(d, spec) {
+      const b = { id: this.nextId++, d: d, kind: 'num', value: 0, text: '', ci: 0, x: 0, y: 0, a: 0, flipT: 0, nv: null, nt: null, wob: 0, red: 0, fog: 0, fogAge: 0, out: d >= this.entryD, rot: 0,
+        qid: spec && spec.qid != null ? spec.qid : null, gap: spec && spec.gap ? spec.gap : 0, want: spec ? spec.kind || 'num' : null };
       this.lastCi = b.ci = (this.lastCi + 1 + Math.floor(Math.random() * 7)) % 8;
       this.labeler(b);
       return b;
     }
+
+    /** Mode gelombang: antrean bola yang keluar dari portal satu per satu. specs: [{ qid, kind, gap }], gap = jarak ekstra di depan bola ini. */
+    setQueue(specs) { this.spawnQ = specs.slice(); this.useQueue = true; this.balls.length = 0; }
+    /** Bola target yang lolos ke sarang dikembalikan ke antrean (soal belum selesai) — keluar lagi dari portal. */
+    requeue(spec) { this.spawnQ.unshift(spec); this.useQueue = true; }
 
     /** Isi awal rantai: n bola, bola depan di frontD, lalu luncurkan masuk dengan `slide` px. */
     fill(n, frontD, slide) {
@@ -194,6 +205,16 @@
     }
 
     spawnMore() {
+      if (this.useQueue) {
+        let g = 8;
+        while (g-- > 0 && this.spawnQ.length) {
+          const spec = this.spawnQ[0], tail = this.balls[this.balls.length - 1], need = tail ? tail.d - this.D - (spec.gap || 0) : 0;
+          if (tail && need < -this.D) break;      // belum ada ruang di depan portal
+          this.spawnQ.shift();
+          this.balls.push(this.makeBall(Math.min(need, 0), spec));
+        }
+        return;
+      }
       let guard = 6;
       while (guard-- > 0 && this.balls.length < this.maxBalls) {
         const tail = this.balls[this.balls.length - 1];
@@ -211,6 +232,7 @@
       let mul = this.speedMul;
       if (this.slowT > 0) mul *= 0.3;
       if (this.fastT > 0) mul *= 2.3;
+      if (this.ff) mul *= 4;     // tidak ada bola target yang terlihat: percepat sampai kelompok berikutnya muncul
       if (this.zones && this.balls.length) { const f = this.balls[0].d; for (let z = 0; z < this.zones.length; z++) if (f >= this.zones[z].from && f <= this.zones[z].to) mul *= this.zones[z].mul; }   // zona kecepatan jalur
       const v = (this.paused || this.hold > 0) ? 0 : this.speed * mul;
 
@@ -228,7 +250,7 @@
         const b = bs[i];
         if (i === 0) b.d += v * dt + shift;
         else {
-          const target = bs[i - 1].d - D;
+          const target = bs[i - 1].d - D - b.gap;
           let nd;
           if (b.d < target - 0.5) nd = b.d + Math.max(v, this.closeSpeed) * dt + shift;
           else nd = b.d + v * dt + shift;
@@ -260,6 +282,13 @@
 
     frontD() { return this.balls.length ? this.balls[0].d : 0; }
 
+    /** true bila ada bola yang masih bergeser cepat menutup celah (tembakan saat itu bisa meleset ke bola tetangga). */
+    settling() {
+      const bs = this.balls;
+      for (let i = 1; i < bs.length; i++) { if (bs[i].out && bs[i].d < bs[i - 1].d - this.D - bs[i].gap - 1.5) return true; }
+      return this.pending > 1 || this.pending < -1;
+    }
+
     holeReached() { return this.balls.length > 0 && this.balls[0].d >= this.path.length - this.r * 0.3; }
 
     /** Cari bola yang bersentuhan dengan lingkaran (x,y,r). */
@@ -277,7 +306,11 @@
 
     remove(ball) {
       const i = this.balls.indexOf(ball);
-      if (i >= 0) this.balls.splice(i, 1);
+      if (i >= 0) {
+        const nx = this.balls[i + 1];
+        if (nx && ball.gap > 0) nx.gap += ball.gap;      // jeda antar-kelompok tidak hilang saat bola pertama kelompok dihancurkan
+        this.balls.splice(i, 1);
+      }
       return i;
     }
 
@@ -287,6 +320,7 @@
       const av = a.nv !== null ? a.nv : a.value, at = a.nt !== null ? a.nt : a.text;
       const bv = b.nv !== null ? b.nv : b.value, bt = b.nt !== null ? b.nt : b.text;
       a.nv = bv; a.nt = bt; a.flipT = 0.36; b.nv = av; b.nt = at; b.flipT = 0.36;
+      const q = a.qid; a.qid = b.qid; b.qid = q;       // pasangan soal ikut berpindah bersama angkanya
     }
 
     relabel(fn) {
@@ -305,6 +339,12 @@
 
     draw(ctx, t, px, pass) {
       const r = this.r, bs = this.balls, len = this.path.length;
+      if (pass !== 1 && GA.Quality && GA.Quality.level !== 'rendah' && GA.Balls.drawTrail) {   // jejak kabut gelap di belakang bola terakhir tiap kelompok
+        for (let i = 0; i < bs.length; i++) {
+          const b = bs[i], nx = bs[i + 1];
+          if (b.out && b.d < len - r * 2 && (!nx || nx.d < b.d - this.D * 1.8) && !this.paused) GA.Balls.drawTrail(ctx, b.x, b.y, r, b.a, t);
+        }
+      }
       const aura = this.slowT > 0 ? 'rgba(120,210,255,0.55)' : (this.fastT > 0 ? 'rgba(255,150,50,0.55)' : null);
       for (let i = bs.length - 1; i >= 0; i--) {
         const b = bs[i];
@@ -324,7 +364,7 @@
         if (b.kind === 'num') {
           let sx = 1;
           if (b.flipT > 0) sx = Math.max(0.05, Math.abs(Math.cos(Math.PI * (1 - b.flipT / 0.36))));
-          drawBall(ctx, x, y, rr, b.ci, b.text, px, sx, b.d / r * 0.85, t);
+          drawBall(ctx, x, y, rr, b.ci, b.text, px, sx, b.d / r + b.id * 1.7, t, b.a, r);   // menggelinding: sudut = jarak ÷ radius
           if (b.red > 0) { ctx.fillStyle = 'rgba(255,40,60,' + (0.55 * b.red / 0.5).toFixed(2) + ')'; ctx.beginPath(); ctx.arc(x, y, rr, 0, 6.283); ctx.fill(); }
           if (b.fog > 0) drawFog(ctx, x, y, rr, t, Math.min(1, b.fogAge * 4, b.fog * 3));
         } else {
@@ -341,5 +381,5 @@
     b.text = String(b.value);
   }
 
-  GA.Chain = { Chain: Chain, drawBall: drawBall, drawSpecial: drawSpecial, drawLabel: drawLabel, drawFog: drawFog, eggPath: eggPath };
+  GA.Chain = { LABEL_FILL: LABEL_FILL, Chain: Chain, drawBall: drawBall, drawSpecial: drawSpecial, drawLabel: drawLabel, drawFog: drawFog, eggPath: eggPath };
 })(window.GA = window.GA || {});

@@ -275,6 +275,36 @@
     }
   }
 
+  /** Lebarkan rentang satu topik sedikit (dipakai Deck bila rentang terlalu sempit untuk 20 jawaban berbeda). */
+  function widen(spec) {
+    const s = Object.assign({}, spec);
+    switch (s.type) {
+      case 'add': case 'sub': if (s.digits) break; s.max = Math.round(s.max * 1.3) + 2; break;
+      case 'mul': s.aMax = (s.aMax || 9) + 2; s.bMax = (s.bMax || 9) + 2; break;
+      case 'div': s.qMax = (s.qMax || 9) + 3; break;
+      case 'int': s.max = (s.max || 12) + 4; break;
+      case 'dec': s.max = (s.max || 20) + 5; break;
+      case 'frac': s.dmax = (s.dmax || 6) + 1; break;
+    }
+    return s;
+  }
+
+  /** Dek soal satu step: `n` soal dengan JAWABAN UNIK (tidak ada dua bola bernilai sama) dan ekspresi unik.
+   * Bila rentang topik terlalu sempit, topik dilebarkan otomatis. Hasil: [{ id, text, answerText, ... }]. */
+  function buildDeck(topics, n) {
+    const local = topics.map(function (t) { return Object.assign({}, t); }), usedA = {}, usedE = {}, out = [];
+    let guard = 0;
+    while (out.length < n && guard++ < 6000) {
+      const total = local.reduce(function (s, t) { return s + (t.weight || 1); }, 0);
+      let r = Math.random() * total, idx = 0;
+      for (let i = 0; i < local.length; i++) { r -= (local[i].weight || 1); if (r <= 0) { idx = i; break; } }
+      const q = generate(local[idx]);
+      if (!usedA[q.answerText] && !usedE[q.text]) { usedA[q.answerText] = 1; usedE[q.text] = 1; q.id = out.length; q.done = false; out.push(q); }
+      else if (guard % 30 === 0) local[idx] = widen(local[idx]);
+    }
+    return out;
+  }
+
   /** Ringkasan untuk layar pembuka: contoh soal + rentang jawaban. */
   function describe(topics) {
     const s = new Session(topics);
@@ -301,10 +331,10 @@
   const INT = function (op, min, max) { return { type: 'int', op: op, min: min, max: max }; };
   const DEC = function (op, places, min, max, round) { return { type: 'dec', op: op, places: places, min: min, max: max, round: round || 0 }; };
   const TABLE = {
-    add: { mudah: [{ type: 'add', min: 1, max: 10 }], sedang: [{ type: 'add', min: 10, max: 60 }], sulit: [{ type: 'add', min: 25, max: 250 }] },
-    sub: { mudah: [{ type: 'sub', min: 1, max: 15 }], sedang: [{ type: 'sub', min: 10, max: 80 }], sulit: [{ type: 'sub', min: 30, max: 300 }] },
+    add: { mudah: [{ type: 'add', min: 1, max: 12 }], sedang: [{ type: 'add', min: 10, max: 60 }], sulit: [{ type: 'add', min: 25, max: 250 }] },
+    sub: { mudah: [{ type: 'sub', min: 1, max: 25 }], sedang: [{ type: 'sub', min: 10, max: 80 }], sulit: [{ type: 'sub', min: 30, max: 300 }] },
     mul: { mudah: [{ type: 'mul', aMin: 2, aMax: 5, bMin: 2, bMax: 9 }], sedang: [{ type: 'mul', aMin: 2, aMax: 9, bMin: 2, bMax: 12 }], sulit: [{ type: 'mul', aMin: 6, aMax: 15, bMin: 6, bMax: 15 }, { type: 'mul', aMin: 11, aMax: 30, bMin: 3, bMax: 9 }] },
-    div: { mudah: [{ type: 'div', bMin: 2, bMax: 5, qMin: 2, qMax: 9 }], sedang: [{ type: 'div', bMin: 2, bMax: 9, qMin: 2, qMax: 12 }], sulit: [{ type: 'div', bMin: 3, bMax: 12, qMin: 5, qMax: 25 }] },
+    div: { mudah: [{ type: 'div', bMin: 2, bMax: 5, qMin: 2, qMax: 21 }], sedang: [{ type: 'div', bMin: 2, bMax: 9, qMin: 2, qMax: 12 }], sulit: [{ type: 'div', bMin: 3, bMax: 12, qMin: 5, qMax: 25 }] },
     int: { mudah: [INT('+', 1, 9), INT('-', 1, 9)], sedang: [INT('any', 1, 12)], sulit: [INT('+', 5, 40), INT('-', 5, 40), INT('*', 2, 15), INT('/', 2, 15)] },
     frac: { mudah: [{ type: 'frac', ops: ['+', '-'], mode: 'same', dmax: 6 }], sedang: [{ type: 'frac', ops: ['+', '-', '×'], mode: 'rel', dmax: 8 }], sulit: [{ type: 'frac', ops: ['+', '-', '×', '÷'], mode: 'any', dmax: 10 }] },
     dec: { mudah: [DEC('+', 1, 1, 10), DEC('-', 1, 1, 10)], sedang: [DEC('+', 1, 1, 30), DEC('-', 1, 1, 30), DEC('*', 1, 1, 9)], sulit: [DEC('+', 2, 1, 20), DEC('-', 2, 1, 20), DEC('*', 1, 1, 9, 1), DEC('/', 1, 1, 9)] }
@@ -321,5 +351,5 @@
     return (TABLE[cat] || TABLE.add)[diff].slice();
   }
 
-  GA.Questions = { generate: generate, Session: Session, describe: describe, fmt: fmt, DEFAULTS: DEFAULTS, GEN: GEN, CATEGORIES: CATEGORIES, categoryById: categoryById, topicsFor: topicsFor, maxChoices: function (d) { return CHOICES[d] || 6; } };
+  GA.Questions = { generate: generate, Session: Session, deck: buildDeck, describe: describe, fmt: fmt, DEFAULTS: DEFAULTS, GEN: GEN, CATEGORIES: CATEGORIES, categoryById: categoryById, topicsFor: topicsFor, maxChoices: function (d) { return CHOICES[d] || 6; } };
 })(window.GA = window.GA || {});

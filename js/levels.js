@@ -1,9 +1,14 @@
-/* levels.js — tiga step petualangan + tabel kesulitan. Semua angka ada di sini sebagai DATA.
+/* levels.js — lima step petualangan, buff/nerf, dan tabel kesulitan. Semua angka ada di sini sebagai DATA.
+ *
+ * Aturan inti: tiap step punya TEPAT `TOTAL_Q` (20) soal; tiap soal berpasangan dengan satu bola sihir target. Step selesai setelah
+ * semua soal dijawab benar. Bola keluar dari portal berkelompok (gelombang) — lihat `waves`/`gapSec` di TUNE.
  *
  * Cara menambah/mengubah:
- *  - Step baru: tambahkan objek ke STEPS (scene = id latar di theme.js, pathId = preset jalur di path.js).
- *  - Kesulitan baru: tambahkan kunci ke DIFFS dan ke Questions.TABLE (questions.js).
- *  - Rintangan: isi `obst(d)` — d = tingkat kerapatan 0..1 dari kesulitan. Jenisnya dibaca obstacles.js:
+ *  - Step baru: tambahkan objek ke STEPS (scene = id peta di GA.Maps, pathId = arketipe di maps/paths.js, buff/nerf = kunci BUFFS/NERFS)
+ *    dan satu entri di POOL (jalur & peta yang dipilih acak).
+ *  - Buff/nerf baru: tambahkan ke BUFFS/NERFS (id, nama 1-2 kata, ikon) lalu tangani `run.fx.<id>` di main.js.
+ *  - Kesulitan baru: tambahkan kunci ke DIFFS, TUNE, dan Questions.TABLE (questions.js).
+ *  - Rintangan: isi `obst(d)` — d = tingkat kerapatan 0..1 dari kesulitan. Jenis dibaca obstacles.js:
  *      rocks    akar berduri (statis, melukai jika terkena)
  *      crystals kristal pemantul (peluru memantul sekali)
  *      movers   lava (sapuan) & petir (orbit)
@@ -13,115 +18,132 @@
 (function (GA) {
   'use strict';
 
+  const TOTAL_Q = 20;
   const DIFFS = ['mudah', 'sedang', 'sulit'];
   const DIFF_NAMES = { mudah: 'Mudah', sedang: 'Sedang', sulit: 'Sulit' };
   const DIFF_NOTES = {
-    mudah: 'Angka kecil, rantai lambat, sedikit pengecoh.',
-    sedang: 'Angka lebih besar, rantai lebih cepat, rintangan lebih banyak.',
-    sulit: 'Soal rumit, rantai cepat, banyak pengecoh dan rintangan.'
+    mudah: 'Angka kecil, rantai lambat.',
+    sedang: 'Angka lebih besar, rantai lebih cepat.',
+    sulit: 'Soal rumit, rantai cepat.'
   };
 
-  /** Tiga nilai per kesulitan: [step1, step2, step3]. */
+  /** Buff & nerf. name = 1-2 kata untuk label ikon. */
+  const BUFFS = {
+    aim:    { id: 'aim',    name: 'Bidik Panjang', icon: 'target', desc: 'Garis bidik panjang' },
+    twin:   { id: 'twin',   name: 'Api Ganda',     icon: 'twin',   desc: 'Tembakan bonus berkala' },
+    shield: { id: 'shield', name: 'Perisai Telur', icon: 'shield', desc: 'Satu salah dimaafkan' },
+    freeze: { id: 'freeze', name: 'Waktu Beku',    icon: 'snow',   desc: 'Rantai melambat sekali' },
+    gold:   { id: 'gold',   name: 'Telur Emas',    icon: 'egg',    desc: '+1 telur di awal' }
+  };
+  const NERFS = {
+    fog:     { id: 'fog',     name: 'Kabut Pagi',  icon: 'cloud', desc: 'Angka samar sesaat' },
+    current: { id: 'current', name: 'Arus Deras',  icon: 'wave',  desc: 'Rantai ngebut di segmen' },
+    heat:    { id: 'heat',    name: 'Hawa Panas',  icon: 'sun',   desc: 'Bidikan bergetar' },
+    ice:     { id: 'ice',     name: 'Es Licin',    icon: 'snow',  desc: 'Putaran bidik licin' },
+    nests:   { id: 'nests',   name: 'Serangan Boss', icon: 'wizard', desc: 'Boss menyerang' }
+  };
+
+  /** Pengaturan per kesulitan. travel = detik yang dibutuhkan bola terdepan menempuh seluruh jalur tanpa ditembak (kecepatan rantai
+   * dihitung dari panjang jalur ÷ travel, sehingga satu step ±3–5 menit). waves = jumlah kelompok bola; gapSec = jeda antar-kelompok. */
   const TUNE = {
-    mudah: { speed: [17, 19, 17], goal: [5, 6, 0], maxBalls: [14, 16, 16], retreat: 175, pCorrect: 0.15, density: 0.3, hits: [2, 2, 3], qTime: 20 },
-    sedang: { speed: [22, 25, 23], goal: [7, 8, 0], maxBalls: [16, 18, 18], retreat: 160, pCorrect: 0.13, density: 0.6, hits: [3, 3, 3], qTime: 16 },
-    sulit: { speed: [28, 31, 28], goal: [9, 10, 0], maxBalls: [18, 20, 20], retreat: 145, pCorrect: 0.11, density: 1.0, hits: [3, 4, 4], qTime: 12 }
+    mudah:  { travel: 300, waves: 6, gapSec: 9, retreatSec: 6.5, density: 0.3, hits: [7, 7, 6], qTime: 24, curse: 0 },
+    sedang: { travel: 245, waves: 5, gapSec: 7, retreatSec: 6, density: 0.6, hits: [7, 7, 6], qTime: 20, curse: 1 },
+    sulit:  { travel: 195, waves: 4, gapSec: 5, retreatSec: 5.5, density: 1.0, hits: [7, 7, 6], qTime: 16, curse: 2 }
   };
 
-  const ANG = [-135, 45, -45, 135, 90, -90];
+  /* Rintangan zona (js/hazards.js): jenis bertambah KUMULATIF tiap step — Step 1 ≈ 2 jenis, Step 2 ≈ 4, Step 3 ≈ 6, Step 4 ≈ 8, Step 5 semua (11) + kelelawar + serangan boss. */
+  const HAZ_TIERS = [['thorn', 'root'], ['wave', 'lily'], ['geyser', 'hotrock'], ['stalactite', 'crystal'], ['rune', 'hands', 'spore']];
+  const HAZ_BASE = { thorn: 15, root: 11, wave: 18, lily: 20, crystal: 22, geyser: 9, hotrock: 12, stalactite: 12, rune: 13, hands: 18, spore: 15 };   // jeda muncul dasar (dtk)
+  function hazFor(step, d) {
+    const out = [], k = 1.7 - 0.9 * d;      // makin sulit → makin sering
+    for (let i = 0; i <= step; i++) HAZ_TIERS[i].forEach(function (kind) { out.push({ kind: kind, every: HAZ_BASE[kind] * k }); });
+    return out;
+  }
+  const none = { rocks: [], movers: [], crystals: [], fog: null, bats: null, freezeOnWrong: 0 };
+  const fogCfg = function (d, k) { return { every: Math.round((16 - 7 * d) * (k || 1)), dur: 4 + 3 * d, count: 1 + Math.round(2 * d) }; };
+
+  /** Peta → zona (menentukan musik, gaya sarang, dan rintangan); 3 peta berbeda per step. */
+  const ZONE = { forest: 'forest', grove: 'forest', bloom: 'forest', swamp: 'swamp', swampDusk: 'swamp', coast: 'swamp', volcano: 'volcano', ashfield: 'volcano', magma: 'volcano', crystal: 'crystal', iceCave: 'crystal', amethyst: 'crystal', tower: 'tower', tower2: 'tower', library: 'tower', menu: 'forest' };
 
   const STEPS = [
     {
-      id: 's1', name: 'Hutan Berbisik', place: 'Hutan Berbisik', scene: 'forest', pathId: 'hook', tag: 'Step 1',
-      story: 'Penyihir Jahat menyelinap lewat hutan. Akar berduri dan kabut sihir melindungi bola-bolanya.',
-      obst: function (d) {
-        const n = d < 0.4 ? 1 : d < 0.8 ? 2 : 3, rocks = [];
-        for (let i = 0; i < n; i++) rocks.push({ a: ANG[i], dist: 100, r: 19 });
-        return {
-          rocks: rocks, movers: [], crystals: [],
-          fog: { every: Math.round(16 - 7 * d), dur: 4 + 3 * d, count: 1 + Math.round(2 * d) },
-          bats: null, freezeOnWrong: 0,
-          specials: { curse: 0.03 + 0.05 * d, frost: 0, egg: 0.012 }
-        };
-      },
-      notes: ['Akar berduri: peluru yang menyentuhnya membuat satu telur hilang.', 'Kabut sihir menyembunyikan angka sebagian bola untuk sementara.', 'Bola kutukan (hitam): jangan ditembak!']
+      id: 's1', name: 'Lembah Hutan Naga', place: 'Lembah Hutan Naga', scene: 'forest', pathId: 'hook', tag: 'Step 1', buff: 'aim', nerf: 'fog',
+      story: 'story.s1',
+      obst: function (d) { return Object.assign({}, none, { fog: fogCfg(d) }); },
+      notes: ['Semak berduri memperlambat api.', 'Akar menyapu: tunggu peringatan.']
     },
     {
-      id: 's2', name: 'Gua Lava', place: 'Gua Lava Membara', scene: 'volcano', pathId: 'zigzag', tag: 'Step 2',
-      story: 'Jejak sang penyihir berlanjut ke gua lava. Kristal, lahar, dan kelelawar sihir mengganggu bidikanmu.',
-      obst: function (d) {
-        const crystals = [{ a: -140, dist: 104, r: 17, tilt: 0.7 }];
-        if (d > 0.4) crystals.push({ a: 40, dist: 104, r: 17, tilt: -0.7 });
-        const movers = [{ type: 'sweep', offset: -105, range: 160, speed: 1.0 + 0.4 * d, r: 16, kind: 'lava' }];
-        if (d > 0.4) movers.push({ type: 'orbit', radius: 88, speed: 1.4 + 0.5 * d, count: 1, r: 14, kind: 'bolt' });
-        return {
-          rocks: [], movers: movers, crystals: crystals, fog: null,
-          bats: d < 0.4 ? null : { every: Math.round(20 - 9 * d) },
-          freezeOnWrong: d < 0.4 ? 0 : 0.8 + 1.2 * d,
-          specials: { curse: 0.03 + 0.04 * d, frost: 0.03 + 0.02 * d, egg: 0.012 }
-        };
-      },
-      notes: ['Kristal memantulkan peluru api satu kali.', 'Lahar dan petir bergerak: tunggu celahnya.', 'Bola beku memperlambat rantai. Kelelawar menukar dua bola. Setelah salah tembak, naga beku sebentar.']
+      id: 's2', name: 'Rawa Berkabut', place: 'Rawa Berkabut', scene: 'swamp', pathId: 'zigzag', tag: 'Step 2', buff: 'twin', nerf: 'current',
+      story: 'story.s2',
+      obst: function (d) { return Object.assign({}, none); },
+      notes: ['Ombak membelokkan api.', 'Teratai memantulkan api.']
     },
     {
-      id: 's3', name: 'Menara Penyihir', place: 'Menara Penyihir Jahat', scene: 'tower', pathId: 'bossU', tag: 'Step 3 · Boss', boss: true,
-      story: 'Di puncak menara, Penyihir Jahat menjaga telur-telur curian. Ini pertarungan terakhir!',
-      obst: function (d) {
-        return {
-          rocks: [], movers: [], crystals: [], fog: null, bats: null, freezeOnWrong: 0,
-          specials: { curse: 0.03, frost: 0.03, egg: 0.015 }
-        };
-      },
-      notes: ['Penyihir punya 3 fase. Jawaban benar melukainya, jawaban salah membuatnya menyerang.', 'Fase 3 mencampur semua kategori yang kamu pilih dan ada batas waktu.']
+      id: 's3', name: 'Gunung Api', place: 'Gunung Api', scene: 'volcano', pathId: 'serp4', tag: 'Step 3', buff: 'shield', nerf: 'heat',
+      story: 'story.s3',
+      obst: function (d) { return Object.assign({}, none); },
+      notes: ['Lahar menyembur: lihat tandanya.', 'Batu panas jatuh di zona bertanda.']
+    },
+    {
+      id: 's4', name: 'Gua Kristal Beku', place: 'Gua Kristal Beku', scene: 'crystal', pathId: 'horseshoe', tag: 'Step 4', buff: 'freeze', nerf: 'ice',
+      story: 'story.s4',
+      obst: function (d) { return Object.assign({}, none, { bats: d < 0.4 ? null : { every: Math.round(22 - 8 * d) } }); },
+      notes: ['Stalaktit jatuh di zona bertanda.', 'Kristal memantulkan api.']
+    },
+    {
+      id: 's5', name: 'Menara Penyihir', place: 'Menara Penyihir', scene: 'tower', pathId: 'bossU', tag: 'Step 5 · Boss', boss: true, buff: 'gold', nerf: 'nests',
+      story: 'story.s5',
+      obst: function (d) { return Object.assign({}, none, { bats: { every: 14 } }); },
+      notes: ['Petir rune menyambar lajur.', 'Tangan bayangan menutup bidikan.']
     }
   ];
 
   const MAX_EGGS = 6, START_EGGS = 5;
 
-  // pilihan acak jalur & peta per step (id arketipe di maps/paths.js, id peta di GA.Maps)
-  const POOL = [{ paths: ['hook', 'serp3', 's2'], maps: ['forest', 'grove'] }, { paths: ['zigzag', 'figure8', 'horseshoe'], maps: ['volcano', 'crystal'] }, { paths: ['bossU', 'bossU2', 'bossBowl'], maps: ['tower', 'tower2'] }];
+  // pilihan acak jalur (id arketipe di maps/paths.js) & peta (id di GA.Maps) per step: 3-4 jalur dan 3 peta berbeda tiap step
+  const POOL = [
+    { paths: ['hook', 'serp3', 's2', 'serp4'], maps: ['forest', 'grove', 'bloom'] },
+    { paths: ['zigzag', 'figure8', 'horseshoe', 'serp4w'], maps: ['swamp', 'swampDusk', 'coast'] },
+    { paths: ['serp4', 'figure8', 'zigzag', 'serp3w'], maps: ['volcano', 'ashfield', 'magma'] },
+    { paths: ['horseshoe', 'serp4w', 's2', 'serp3w'], maps: ['crystal', 'iceCave', 'amethyst'] },
+    { paths: ['bossU', 'bossU2', 'bossBowl'], maps: ['tower', 'tower2', 'library'] }
+  ];
   function pick(step) { const p = POOL[step]; return { path: p.paths[Math.floor(Math.random() * p.paths.length)], map: p.maps[Math.floor(Math.random() * p.maps.length)] }; }
 
-  /** Pecah pilihan menu jadi tiga kategori. sel = { slots, same, random, diff } */
+  /** Pecah pilihan menu jadi kategori tiap step (panjang = jumlah step). sel = { slots, same, random, diff } */
   function resolveCats(sel) {
     const ids = GA.Questions.CATEGORIES.map(function (c) { return c.id; });
-    const out = [];
-    for (let i = 0; i < 3; i++) {
-      let c = sel.same ? sel.slots[0] : sel.slots[i];
+    const n = STEPS.length, out = [];
+    for (let i = 0; i < n; i++) {
+      let c = sel.same ? sel.slots[0] : (sel.slots[i] || sel.slots[0]);
       if (sel.random) c = ids[Math.floor(Math.random() * ids.length)];
       out.push(c || 'add');
     }
-    if (sel.random && sel.same) { const c0 = out[0]; out[1] = c0; out[2] = c0; }
+    if (sel.random && sel.same) { for (let i = 1; i < n; i++) out[i] = out[0]; }
     return out;
   }
 
   function ballScaleFor(cat) { return cat === 'frac' || cat === 'dec' ? 1.12 : (cat === 'mix' ? 1.08 : 1); }
 
-  /** Konfigurasi satu step. cats = kategori ketiga slot (hasil resolveCats). */
+  /** Konfigurasi satu step. cats = kategori tiap step (hasil resolveCats). */
   function build(step, sel, cats) {
     const S = STEPS[step], T = TUNE[sel.diff] || TUNE.sedang, cat = cats[step];
     const o = S.obst(T.density);
+    const uniq = cats.filter(function (c, i, a) { return a.indexOf(c) === i; });
+    const topicCats = S.boss ? uniq : cat;   // Step 5 mencampur kategori yang dipilih
+    // bola khusus (tidak dihitung dalam 20): jumlah per step
+    const specialsN = { curse: step === 0 ? 1 : 1 + (T.curse > 0 ? 1 : 0) + (T.curse > 1 ? 1 : 0), frost: step >= 1 ? (step >= 3 ? 2 : 1) : 0, egg: step >= 1 ? 1 : 0 };
     const cfg = {
       step: step, id: S.id, name: S.name, place: S.place, scene: S.scene, pathId: S.pathId, tag: S.tag, isBoss: !!S.boss, story: S.story, notes: S.notes,
-      diff: sel.diff, cat: cat, cats: cats,
-      topics: GA.Questions.topicsFor(cat, sel.diff), maxChoices: GA.Questions.maxChoices(sel.diff),
-      goal: T.goal[step] || 0, speed: T.speed[step], maxBalls: T.maxBalls[step], startBalls: Math.min(T.maxBalls[step], 14),
-      retreat: T.retreat, pCorrect: T.pCorrect,
-      ballScale: ballScaleFor(cat), questionTime: null,
-      rocks: o.rocks, movers: o.movers, crystals: o.crystals, fog: o.fog, bats: o.bats, freezeOnWrong: o.freezeOnWrong, specials: o.specials
+      diff: sel.diff, cat: cat, cats: cats, buff: S.buff, nerf: S.nerf, total: TOTAL_Q,
+      topics: GA.Questions.topicsFor(topicCats, sel.diff), maxChoices: GA.Questions.maxChoices(sel.diff),
+      travel: T.travel, waves: T.waves, gapSec: T.gapSec, retreatSec: T.retreatSec, specialsN: specialsN,
+      ballScale: Math.max(ballScaleFor(cat), S.boss && uniq.some(function (c) { return c === 'frac' || c === 'dec'; }) ? 1.1 : 1), questionTime: null,
+      haz: hazFor(step, T.density), rocks: o.rocks, movers: o.movers, crystals: o.crystals, fog: o.fog, bats: o.bats, freezeOnWrong: o.freezeOnWrong || 0
     };
     if (S.boss) {
-      // fase 3 mencampur kategori dari ketiga slot; fase 1-2 memakai kategori slot 3
-      const mixed = GA.Questions.topicsFor(cats.filter(function (c, i, a) { return a.indexOf(c) === i; }), sel.diff);
-      cfg.boss = { id: 'penyihir', hits: T.hits, topics: GA.Questions.topicsFor(cat, sel.diff), mixedTopics: mixed, phase3Time: T.qTime };
-      // rintangan bergerak baru aktif di fase 2 (main.js menyalakannya)
-      cfg.rocks = []; cfg.crystals = [];
-      cfg.movers = [
-        { type: 'sweep', offset: -105, range: 190, speed: 1.1 + 0.4 * T.density, r: 16, kind: 'lava' },
-        { type: 'orbit', radius: 84, speed: 1.5 + 0.5 * T.density, count: 1 + (sel.diff === 'sulit' ? 1 : 0), r: 14, kind: 'bolt' }
-      ];
-      cfg.bats = { every: 14 };
-      cfg.ballScale = Math.max(ballScaleFor(cat), cats.some(function (c) { return c === 'frac' || c === 'dec'; }) ? 1.1 : 1);
+      cfg.boss = { id: 'penyihir', hits: T.hits, phase3Time: T.qTime };
+      cfg.bats = { every: 14 };      // rintangan zona & kelelawar aktif mulai fase 2 (diatur main.js)
     }
     return cfg;
   }
@@ -133,9 +155,9 @@
   }
 
   const Levels = {
-    DIFFS: DIFFS, DIFF_NAMES: DIFF_NAMES, DIFF_NOTES: DIFF_NOTES, STEPS: STEPS, TUNE: TUNE,
+    DIFFS: DIFFS, DIFF_NAMES: DIFF_NAMES, DIFF_NOTES: DIFF_NOTES, STEPS: STEPS, TUNE: TUNE, BUFFS: BUFFS, NERFS: NERFS, TOTAL_Q: TOTAL_Q,
     MAX_EGGS: MAX_EGGS, START_EGGS: START_EGGS,
-    count: STEPS.length,
+    count: STEPS.length, ZONE: ZONE, zoneOf: function (id) { return ZONE[id] || 'forest'; }, HAZ_TIERS: HAZ_TIERS, hazFor: hazFor,
     resolveCats: resolveCats, build: build, describe: describe, pick: pick, POOL: POOL,
     catName: function (id) { return GA.Questions.categoryById(id).name; }
   };

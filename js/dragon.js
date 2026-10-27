@@ -43,7 +43,7 @@
       this.expr = 'idle'; this.exprT = 0;
       this.t = Math.random() * 10; this.blink = 0; this.blinkT = rand(1, 3);
       this.kick = 0; this.kickv = 0;      // pegas kepala saat menembak
-      this.mouth = 0.55; this.frozen = 0; this.flap = 0; this.roar = 0; this.hurtT = 0;
+      this.mouth = 0.55; this.frozen = 0; this.flap = 0; this.fph = Math.random() * PI2; this.flapFlag = false; this.boost = 0; this.roar = 0; this.hurtT = 0;
       this.tail = TAIL_REST.map(function (p) { return [p[0], p[1]]; });
       this.neck = []; for (let i = 0; i < NECK_N; i++) this.neck.push([0, 0]);
       this._neckInit = false;
@@ -63,13 +63,13 @@
 
     shoot() {
       this.angle = this.aim;
-      this.kick = 1; this.kickv = 0;   // kepala tersentak ke belakang, lalu menyembur ke depan
+      this.boost = 1; this.kick = 1; this.kickv = 0;   // kepala tersentak ke belakang, lalu menyembur ke depan
       this.mouth = 1;
     }
 
     update(dt, ready) {
       const C = Theme.dragon;
-      this.t += dt;
+      this.t += dt; if (Dragon.pulse > 0) Dragon.pulse = Math.max(0, Dragon.pulse - dt * 3);
       const target = this.expr === 'cheer' ? -Math.PI / 2 : this.aim;
       this.angle += angDiff(target, this.angle) * Math.min(1, dt * 14);
       this.angVel += (angDiff(this.angle, this.prevAngle) / Math.max(dt, 0.001) - this.angVel) * Math.min(1, dt * 12); this.prevAngle = this.angle;
@@ -86,7 +86,15 @@
       const tf = this.expr === 'cheer' ? 1 : (this.expr === 'sad' ? -0.5 : 0);
       this.flap += (tf - this.flap) * Math.min(1, dt * 6);
       this.simulate(dt);
+      if (this.boost > 0) this.boost -= dt * 2;
+      if (this.frozen <= 0) {      // kepakan berirama: pelan saat melayang, cepat saat menembak/bersorak, lesu saat sedih
+        const rate = this.expr === 'cheer' ? 10 : (this.expr === 'sad' ? 1.3 : 3.6 + this.boost * 3), prev = this.fph % PI2;
+        this.fph += dt * rate; const cur = this.fph % PI2;
+        if ((prev < Math.PI / 2 && cur >= Math.PI / 2) || (prev > cur && cur >= 0 && Math.PI / 2 <= cur + 0.0001)) { this.flapFlag = true; Dragon.pulse = 1; if (Dragon.onFlap) Dragon.onFlap(this); }   // awal ayunan turun
+      }
     }
+
+    flapAmp() { return this.expr === 'cheer' ? 1.0 : (this.expr === 'sad' ? 0.15 : 0.42 + this.boost * 0.35); }
 
     /** Pegas leher (mengikuti kepala dengan jeda) dan ekor (mengalir). Semua dalam satuan R. */
     simulate(dt) {
@@ -130,61 +138,150 @@
       }
     }
 
-    wing(ctx, s, R, fl, C, pal, pat) {
-      const sad = this.expr === 'sad';
-      const a1 = -0.8 + fl * 0.95 + (sad ? 0.9 : 0), a2 = -0.18 + fl * 0.65 + (sad ? 0.5 : 0);
-      const O = [R * 0.4, -R * 0.12], E = [O[0] + Math.cos(a1) * R * 0.55, O[1] + Math.sin(a1) * R * 0.55], W = [E[0] + Math.cos(a2) * R * 0.62, E[1] + Math.sin(a2) * R * 0.62];
-      const FA = [a2 - 0.7, a2 + 0.15, a2 + 0.95], FL = [0.8, 0.9, 0.72], F = FA.map(function (a, i) { return [W[0] + Math.cos(a) * R * FL[i], W[1] + Math.sin(a) * R * FL[i]]; });
-      const B = [R * 0.36, R * 0.5], mid = function (p, q) { return [(p[0] + q[0]) / 2 + (W[0] - (p[0] + q[0]) / 2) * 0.3, (p[1] + q[1]) / 2 + (W[1] - (p[1] + q[1]) / 2) * 0.3]; };
+    /* ---------- sayap (tampak ATAS): lengan, pergelangan, empat jari bertulang, selaput bergerigi tembus cahaya ---------- */
+    wingPts(f, sp) {
+      const lift = f * 0.2, S = [0.36, -0.12], E = [0.36 + 0.6 * sp, -0.52 - lift], Wr = [E[0] + 0.55 * sp, E[1] + 0.02 - lift * 0.5];
+      const FA = [-0.3, 0.5, 1.2, 1.9], FL = [0.62, 0.98, 0.98, 0.8], F = FA.map(function (a, i) { const aa = a + f * 0.1 * (i - 1); return [Wr[0] + Math.cos(aa) * FL[i] * sp, Wr[1] + Math.sin(aa) * FL[i] * (0.9 + 0.1 * sp)]; });
+      return { S: S, E: E, Wr: Wr, F: F, B: [0.4, 0.66] };
+    }
+
+    wing(ctx, s, R, f, C, pal, pat) {
+      const sad = this.expr === 'sad', sp = (1 - 0.2 * Math.max(0, f) + 0.08 * Math.max(0, -f)) * C.wingSpan, P = this.wingPts(sad ? -0.5 : f, sp);
+      const S = P.S, E = P.E, Wr = P.Wr, F = P.F, B = P.B, k = function (p) { return [p[0] * R, p[1] * R]; };
+      const sS = k(S), sE = k(E), sW = k(Wr), sF = F.map(k), sB = k(B);
+      const mid = function (p, q) { return [(p[0] + q[0]) / 2 + (sW[0] - (p[0] + q[0]) / 2) * 0.3, (p[1] + q[1]) / 2 + (sW[1] - (p[1] + q[1]) / 2) * 0.3]; };
       const path = function () {
-        ctx.beginPath(); ctx.moveTo(O[0], O[1]); ctx.lineTo(E[0], E[1]); ctx.lineTo(W[0], W[1]); ctx.lineTo(F[0][0], F[0][1]);
-        let m = mid(F[0], F[1]); ctx.quadraticCurveTo(m[0], m[1], F[1][0], F[1][1]); m = mid(F[1], F[2]); ctx.quadraticCurveTo(m[0], m[1], F[2][0], F[2][1]);
-        m = mid(F[2], B); ctx.quadraticCurveTo(m[0], m[1], B[0], B[1]); ctx.closePath();
+        ctx.beginPath(); ctx.moveTo(sS[0], sS[1]); ctx.lineTo(sE[0], sE[1]); ctx.lineTo(sW[0], sW[1]); ctx.lineTo(sF[0][0], sF[0][1]);
+        for (let i = 0; i < 3; i++) { const m = mid(sF[i], sF[i + 1]); ctx.quadraticCurveTo(m[0], m[1], sF[i + 1][0], sF[i + 1][1]); }
+        const m = mid(sF[3], sB); ctx.quadraticCurveTo(m[0], m[1], sB[0], sB[1]); ctx.closePath();
       };
       ctx.save(); ctx.scale(s, 1);
-      ctx.save(); ctx.translate(R * LX * 0.2, R * LY * 0.2); path(); ctx.fillStyle = 'rgba(6,20,10,0.24)'; ctx.fill(); ctx.restore();   // bayangan jatuh
-      const wg = ctx.createLinearGradient(W[0], W[1], B[0], B[1]); wg.addColorStop(0, C.wing[0]); wg.addColorStop(1, C.wing[1]);
-      path(); ctx.fillStyle = wg; ctx.fill();
-      ctx.save(); ctx.clip(); ctx.globalAlpha = 0.25; ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = pat; ctx.fillRect(-R * 2, -R * 2, R * 4, R * 4); ctx.restore();   // tekstur kulit sayap
+      const wg = ctx.createLinearGradient(sW[0], sW[1], sB[0], sB[1]); wg.addColorStop(0, C.wing[0]); wg.addColorStop(1, C.wing[1]);
+      ctx.globalAlpha = 0.93; path(); ctx.fillStyle = wg; ctx.fill(); ctx.globalAlpha = 1;
+      ctx.save(); ctx.clip(); ctx.globalAlpha = 0.22; ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = pat; ctx.fillRect(-R * 2, -R * 2, R * 4, R * 4); ctx.restore();   // tekstur kulit
+      // tembus cahaya: selaput lebih terang mendekati tepi bergerigi
+      ctx.save(); path(); ctx.clip(); const lg = ctx.createRadialGradient(sW[0], sW[1], R * 0.2, sW[0], sW[1], R * 1.3); lg.addColorStop(0, 'rgba(255,235,170,0)'); lg.addColorStop(1, 'rgba(255,235,170,0.3)'); ctx.fillStyle = lg; ctx.fillRect(-R * 2, -R * 2, R * 4, R * 4); ctx.restore();
       ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(1.8, R * 0.045); ctx.strokeStyle = C.outline; path(); ctx.stroke();
-      // urat selaput + tulang jari
-      ctx.strokeStyle = 'rgba(120,50,10,0.45)'; ctx.lineWidth = Math.max(1, R * 0.022); ctx.beginPath();
-      F.forEach(function (f) { ctx.moveTo(W[0], W[1]); ctx.lineTo(f[0], f[1]); }); ctx.moveTo(F[2][0], F[2][1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
-      ctx.strokeStyle = '#5a2c10'; ctx.lineWidth = Math.max(2, R * 0.06); ctx.beginPath(); ctx.moveTo(O[0], O[1]); ctx.lineTo(E[0], E[1]); ctx.lineTo(W[0], W[1]); F.forEach(function (f) { ctx.moveTo(W[0], W[1]); ctx.lineTo(f[0], f[1]); }); ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,220,160,0.42)'; ctx.lineWidth = Math.max(1, R * 0.02); ctx.beginPath(); ctx.moveTo(O[0], O[1] - 1); ctx.lineTo(E[0], E[1] - 1); ctx.lineTo(W[0], W[1] - 1); ctx.stroke();   // cahaya tepi
-      ctx.fillStyle = C.horn; ctx.strokeStyle = C.outline; ctx.lineWidth = Math.max(1, R * 0.025);   // cakar sayap
-      ctx.beginPath(); ctx.moveTo(W[0] - R * 0.04, W[1] - R * 0.05); ctx.quadraticCurveTo(W[0] + R * 0.1, W[1] - R * 0.22, W[0] + R * 0.2, W[1] - R * 0.12); ctx.quadraticCurveTo(W[0] + R * 0.08, W[1] - R * 0.08, W[0] + R * 0.04, W[1] + R * 0.02); ctx.closePath(); ctx.fill(); ctx.stroke();
+      // urat selaput (primer dari pergelangan, sekunder di antara jari)
+      ctx.strokeStyle = 'rgba(120,50,10,0.42)'; ctx.lineWidth = Math.max(0.8, R * 0.018); ctx.beginPath();
+      for (let i = 0; i < 3; i++) { const m = mid(sF[i], sF[i + 1]); ctx.moveTo(sW[0], sW[1]); ctx.lineTo((sF[i][0] + sF[i + 1][0]) / 2, (sF[i][1] + sF[i + 1][1]) / 2); ctx.moveTo((sW[0] + m[0]) / 2, (sW[1] + m[1]) / 2); ctx.lineTo(m[0], m[1]); }
+      ctx.moveTo(sS[0], sS[1] + R * 0.1); ctx.lineTo(sF[3][0] * 0.7 + sB[0] * 0.3, sF[3][1] * 0.7 + sB[1] * 0.3); ctx.stroke();
+      // tulang: lengan tebal, jari meruncing
+      ctx.strokeStyle = '#5a2c10'; ctx.lineCap = 'round'; ctx.lineWidth = Math.max(2, R * 0.07); ctx.beginPath(); ctx.moveTo(sS[0], sS[1]); ctx.lineTo(sE[0], sE[1]); ctx.lineTo(sW[0], sW[1]); ctx.stroke();
+      ctx.lineWidth = Math.max(1.4, R * 0.04); ctx.beginPath(); sF.forEach(function (p) { ctx.moveTo(sW[0], sW[1]); ctx.lineTo(p[0], p[1]); }); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,220,160,0.45)'; ctx.lineWidth = Math.max(1, R * 0.02); ctx.beginPath(); ctx.moveTo(sS[0], sS[1] - 1); ctx.lineTo(sE[0], sE[1] - 1); ctx.lineTo(sW[0], sW[1] - 1); ctx.stroke();   // cahaya tepi
+      ctx.fillStyle = C.horn; ctx.strokeStyle = C.outline; ctx.lineWidth = Math.max(1, R * 0.025);    // cakar sayap di pergelangan
+      ctx.beginPath(); ctx.moveTo(sW[0] - R * 0.03, sW[1] - R * 0.03); ctx.quadraticCurveTo(sW[0] + R * 0.08, sW[1] - R * 0.2, sW[0] + R * 0.2, sW[1] - R * 0.14); ctx.quadraticCurveTo(sW[0] + R * 0.08, sW[1] - R * 0.06, sW[0] + R * 0.03, sW[1] + R * 0.03); ctx.closePath(); ctx.fill(); ctx.stroke();
       ctx.restore();
+    }
+
+    /** Bayangan di tanah (naga TERBANG): siluet badan + sayap + kepala dengan offset menurut ketinggian, tiga lapis membesar-memudar agar lembut. */
+    shadow(ctx, x, y, R, f, hx, hy, alt) {
+      const C = Theme.dragon, sp = (1 - 0.2 * Math.max(0, f) + 0.08 * Math.max(0, -f)) * C.wingSpan, P = this.wingPts(f, sp), ox = R * 0.42 * alt, oy = R * 0.66 * alt;
+      for (let pass = 0; pass < 3; pass++) {
+        const sc = 1 + pass * 0.1, a = 0.1 + (2 - pass) * 0.015;
+        ctx.save(); ctx.translate(x + ox, y + oy); ctx.scale(sc, sc); ctx.fillStyle = 'rgba(6,14,10,' + a.toFixed(3) + ')';
+        ctx.beginPath(); ctx.ellipse(0, R * 0.1, R * 0.55, R * 0.9, 0, 0, PI2); ctx.fill();
+        for (let s = -1; s <= 1; s += 2) {
+          ctx.beginPath(); ctx.moveTo(s * P.S[0] * R, P.S[1] * R); ctx.lineTo(s * P.E[0] * R, P.E[1] * R); ctx.lineTo(s * P.Wr[0] * R, P.Wr[1] * R);
+          P.F.forEach(function (p) { ctx.lineTo(s * p[0] * R, p[1] * R); }); ctx.lineTo(s * P.B[0] * R, P.B[1] * R); ctx.closePath(); ctx.fill();
+        }
+        ctx.beginPath(); ctx.arc(hx * 0.9, hy * 0.9, R * 0.3, 0, PI2); ctx.fill();
+        this.strokeChain(ctx, this.tail, R, 0.22, 0.04, 'rgba(6,14,10,' + a.toFixed(3) + ')');
+        ctx.restore();
+      }
+    }
+
+    /** Kepala TAMPAK ATAS (menghadap +x di sistem lokal): moncong memanjang dengan lubang hidung di ujung, dua mata di sisi atas, tanduk & jumbai di belakang.
+     *  Saat menyembur: rongga mulut terbuka terlihat gelap dengan gigi di tepi, lidah dan tenggorokan menyala jingga. */
+    head(ctx, R, op, m, pal, pat, C, a) {
+      const E = this.expr, hurt = E === 'hurt', happy = E === 'happy', sad = E === 'sad', cheer = E === 'cheer';
+      const lx = -0.6 * Math.cos(a) - 0.8 * Math.sin(a), ly = 0.6 * Math.sin(a) - 0.8 * Math.cos(a);   // arah cahaya (kiri-atas dunia) dalam sistem kepala
+      const prof = [[-0.3, 0], [-0.29, 0.13], [-0.2, 0.235], [-0.05, 0.27], [0.1, 0.215], [0.27, 0.15], [0.43, 0.11], [0.56, 0.085], [0.63, 0.035], [0.645, 0]];
+      const outline = function (grow) {
+        ctx.beginPath(); ctx.moveTo(prof[0][0] * R, 0);
+        for (let i = 1; i < prof.length; i++) { const p = prof[i], q = prof[i - 1]; ctx.quadraticCurveTo(q[0] * R, (q[1] + grow) * R, (p[0] + q[0]) / 2 * R, ((p[1] + q[1]) / 2 + grow * 0.5) * R); }
+        ctx.lineTo(prof[prof.length - 1][0] * R, 0);
+        for (let i = prof.length - 2; i >= 0; i--) { const p = prof[i], q = prof[i + 1]; ctx.quadraticCurveTo(q[0] * R, -(q[1] + grow) * R, (p[0] + q[0]) / 2 * R, -((p[1] + q[1]) / 2 + grow * 0.5) * R); }
+        ctx.closePath();
+      };
+      // jumbai pipi + tanduk menyapu ke belakang (di belakang tengkorak)
+      ctx.fillStyle = C.wing[1]; ctx.strokeStyle = C.outline; ctx.lineWidth = Math.max(1.2, R * 0.03);
+      for (let s = -1; s <= 1; s += 2) for (let k = 0; k < 3; k++) {
+        const bx = -0.02 - k * 0.1, by = s * 0.23, tx = bx - 0.18 - k * 0.03, ty = s * (0.42 + k * 0.06 + (cheer ? 0.06 : 0));
+        ctx.beginPath(); ctx.moveTo(bx * R, by * R); ctx.lineTo(tx * R, ty * R); ctx.lineTo((bx - 0.06) * R, (by + s * 0.03) * R); ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+      ctx.fillStyle = C.horn;
+      for (let s = -1; s <= 1; s += 2) { ctx.beginPath(); ctx.moveTo(-0.14 * R, s * 0.14 * R); ctx.quadraticCurveTo(-0.4 * R, s * 0.2 * R, -0.72 * R, s * (0.46 + (sad ? 0.08 : 0)) * R); ctx.quadraticCurveTo(-0.42 * R, s * 0.3 * R, -0.2 * R, s * 0.27 * R); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+      // rahang bawah (lebih gelap, sedikit melebar saat mulut terbuka)
+      ctx.fillStyle = pal[2]; outline(0.02 + op * 0.7); ctx.fill(); ctx.stroke();
+      // tengkorak + rahang atas
+      const jg = ctx.createLinearGradient(lx * R * 0.4, ly * R * 0.4, -lx * R * 0.4, -ly * R * 0.4); jg.addColorStop(0, pal[0]); jg.addColorStop(0.55, pal[1]); jg.addColorStop(1, pal[2]);
+      ctx.fillStyle = jg; outline(0); ctx.fill(); ctx.stroke();
+      ctx.save(); outline(0); ctx.clip(); ctx.globalAlpha = 0.4; ctx.fillStyle = pat; ctx.fillRect(-R, -R, R * 2, R * 2); ctx.globalAlpha = 1;
+      // rongga mulut terbuka (di dalam moncong): gelap, tenggorokan menyala, lidah, gigi di tepi
+      if (op > 0.035 || m > 0.45) {
+        const ry = R * (0.02 + op * 0.55);
+        ctx.fillStyle = C.mouthIn; ctx.beginPath(); ctx.ellipse(0.46 * R, 0, R * 0.2, ry, 0, 0, PI2); ctx.fill();
+        const tg = ctx.createRadialGradient(0.3 * R, 0, 0, 0.3 * R, 0, R * 0.3); tg.addColorStop(0, 'rgba(255,170,60,' + (0.85 * Math.min(1, m + 0.2)).toFixed(2) + ')'); tg.addColorStop(1, 'rgba(255,110,20,0)');
+        ctx.fillStyle = tg; ctx.beginPath(); ctx.arc(0.3 * R, 0, R * 0.3, 0, PI2); ctx.fill();
+        ctx.fillStyle = '#e8607a'; ctx.beginPath(); ctx.ellipse(0.44 * R, 0, R * 0.12, ry * 0.45, 0, 0, PI2); ctx.fill();
+        ctx.fillStyle = C.tooth; ctx.strokeStyle = 'rgba(40,20,10,0.5)'; ctx.lineWidth = 0.8;
+        for (let s = -1; s <= 1; s += 2) for (let k = 0; k < 4; k++) { const gx = (0.33 + k * 0.075) * R, w = R * 0.026; ctx.beginPath(); ctx.moveTo(gx - w, s * ry); ctx.lineTo(gx, s * (ry - R * 0.05)); ctx.lineTo(gx + w, s * ry); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+      } else { ctx.strokeStyle = 'rgba(8,40,24,0.7)'; ctx.lineWidth = Math.max(1, R * 0.025); ctx.beginPath(); ctx.moveTo(0.34 * R, 0); ctx.lineTo(0.62 * R, 0); ctx.stroke(); }   // garis mulut tertutup
+      ctx.restore();
+      // punggung moncong: pelat tengah + kilau sisi yang terkena cahaya
+      ctx.fillStyle = 'rgba(255,255,220,0.2)'; for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.ellipse((0.02 + k * 0.1) * R, 0, R * 0.04, R * (0.07 - k * 0.01), 0, 0, PI2); ctx.fill(); }
+      ctx.strokeStyle = 'rgba(255,255,220,0.42)'; ctx.lineWidth = Math.max(1, R * 0.03); const ls = ly < 0 ? -1 : 1;
+      ctx.beginPath(); ctx.moveTo(-0.2 * R, ls * 0.22 * R); ctx.quadraticCurveTo(0.2 * R, ls * 0.16 * R, 0.55 * R, ls * 0.07 * R); ctx.stroke();
+      // lubang hidung di ujung moncong
+      ctx.fillStyle = 'rgba(10,50,30,0.9)'; for (let s = -1; s <= 1; s += 2) { ctx.beginPath(); ctx.ellipse(0.575 * R, s * 0.035 * R, R * 0.016, R * 0.011, 0.3 * s, 0, PI2); ctx.fill(); }
+      // alis & mata (dua mata di sisi atas kepala)
+      ctx.strokeStyle = C.outline; ctx.lineWidth = Math.max(2, R * 0.05); ctx.lineCap = 'round';
+      for (let s = -1; s <= 1; s += 2) { ctx.beginPath(); ctx.moveTo(-0.04 * R, s * 0.28 * R); ctx.lineTo(0.13 * R, s * (sad ? 0.2 : 0.16) * R); ctx.stroke(); }
+      for (let s = -1; s <= 1; s += 2) {
+        const ex = 0.04 * R, ey = s * 0.2 * R, er = R * 0.075, closed = this.blink > 0 || happy || sad || cheer;
+        ctx.fillStyle = pal[2]; ctx.beginPath(); ctx.ellipse(ex, ey, er * 1.35, er * 1.3, 0, 0, PI2); ctx.fill();   // rongga mata menonjol
+        if (closed) { ctx.strokeStyle = C.pupil; ctx.lineWidth = Math.max(2, R * 0.04); ctx.beginPath(); if (sad) ctx.arc(ex, ey, er, Math.PI * 0.1, Math.PI * 0.9, s < 0); else ctx.arc(ex - er * 0.2, ey, er * 0.9, -1.2, 1.2); ctx.stroke(); }
+        else {
+          const eg = ctx.createRadialGradient(ex, ey, 0, ex, ey, er * 2); eg.addColorStop(0, 'rgba(255,230,120,0.5)'); eg.addColorStop(1, 'rgba(255,200,60,0)'); ctx.fillStyle = eg; ctx.beginPath(); ctx.arc(ex, ey, er * 2, 0, PI2); ctx.fill();
+          ctx.fillStyle = hurt ? '#fff' : C.eye; ctx.beginPath(); ctx.arc(ex, ey, er * (hurt ? 1.3 : 1), 0, PI2); ctx.fill(); ctx.lineWidth = 1.4; ctx.strokeStyle = C.outline; ctx.stroke();
+          const lag = Math.max(-1, Math.min(1, this.angVel * 0.05)) * er * 0.4;
+          ctx.fillStyle = C.pupil; ctx.beginPath(); ctx.ellipse(ex + er * 0.15, ey + lag, er * (hurt ? 0.35 : 0.28), er * (hurt ? 0.9 : 0.78), 0, 0, PI2); ctx.fill();
+          ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(ex - er * 0.1, ey - er * 0.3, er * 0.2, 0, PI2); ctx.fill();
+        }
+      }
+      // cahaya api di moncong (aditif)
+      if (m > 0.3 && !hurt) { ctx.globalCompositeOperation = 'lighter'; const fg = ctx.createRadialGradient(R * 0.45, 0, 0, R * 0.45, 0, R * 0.5); fg.addColorStop(0, 'rgba(255,150,50,' + (0.35 * m).toFixed(3) + ')'); fg.addColorStop(1, 'rgba(255,90,20,0)'); ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(R * 0.45, 0, R * 0.5, 0, PI2); ctx.fill(); ctx.globalCompositeOperation = 'source-over'; }
+    }
+
+    /** Hembusan kepakan: debu, daun, dan percikan terlempar dari ujung sayap. */
+    gust(x, y, R, f) {
+      const FX = GA.FX; if (!FX || FX.reduce || (GA.Quality && GA.Quality.level === 'rendah')) return;
+      const sp = this.expr === 'cheer' ? 1.3 : 1, n = this.expr === 'cheer' ? 6 : 3, pal = ['#d8cfae', '#a9c27a', '#c79a52', '#8fb35a'];
+      for (let i = 0; i < n; i++) {
+        const s = i % 2 ? 1 : -1, ang = (s > 0 ? 0 : Math.PI) + (Math.random() - 0.5) * 0.9, v = (70 + Math.random() * 110) * sp * FX.unit, wx = x + s * R * 1.3, wy = y - R * 0.15;
+        FX.spawn(wx, wy, Math.cos(ang) * v, Math.sin(ang) * v - 12, 0.5 + Math.random() * 0.5, R * (0.05 + Math.random() * 0.05), pal[i % pal.length], i % 3 === 0 ? 2 : 0, 20);
+      }
     }
 
     draw(ctx, x, y, R, ballCb) {
       const C = Theme.dragon, E = this.expr, t = this.t;
       const hurt = E === 'hurt', happy = E === 'happy', sad = E === 'sad', cheer = E === 'cheer';
       const pal = hurt ? C.hurt : C.body, pat = scalePattern(ctx, pal, R);
-      const breathe = 1 + C.breath * Math.sin(t * 2.2);
-      const fl = Math.sin(t * 1.7) * 0.07 + this.flap * (cheer ? 0.55 + Math.sin(t * 11) * 0.22 : 0.2);
+      const breathe = 1 + C.breath * Math.sin(t * 2.2), alt = 1 + 0.06 * Math.sin(t * 1.9 + 1);     // melayang: naik-turun lembut
+      const f = this.frozen > 0 ? 0 : Math.cos(this.fph) * this.flapAmp() + (sad ? -0.3 : 0);
       const shiver = this.frozen > 0 ? Math.sin(t * 60) * 1.2 : (this.hurtT > 0 ? Math.sin(t * 55) * R * 0.03 * this.hurtT : 0);
       const a = this.angle, dir = { x: Math.cos(a), y: Math.sin(a) }, recoil = -this.kick * R * 0.07;
+      const nk = this.neck, hx = nk[NECK_N - 1][0] * R, hy = nk[NECK_N - 1][1] * R;
+      if (this.flapFlag) { this.flapFlag = false; this.gust(x, y, R, f); }
+
+      this.shadow(ctx, x + shiver, y, R * breathe, f, hx + dir.x * recoil, hy + dir.y * recoil, alt);   // bayangan terbang di tanah
 
       ctx.save(); ctx.translate(x + shiver, y);
       ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-
-      // ---- sarang jerami di bawah naga (bayangan jatuh ke kanan-bawah) ----
-      const ng = ctx.createRadialGradient(0, 0, R * 0.3, 0, 0, R * 1.42);
-      ng.addColorStop(0, C.nest[1]); ng.addColorStop(0.75, C.nest[0]); ng.addColorStop(1, C.nest[1]);
-      ctx.fillStyle = 'rgba(0,0,0,0.26)'; ctx.beginPath(); ctx.ellipse(R * 0.1, R * 0.2, R * 1.4, R * 1.3, 0, 0, PI2); ctx.fill();
-      ctx.fillStyle = ng; ctx.beginPath(); ctx.arc(0, 0, R * 1.32, 0, PI2); ctx.fill();
-      ctx.strokeStyle = 'rgba(90,55,10,0.55)'; ctx.lineWidth = Math.max(1.5, R * 0.035);
-      for (let i = 0; i < STRAW.length; i++) {
-        const s = STRAW[i], an = s[0], r0 = R * s[1], len = R * (0.18 + s[2] * 0.22);
-        ctx.beginPath(); ctx.moveTo(Math.cos(an) * r0, Math.sin(an) * r0); ctx.lineTo(Math.cos(an + 0.5) * (r0 + len * 0.3), Math.sin(an + 0.5) * (r0 + len * 0.3)); ctx.stroke();
-      }
-
       ctx.translate(dir.x * recoil, dir.y * recoil);
       ctx.scale(breathe, breathe);
-
-      // bayangan badan di altar
-      ctx.fillStyle = 'rgba(8,10,20,0.3)'; ctx.beginPath(); ctx.ellipse(R * LX * 0.3, R * LY * 0.3, R * 0.78, R * 0.92, 0, 0, PI2); ctx.fill();
 
       // ---- ekor bersegmen (runcing, berduri, ujung seperti bilah) ----
       const tp = this.tail;
@@ -194,105 +291,51 @@
       for (let i = 1; i < TAIL_N - 1; i++) { const p = tp[i], q = tp[i + 1], an = Math.atan2(q[1] - p[1], q[0] - p[0]), w = (0.3 + (0.05 - 0.3) * i / TAIL_N) * R * 0.55; ctx.save(); ctx.translate(p[0] * R, p[1] * R); ctx.rotate(an - Math.PI / 2); ctx.beginPath(); ctx.moveTo(-w * 0.5, 0); ctx.lineTo(0, -w * 1.25); ctx.lineTo(w * 0.5, 0); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore(); }
       { const p = tp[TAIL_N - 1], q = tp[TAIL_N - 2], an = Math.atan2(p[1] - q[1], p[0] - q[0]); ctx.save(); ctx.translate(p[0] * R, p[1] * R); ctx.rotate(an); ctx.fillStyle = C.spike; ctx.beginPath(); ctx.moveTo(-R * 0.03, 0); ctx.quadraticCurveTo(R * 0.04, -R * 0.2, R * 0.28, 0); ctx.quadraticCurveTo(R * 0.04, R * 0.2, -R * 0.03, 0); ctx.fill(); ctx.stroke(); ctx.restore(); }
 
-      // ---- sayap bertulang (menjaga sarang) ----
-      this.wing(ctx, -1, R, fl, C, pal, pat); this.wing(ctx, 1, R, fl, C, pal, pat);
-
-      // ---- kaki bercakar ----
-      for (let s = -1; s <= 1; s += 2) for (let k = 0; k < 2; k++) {
-        const fx = s * R * (k ? 0.5 : 0.58), fy = R * (k ? 0.7 : 0.22);
-        ctx.fillStyle = 'rgba(6,20,10,0.25)'; ctx.beginPath(); ctx.ellipse(fx + R * 0.05, fy + R * 0.06, R * 0.24, R * 0.17, s * 0.4, 0, PI2); ctx.fill();
-        ctx.fillStyle = pat; ctx.strokeStyle = C.outline; ctx.lineWidth = Math.max(1.4, R * 0.04); ctx.beginPath(); ctx.ellipse(fx, fy, R * 0.23, R * 0.16, s * 0.4, 0, PI2); ctx.fill(); ctx.stroke();
-        ctx.fillStyle = C.horn; for (let c = -1; c <= 1; c++) { ctx.beginPath(); ctx.moveTo(fx + s * R * (0.12 + c * 0.1), fy + R * 0.1); ctx.lineTo(fx + s * R * (0.15 + c * 0.1), fy + R * 0.24); ctx.lineTo(fx + s * R * (0.07 + c * 0.1), fy + R * 0.12); ctx.closePath(); ctx.fill(); }
+      // ---- kaki belakang mencengkeram (tampak atas: pangkal paha + cakar mencuat) ----
+      for (let s = -1; s <= 1; s += 2) {
+        const fx = s * R * 0.5, fy = R * 0.66;
+        ctx.fillStyle = pat; ctx.strokeStyle = C.outline; ctx.lineWidth = Math.max(1.4, R * 0.04); ctx.beginPath(); ctx.ellipse(fx, fy, R * 0.2, R * 0.27, s * 0.35, 0, PI2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = C.horn; for (let c = -1; c <= 1; c++) { ctx.beginPath(); ctx.moveTo(fx + s * R * 0.1 + c * R * 0.07, fy + R * 0.2); ctx.lineTo(fx + s * R * 0.12 + c * R * 0.08, fy + R * 0.34); ctx.lineTo(fx + s * R * 0.04 + c * R * 0.07, fy + R * 0.22); ctx.closePath(); ctx.fill(); ctx.stroke(); }
       }
 
-      // ---- badan bersisik ----
-      ctx.beginPath(); ctx.ellipse(0, R * 0.05, R * 0.72, R * 0.88, 0, 0, PI2);
+      // ---- badan bersisik (tampak atas: punggung berpelat) ----
+      ctx.beginPath(); ctx.ellipse(0, R * 0.1, R * 0.52, R * 0.88, 0, 0, PI2);
       ctx.fillStyle = pat; ctx.fill();
-      const sh = ctx.createRadialGradient(-R * 0.32, -R * 0.35, R * 0.1, 0, R * 0.05, R * 1.0); sh.addColorStop(0, 'rgba(255,255,230,0.18)'); sh.addColorStop(0.55, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,20,10,0.5)');
+      const sh = ctx.createRadialGradient(-R * 0.3, -R * 0.35, R * 0.1, 0, R * 0.05, R * 1.0); sh.addColorStop(0, 'rgba(255,255,230,0.2)'); sh.addColorStop(0.55, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,20,10,0.5)');
       ctx.fillStyle = sh; ctx.fill();
       ctx.strokeStyle = C.outline; ctx.lineWidth = Math.max(2, R * 0.055); ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,255,220,0.42)'; ctx.lineWidth = Math.max(1.5, R * 0.035); ctx.beginPath(); ctx.ellipse(-R * 0.01, R * 0.04, R * 0.7, R * 0.86, 0, Math.PI * 1.02, Math.PI * 1.62); ctx.stroke();   // cahaya tepi kiri-atas
-      // perut berpelat
-      ctx.save(); ctx.beginPath(); ctx.ellipse(0, R * 0.12, R * 0.38, R * 0.7, 0, 0, PI2); ctx.clip();
-      const bl = ctx.createLinearGradient(0, -R * 0.5, 0, R * 0.8); bl.addColorStop(0, C.belly[0]); bl.addColorStop(1, C.belly[1]); ctx.fillStyle = bl; ctx.fillRect(-R, -R, R * 2, R * 2);
-      ctx.strokeStyle = 'rgba(120,70,10,0.5)'; ctx.lineWidth = Math.max(1.2, R * 0.03);
-      for (let k = 0; k < 8; k++) { const yy = -R * 0.5 + k * R * 0.17; ctx.beginPath(); ctx.moveTo(-R * 0.4, yy); ctx.quadraticCurveTo(0, yy + R * 0.09, R * 0.4, yy); ctx.stroke(); }
+      ctx.save(); ctx.beginPath(); ctx.ellipse(0, R * 0.1, R * 0.52, R * 0.88, 0, 0, PI2); ctx.clip();
+      ctx.fillStyle = 'rgba(8,60,36,0.22)'; ctx.fillRect(-R * 0.14, -R, R * 0.28, R * 2);      // alur tulang punggung
+      ctx.strokeStyle = 'rgba(255,240,180,0.16)'; ctx.lineWidth = Math.max(1, R * 0.03); for (let k = 0; k < 7; k++) { const yy = -R * 0.5 + k * R * 0.19; ctx.beginPath(); ctx.moveTo(-R * 0.5, yy); ctx.quadraticCurveTo(0, yy - R * 0.1, R * 0.5, yy); ctx.stroke(); }
       ctx.restore();
-      // duri punggung
+      ctx.strokeStyle = 'rgba(255,255,220,0.4)'; ctx.lineWidth = Math.max(1.5, R * 0.035); ctx.beginPath(); ctx.ellipse(-R * 0.01, R * 0.1, R * 0.5, R * 0.86, 0, Math.PI * 1.02, Math.PI * 1.62); ctx.stroke();   // cahaya tepi kiri-atas
+      // pelat punggung di garis tengah
       ctx.fillStyle = C.spike; ctx.strokeStyle = C.outline; ctx.lineWidth = Math.max(1, R * 0.025);
-      for (let k = 0; k < 5; k++) { const yy = R * 0.3 + k * R * 0.12, w = R * (0.075 - k * 0.006); ctx.beginPath(); ctx.moveTo(-w, yy + w * 0.7); ctx.lineTo(0, yy - w * 1.5); ctx.lineTo(w, yy + w * 0.7); ctx.closePath(); ctx.fill(); ctx.stroke(); }
-
+      for (let k = 0; k < 8; k++) { const yy = -R * 0.45 + k * R * 0.15, w = R * (0.085 - k * 0.006); ctx.beginPath(); ctx.moveTo(0, yy - w * 1.1); ctx.lineTo(w, yy); ctx.lineTo(0, yy + w * 0.9); ctx.lineTo(-w, yy); ctx.closePath(); ctx.fill(); ctx.stroke(); }
       // cahaya api hangat di badan ketika bola siap
       if (this.mouth > 0.3 && !hurt) {
         ctx.save(); ctx.globalCompositeOperation = 'lighter'; const wg = ctx.createRadialGradient(dir.x * R * 0.7, dir.y * R * 0.7, 0, dir.x * R * 0.7, dir.y * R * 0.7, R * 1.0);
-        wg.addColorStop(0, 'rgba(255,150,50,' + (0.3 * this.mouth * (0.85 + 0.15 * Math.sin(t * 9))).toFixed(3) + ')'); wg.addColorStop(1, 'rgba(255,90,20,0)'); ctx.fillStyle = wg; ctx.beginPath(); ctx.arc(dir.x * R * 0.7, dir.y * R * 0.7, R * 1.0, 0, PI2); ctx.fill(); ctx.restore();
+        wg.addColorStop(0, 'rgba(255,150,50,' + (0.28 * this.mouth * (0.85 + 0.15 * Math.sin(t * 9))).toFixed(3) + ')'); wg.addColorStop(1, 'rgba(255,90,20,0)'); ctx.fillStyle = wg; ctx.beginPath(); ctx.arc(dir.x * R * 0.7, dir.y * R * 0.7, R * 1.0, 0, PI2); ctx.fill(); ctx.restore();
       }
 
       // ---- leher bersegmen (mengikuti kepala dengan inersia) ----
-      const nk = this.neck, hx = nk[NECK_N - 1][0] * R, hy = nk[NECK_N - 1][1] * R;
       this.strokeChain(ctx, nk, R, 0.32, 0.23, pat, C.outline, Math.max(2, R * 0.06));
       this.strokeChain(ctx, nk.map(function (p) { return [p[0] - 0.012, p[1] - 0.02]; }), R, 0.1, 0.07, 'rgba(255,255,230,0.2)');
-      this.strokeChain(ctx, nk, R, 0.07, 0.07, C.belly[1]);
       ctx.fillStyle = C.spike; ctx.strokeStyle = C.outline; ctx.lineWidth = Math.max(1, R * 0.02);
-      for (let i = 1; i < NECK_N - 1; i++) { const p = nk[i], an = Math.atan2(nk[i + 1][1] - nk[i - 1][1], nk[i + 1][0] - nk[i - 1][0]); ctx.save(); ctx.translate(p[0] * R, p[1] * R); ctx.rotate(an + Math.PI / 2); ctx.beginPath(); ctx.moveTo(-R * 0.04, 0); ctx.lineTo(0, -R * 0.1); ctx.lineTo(R * 0.04, 0); ctx.closePath(); ctx.fill(); ctx.restore(); }
+      for (let i = 1; i < NECK_N - 1; i++) { const p = nk[i], an = Math.atan2(nk[i + 1][1] - nk[i - 1][1], nk[i + 1][0] - nk[i - 1][0]); ctx.save(); ctx.translate(p[0] * R, p[1] * R); ctx.rotate(an); ctx.beginPath(); ctx.moveTo(-R * 0.05, -R * 0.045); ctx.lineTo(R * 0.04, 0); ctx.lineTo(-R * 0.05, R * 0.045); ctx.closePath(); ctx.fill(); ctx.restore(); }
+
+      // ---- sayap di atas badan (tampak atas, terbentang ke kiri-kanan) ----
+      this.wing(ctx, -1, R, f, C, pal, pat); this.wing(ctx, 1, R, f, C, pal, pat);
       ctx.restore();
 
-      // ---- bola api di mulut (tegak) ----
-      if (ballCb) { const p = this.mouthPos(x + shiver, y, R, { x: 0, y: 0 }); ballCb(p.x, p.y, this.mouth); }
-
-      // ---- kepala (di atas bola: rahang memegang bola) ----
+      // ---- kepala ----
       const rp = (1 + C.breath * Math.sin(t * 2.2)), hs = 1.4 * (1 + this.roar * 0.14);
       ctx.save(); ctx.translate(x + shiver + (hx + dir.x * recoil) * rp, y + (hy + dir.y * recoil) * rp); ctx.rotate(a); ctx.scale(hs, hs); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-      const m = this.mouth, op = m * 0.14 + this.roar * 0.05;
-      ctx.fillStyle = 'rgba(6,20,10,0.25)'; ctx.beginPath(); ctx.ellipse(R * 0.1 + R * LX * 0.1, R * LY * 0.1, R * 0.5, R * 0.3, 0, 0, PI2); ctx.fill();
-      // tanduk melengkung
-      ctx.fillStyle = C.horn; ctx.strokeStyle = C.outline; ctx.lineWidth = Math.max(1.5, R * 0.04);
-      for (let s = -1; s <= 1; s += 2) {
-        ctx.beginPath(); ctx.moveTo(-R * 0.08, s * R * 0.2); ctx.quadraticCurveTo(-R * 0.35, s * R * 0.3, -R * 0.54, s * R * 0.52); ctx.quadraticCurveTo(-R * 0.3, s * R * 0.16, -R * 0.02, s * R * 0.1); ctx.closePath(); ctx.fill(); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(R * 0.1, s * R * 0.27); ctx.lineTo(R * 0.02, s * R * 0.42); ctx.lineTo(R * 0.2, s * R * 0.3); ctx.closePath(); ctx.fill(); ctx.stroke();   // duri pipi
-      }
-      const jg = ctx.createLinearGradient(0, -R * 0.3, 0, R * 0.3); jg.addColorStop(0, pal[0]); jg.addColorStop(1, pal[2]);
-      // rongga mulut + cahaya tenggorokan
-      ctx.fillStyle = C.mouthIn; ctx.beginPath(); ctx.ellipse(R * 0.28, 0, R * 0.26, R * (0.04 + op), 0, 0, PI2); ctx.fill();
-      if (m > 0.3) { ctx.fillStyle = C.glow; ctx.beginPath(); ctx.ellipse(R * 0.3, 0, R * 0.2, R * (0.03 + op * 0.8), 0, 0, PI2); ctx.fill(); }
-      // rahang bawah
-      ctx.fillStyle = jg; ctx.beginPath(); ctx.moveTo(R * 0.02, R * (0.05 + op)); ctx.quadraticCurveTo(R * 0.3, R * (0.1 + op * 1.6), R * 0.5, R * (0.04 + op * 1.2)); ctx.lineTo(R * 0.46, R * (0.13 + op * 1.1)); ctx.quadraticCurveTo(R * 0.2, R * (0.24 + op), R * 0.0, R * 0.2); ctx.closePath(); ctx.fill(); ctx.stroke();
-      // tengkorak + rahang atas
-      ctx.beginPath(); ctx.moveTo(-R * 0.3, 0); ctx.quadraticCurveTo(-R * 0.3, -R * 0.3, R * 0.08, -R * 0.27);
-      ctx.quadraticCurveTo(R * 0.4, -R * (0.2 + op * 0.8), R * 0.55, -R * (0.07 + op * 1.2)); ctx.lineTo(R * 0.5, -R * (0.01 + op * 0.6)); ctx.quadraticCurveTo(R * 0.28, -R * (0.04 + op * 0.4), R * 0.02, -R * 0.03);
-      ctx.quadraticCurveTo(-R * 0.3, R * 0.02, -R * 0.3, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
-      ctx.globalAlpha = 0.5; ctx.fillStyle = pat; ctx.fill(); ctx.globalAlpha = 1;
-      ctx.fillStyle = jg; ctx.beginPath(); ctx.moveTo(-R * 0.3, 0); ctx.quadraticCurveTo(-R * 0.3, R * 0.3, R * 0.08, R * 0.27); ctx.quadraticCurveTo(R * 0.0, R * 0.05, -R * 0.3, 0); ctx.fill();
-      // sisi terang (cahaya dari kiri-atas) + punggung hidung
-      ctx.strokeStyle = 'rgba(255,255,220,0.4)'; ctx.lineWidth = Math.max(1, R * 0.03); ctx.beginPath(); ctx.moveTo(-R * 0.22, -R * 0.2); ctx.quadraticCurveTo(R * 0.1, -R * 0.24, R * 0.48, -R * (0.08 + op * 1.1)); ctx.stroke();
-      // alis tebal (garang)
-      ctx.strokeStyle = C.outline; ctx.lineWidth = Math.max(2, R * 0.05); for (let s = -1; s <= 1; s += 2) { ctx.beginPath(); ctx.moveTo(R * 0.0, s * R * 0.08); ctx.lineTo(R * 0.14, s * R * (sad ? 0.14 : 0.08)); ctx.stroke(); }
-      // gigi
-      ctx.fillStyle = C.tooth;
-      for (let k = 0; k < 3; k++) { const gx = R * (0.22 + k * 0.1); ctx.beginPath(); ctx.moveTo(gx, -R * (0.05 + op * 0.55)); ctx.lineTo(gx + R * 0.035, -R * (0.01 + op * 0.55) + R * 0.07); ctx.lineTo(gx + R * 0.07, -R * (0.05 + op * 0.55)); ctx.fill(); }
-      // lubang hidung
-      ctx.fillStyle = 'rgba(10,50,30,0.85)'; for (let s = -1; s <= 1; s += 2) { ctx.beginPath(); ctx.ellipse(R * 0.46, s * R * 0.035 - R * 0.045, R * 0.022, R * 0.012, 0.3 * s, 0, PI2); ctx.fill(); }
-      // mata menyala (pupil celah, kilau)
-      for (let s = -1; s <= 1; s += 2) {
-        const ex = R * 0.06, ey = s * R * 0.18, er = R * 0.085;
-        const closed = this.blink > 0 || happy || sad || cheer;
-        if (closed) {
-          ctx.strokeStyle = C.pupil; ctx.lineWidth = Math.max(2, R * 0.045);
-          ctx.beginPath();
-          if (sad) { ctx.arc(ex - R * 0.02, ey, er, -0.4, 0.4 + Math.PI, true); } else { ctx.arc(ex - R * 0.04, ey, er * 0.9, -1.1, 1.1); }
-          ctx.stroke();
-        } else {
-          const eg = ctx.createRadialGradient(ex, ey, 0, ex, ey, er * 1.9); eg.addColorStop(0, 'rgba(255,230,120,0.55)'); eg.addColorStop(1, 'rgba(255,200,60,0)'); ctx.fillStyle = eg; ctx.beginPath(); ctx.arc(ex, ey, er * 1.9, 0, PI2); ctx.fill();
-          ctx.fillStyle = hurt ? '#fff' : C.eye; ctx.beginPath(); ctx.arc(ex, ey, er * (hurt ? 1.3 : 1), 0, PI2); ctx.fill();
-          ctx.lineWidth = 1.5; ctx.strokeStyle = C.outline; ctx.stroke();
-          const lag = Math.max(-1, Math.min(1, this.angVel * 0.05)) * er * 0.4;
-          ctx.fillStyle = C.pupil; ctx.beginPath(); ctx.ellipse(ex + R * 0.02, ey + lag, er * (hurt ? 0.35 : 0.3), er * (hurt ? 0.9 : 0.8), 0, 0, PI2); ctx.fill();
-          ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(ex + R * 0.0, ey - er * 0.3, er * 0.2, 0, PI2); ctx.fill();
-        }
-      }
-      // cahaya api di wajah (aditif)
-      if (m > 0.3 && !hurt) { ctx.globalCompositeOperation = 'lighter'; const fg = ctx.createRadialGradient(R * 0.36, 0, 0, R * 0.36, 0, R * 0.5); fg.addColorStop(0, 'rgba(255,150,50,' + (0.4 * m).toFixed(3) + ')'); fg.addColorStop(1, 'rgba(255,90,20,0)'); ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(R * 0.36, 0, R * 0.5, 0, PI2); ctx.fill(); ctx.globalCompositeOperation = 'source-over'; }
+      this.head(ctx, R, this.mouth * 0.14 + this.roar * 0.05, this.mouth, pal, pat, C, a);
       ctx.restore();
+
+      // ---- bola api di ujung moncong (tegak, di atas kepala agar angka ×N selalu terbaca; membesar saat terbentuk di tenggorokan) ----
+      if (ballCb) { const p = this.mouthPos(x + shiver, y, R, { x: 0, y: 0 }); ballCb(p.x, p.y, this.mouth); }
 
       // ---- efek: asap saat senang, es saat membeku, kilatan merah saat kaget ----
       if (happy) {
@@ -300,12 +343,12 @@
         for (let k = 0; k < 3; k++) { const ph = (t * 1.6 + k * 0.33) % 1; ctx.globalAlpha = 1 - ph; ctx.beginPath(); ctx.arc(x + hx + dir.x * R * 0.5 + Math.sin(ph * 6 + k) * 4, y + hy + dir.y * R * 0.5 - ph * R * 0.8, R * (0.07 + ph * 0.1), 0, PI2); ctx.fill(); }
         ctx.globalAlpha = 1;
       }
-      if (this.hurtT > 0) { ctx.save(); ctx.translate(x, y); ctx.globalAlpha = Math.min(0.4, this.hurtT * 0.5); ctx.fillStyle = '#ff3a3a'; ctx.beginPath(); ctx.ellipse(0, R * 0.05, R * 0.9, R * 1.0, 0, 0, PI2); ctx.fill(); ctx.restore(); }
+      if (this.hurtT > 0) { ctx.save(); ctx.translate(x, y); ctx.globalAlpha = Math.min(0.4, this.hurtT * 0.5); ctx.fillStyle = '#ff3a3a'; ctx.beginPath(); ctx.ellipse(0, R * 0.1, R * 0.6, R * 0.95, 0, 0, PI2); ctx.fill(); ctx.restore(); }
       if (this.frozen > 0) {
         ctx.save(); ctx.translate(x, y);
-        ctx.fillStyle = 'rgba(150,215,255,0.38)'; ctx.beginPath(); ctx.ellipse(0, R * 0.05, R * 1.0, R * 1.0, 0, 0, PI2); ctx.fill();
+        ctx.fillStyle = 'rgba(150,215,255,0.38)'; ctx.beginPath(); ctx.ellipse(0, R * 0.05, R * 1.25, R * 1.0, 0, 0, PI2); ctx.fill();
         ctx.strokeStyle = 'rgba(230,248,255,0.9)'; ctx.lineWidth = Math.max(2, R * 0.05);
-        for (let k = 0; k < 8; k++) { const aa = k * PI2 / 8 + 0.2; ctx.beginPath(); ctx.moveTo(Math.cos(aa) * R * 0.9, Math.sin(aa) * R * 0.9); ctx.lineTo(Math.cos(aa) * R * 1.15, Math.sin(aa) * R * 1.15); ctx.stroke(); }
+        for (let k = 0; k < 8; k++) { const aa = k * PI2 / 8 + 0.2; ctx.beginPath(); ctx.moveTo(Math.cos(aa) * R * 0.9, Math.sin(aa) * R * 0.9); ctx.lineTo(Math.cos(aa) * R * 1.2, Math.sin(aa) * R * 1.2); ctx.stroke(); }
         ctx.restore();
       }
     }
@@ -350,5 +393,6 @@
     }
   }
 
+  Dragon.pulse = 0; Dragon.onFlap = null;      // pulse: denyut kepakan 0..1 (dipakai sarang agar telur bergetar); onFlap: kait untuk bunyi kepakan
   GA.Dragon = { Dragon: Dragon, drawSleeping: Dragon.drawSleeping };
 })(window.GA = window.GA || {});
