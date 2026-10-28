@@ -113,6 +113,7 @@
         const e = this.list[i]; e.t += dt;
         if (this.isOn(e) && !e.fired) {
           e.fired = true;
+          if (this.c.activate) this.c.activate(e);
           if (e.mech === 'veil') this.c.fog(e.x, e.y, e.r, e.dur);
         }
         if (e.t >= e.warn + e.dur + FADE) this.list.splice(i, 1);

@@ -188,13 +188,30 @@
     G.handlers.quit();
   }
 
+  /** Audio: semua suara berbunyi tanpa galat; tiap jenis rintangan, mekanik, dan zona punya suara/ambient/musik. */
+  async function testAudio() {
+    const A = GA.Audio, K = GA.Hazards.KINDS, names = A.names(), miss = [];
+    A.unlock(); A.errors.length = 0;
+    Object.keys(K).forEach(function (k) { if (names.indexOf('hz_' + k) < 0) miss.push('hz_' + k); if (names.indexOf('hzw_' + K[k].mech) < 0) miss.push('hzw_' + K[k].mech); });
+    ok('audio: tiap jenis & mekanik rintangan punya suara', miss.length === 0, miss.join(','));
+    const zones = {}; Object.keys(GA.Levels.ZONE).forEach(function (id) { zones[GA.Levels.ZONE[id]] = 1; });
+    const zmiss = Object.keys(zones).filter(function (z) { return A.zones.indexOf(z) < 0 || A.songs.indexOf(z) < 0; });
+    ok('audio: tiap zona punya ambient dan musik sendiri', zmiss.length === 0 && A.songs.indexOf('menu') >= 0 && A.zones.indexOf('menu') >= 0, zmiss.join(','));
+    names.forEach(function (nm) { A.play(nm, 3, 0.2, 0.1); });
+    A.zones.forEach(function (z) { A.ambient(z); A.music(z); });
+    A.intensity(2); await sleep(700); A.intensity(0); A.music('menu'); A.ambient('menu');
+    ok('audio: ' + names.length + ' suara, ' + A.zones.length + ' ambient, ' + A.songs.length + ' lagu berbunyi tanpa galat', A.errors.length === 0, A.errors.slice(0, 3).join(' | '));
+  }
+
   async function runAll() {
+
 
     const t0 = performance.now();
     testDecks(); testWaves(); testStorage(); testStrings(); testContrast(); testPaths();
     testMuzzleClear();
     await testSteal();
     await testDual();
+    await testAudio();
     const plan = [[0, 'mudah'], [1, 'sedang'], [2, 'sulit'], [3, 'sedang'], [4, 'sedang'], [0, 'sulit']];
     for (const p of plan) { try { await simStep(p[0], p[1]); } catch (e) { ok('sim step ' + (p[0] + 1) + '/' + p[1], false, 'error: ' + e.message); } }
     results.push('--- ' + (fails ? fails + ' GAGAL' : 'SEMUA LULUS') + ' (' + ((performance.now() - t0) / 1000).toFixed(1) + ' dtk)');

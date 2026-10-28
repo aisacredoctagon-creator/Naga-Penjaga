@@ -67,7 +67,7 @@ Aset berikut paling berdampak bila diganti ilustrasi buatan sendiri, tetapi **be
 | Telur naga | 6 × 128×160 PNG | Dipakai di sarang dan HUD; sekarang dibentuk kode. |
 | Bingkai HUD | 1920×160 PNG transparan (bisa 9-slice) | Sekarang bingkai kayu prosedural (`js/ui/hud.js`). |
 | Ikon UI | SVG 24×24 | Mudah diganti langsung di `js/ui/icons.js`. |
-| Musik & efek suara | OGG/MP3 | Audio sekarang disintesis Web Audio (`js/audio.js`), tanpa berkas. |
+| Musik, ambient & efek suara | OGG/MP3 | Audio disintesis Web Audio (`js/audio.js`): 71 efek, 6 ambient, 6 lagu per zona. Belum ada yang membaca berkas; untuk memakai rekaman, ganti isi fungsi di `SOUNDS`/`SONGS` dengan pemutaran `AudioBuffer` (nama suara tetap). |
 
 ## Prioritas yang menurut saya paling berdampak
 

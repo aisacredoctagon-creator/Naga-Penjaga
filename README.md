@@ -86,7 +86,18 @@ melaju 1,5×, ditandai pita air), **Hawa Panas** (bidikan bergetar), **Es Licin*
 
 Boss (`js/boss.js` + rig `js/render/wizard.js`): setiap jawaban benar melukai boss (20 soal = boss kalah); fase berubah pada soal ke-7 dan ke-14 (`TUNE.hits = [7, 7, 6]`) dengan **sinematik singkat yang bisa dilewati** (ketuk / Spasi / Enter; state `cine`, rantai berhenti, zoom ke boss, pita sinema). Penyihir digambar penuh dengan kode: sosok tinggi-kurus, jubah compang-camping (simulasi kain verlet 7×7), tudung runcing, wajah pucat berparut bermata hijau/ungu menyala, bantalan bahu bertumpuk (tulang + logam berkarat), sabuk & tali kulit, lengan dua ruas (IK) dengan jari panjang bercincin, tongkat berkristal berisi energi telur curian (cahaya makin besar tiap fase), tekstur prosedural (anyaman kain, kulit, karat, tulang). Animasi: melayang, gestur mantra, serangan sambil tertawa jahat, berkedip dengan perisai heksagonal saat terkena, aura amarah merah di pergantian fase, dan **hancur menjadi abu + energi ungu** saat kalah. Cahaya berasal dari sihirnya sendiri (lantai, jubah, wajah) dan ada bayangan lantai. Mengganti dengan sprite: `Theme.sprites.boss`.
 
+### Audio (`js/audio.js`)
+
+Semua suara disintesis dari kode (tanpa berkas): rantai sumber → pan → bus (efek / ambient) → master → kompresor, dengan gema sintetis untuk suara bernuansa ruang.
+
+- **Efek (71 suara):** UI, semburan api (desis menyapu), pecah kaca bola sihir, telur pecah + detak jantung saat tinggal satu telur, alarm sarang terancam (berpan kiri/kanan sesuai sarang), portal terbuka + bola keluar, tawa jahat boss, amarah, perisai, sinematik, hancur jadi abu, dan lainnya.
+- **Rintangan zona:** satu bunyi **peringatan per mekanik** (`hzw_*`) dan satu bunyi **aktif per jenis** (`hz_*`: semak, ombak, teratai, kristal, geyser, batu panas, stalaktit, akar, petir rune, spora, tangan bayangan), dipan sesuai posisi di layar.
+- **Ambient per zona** (`Audio.ambient(zona)`): lapisan angin/gemuruh + kejadian acak: hutan (burung, jangkrik), rawa (katak, gelembung), gunung api (gemuruh, retakan lahar), gua kristal (denting, tetes air), menara (angin, guntur, bisikan, lonceng). Tiap lapisan punya bus sendiri; dimatikan bersama tombol suara.
+- **Musik per zona** (`Audio.music(zona)`): arpeggio + bass + pad, perkusi di zona keras; boss memakai `Audio.intensity(0..2)` sehingga lagu makin cepat dan padat tiap fase.
+- Menambah suara: tambahkan fungsi ke `SOUNDS` lalu panggil `Audio.play('nama', arg, pan, wet)`. Uji `?test=1` memastikan semua suara berbunyi tanpa galat dan tiap jenis rintangan/zona punya suara.
+
 ### Uji otomatis
+
 
 Buka `index.html?test=1` (lewat server lokal): `js/dev/tests.js` memeriksa dek 20 soal berjawaban unik untuk semua kategori × kesulitan, pembagian gelombang,
 penyimpanan step, anti-macet (bola lolos ke sarang), dan menjalankan **bot** yang menamatkan step 1–5 (tanpa render) sambil memastikan 20/20 soal selesai,
@@ -99,7 +110,7 @@ index.html          halaman tunggal
 css/base.css + kit.css  dasar halaman + komponen UI kit   css/pause.css   popup Jeda (desain Figma)
 js/theme.js         warna, ukuran bola, naga, latar tiap step (satu-satunya tempat untuk ganti tampilan)
 js/storage.js       localStorage (pilihan, bintang, rekor, pengaturan)
-js/audio.js         efek suara + musik latar sederhana (Web Audio, tanpa berkas)
+js/audio.js         efek suara, ambient & musik per zona (Web Audio, tanpa berkas)
 js/fx.js            partikel, getar layar          js/scenery.js   latar parallax + partikel ambient
 js/path.js          jalur (spline) & preset: arc, wave, hook, zigzag, ring, bossU; sarang & penanda
 js/mathtext.js      teks matematika dengan pecahan bersusun (canvas & HTML)
