@@ -52,7 +52,7 @@
     'fb.curse': 'Jangan tembak kutukan!', 'fb.obst': 'Kena rintangan!', 'fb.obst2': 'Tunggu celah.', 'fb.hole': 'Bola sampai di sarang!', 'fb.hole2': 'Soal muncul lagi.', 'fb.time': 'Waktu habis!',
 
     // coachmark (muncul pertama kali saja)
-    'coach.1': 'Geser untuk membidik', 'coach.2': 'Lepas untuk menembak', 'coach.3': 'Bidik bola jawaban',
+    'cine.skip': 'Ketuk untuk lewati', 'coach.1': 'Geser untuk membidik', 'coach.2': 'Lepas untuk menembak', 'coach.3': 'Bidik bola jawaban',
 
     // cerita (dikecualikan dari lint): maksimal 5 panel, satu kalimat pendek
     'story.1.t': 'Penjaga Telur', 'story.1': '{dragonName} menjaga telur-telur naga.',

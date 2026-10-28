@@ -91,7 +91,7 @@
       notes: ['Stalaktit jatuh di zona bertanda.', 'Kristal memantulkan api.']
     },
     {
-      id: 's5', name: 'Menara Penyihir', place: 'Menara Penyihir', scene: 'tower', pathId: 'bossU', tag: 'Step 5 · Boss', boss: true, buff: 'gold', nerf: 'nests',
+      id: 's5', name: 'Menara Penyihir', place: 'Menara Penyihir', scene: 'tower', pathId: 'dualU', tag: 'Step 5 · Boss', boss: true, buff: 'gold', nerf: 'nests',
       story: 'story.s5',
       obst: function (d) { return Object.assign({}, none, { bats: { every: 14 } }); },
       notes: ['Petir rune menyambar lajur.', 'Tangan bayangan menutup bidikan.']
@@ -106,7 +106,7 @@
     { paths: ['zigzag', 'figure8', 'horseshoe', 'serp4w'], maps: ['swamp', 'swampDusk', 'coast'] },
     { paths: ['serp4', 'figure8', 'zigzag', 'serp3w'], maps: ['volcano', 'ashfield', 'magma'] },
     { paths: ['horseshoe', 'serp4w', 's2', 'serp3w'], maps: ['crystal', 'iceCave', 'amethyst'] },
-    { paths: ['bossU', 'bossU2', 'bossBowl'], maps: ['tower', 'tower2', 'library'] }
+    { paths: ['dualU', 'dualW', 'dualC'], maps: ['tower', 'tower2', 'library'] }
   ];
   function pick(step) { const p = POOL[step]; return { path: p.paths[Math.floor(Math.random() * p.paths.length)], map: p.maps[Math.floor(Math.random() * p.maps.length)] }; }
 

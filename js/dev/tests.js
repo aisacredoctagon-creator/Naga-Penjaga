@@ -36,7 +36,7 @@
     LV.DIFFS.forEach(function (d) {
       sel.diff = d;
       for (let s = 0; s < LV.count; s++) {
-        const cfg = LV.build(s, sel, LV.resolveCats(sel)), w = GA.game.buildWaves(cfg, 20, 20);
+        const cfg = LV.build(s, sel, LV.resolveCats(sel)), w = GA.game.buildWaves(cfg, [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19], 20, -1);
         const nums = w.filter(function (x) { return x.kind === 'num'; }), ids = {}; nums.forEach(function (x) { ids[x.qid] = 1; });
         const groups = w.filter(function (x) { return x.gap > 0; }).length + 1;
         if (nums.length !== 20 || Object.keys(ids).length !== 20 || groups < 4 || groups > 6) { allOk = false; ok('gelombang step ' + (s + 1) + '/' + d, false, nums.length + ' target, ' + groups + ' kelompok'); }
@@ -98,16 +98,17 @@
     const thinkSec = { mudah: 8, sedang: 6, sulit: 4 }[diff];    // bot "berpikir" seperti pemain (membaca soal + membidik)
     // jarak titik ke ruas garis tembak (untuk menunggu rintangan bergerak lewat seperti pemain sungguhan)
     const segDist = function (px, py, ax, ay, bx, by) { const vx = bx - ax, vy = by - ay, l2 = vx * vx + vy * vy || 1, u = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / l2)); return Math.hypot(px - (ax + u * vx), py - (ay + u * vy)); };
-    while (G.state === 'playing' && st.t < maxT) {
-      const r = G.run, ch = r.chain, sh = r.shooter;
+    while ((G.state === 'playing' || G.state === 'cine') && st.t < maxT) {
+      const r = G.run, sh = r.shooter;
       G.tick(dt, true); st.t += dt; st.frames++;
+      if (G.state === 'cine') continue;      // sinematik pindah fase boss: waktu berjalan, tidak ada tembakan
       if (G.state !== 'playing') break;
       if (!r.q) { st.noQ += dt; continue; }
       if (r.qid !== lastQ) { lastQ = r.qid; think = thinkSec; }
       think -= dt;
       const vis = G.pendingVisible();
       if (vis.length && !vis.some(G.openLine)) { st.none++; noOpenRun += dt; maxNoOpen = Math.max(maxNoOpen, noOpenRun); } else noOpenRun = 0;
-      const ab = ch.balls.find(function (b) { return b.kind === 'num' && b.qid === r.qid; });
+      const ab = G.allBalls().find(function (b) { return b.kind === 'num' && b.qid === r.qid; });
       if (!ab) continue;
       const open = G.openLine(ab); if (!open) st.blocked++;
       const m = sh.muzzle({ x: 0, y: 0 }), want = Math.atan2(ab.y - m.y, ab.x - m.x);
@@ -115,12 +116,13 @@
       let clear = open;
       if (clear && r.haz.blocksLine(m.x, m.y, ab.x, ab.y, Math.hypot(ab.x - m.x, ab.y - m.y) / GA.Shooter.Bullets.speed + 0.15)) clear = false;   // tunggu rintangan zona selesai (ray test prediktif)
       if (clear && r.obst.predictedHit(m.x, m.y, ab.x, ab.y, GA.Shooter.Bullets.speed, GA.Shooter.Bullets.rObs * 0.55 + 8)) clear = false;   // tunggu lava/petir lewat (ray test prediktif)
-      if (clear && think <= 0 && sh.canFire() && !ch.settling()) { G.fire(); think = 1.6; }
+      if (clear && think <= 0 && sh.canFire() && !G.anySettling()) { G.fire(); think = 1.6; }
       if (r.correct !== lastCorrect) { lastCorrect = r.correct; stuckT = 0; } else { stuckT += dt; maxStuck = Math.max(maxStuck, stuckT); }
     }
     const hs = G.run.haz.stats, r = G.run, done = r.deck.filter(function (q) { return q.done; }).length;
     const finished = done === 20 && r.correct === 20;
     ok('sim ' + tag + ': 20/20 soal selesai tanpa macet', finished, 'benar ' + r.correct + ', selesai ' + done + ', waktu sim ' + st.t.toFixed(0) + ' dtk, telur ' + r.lives + ', salah ' + r.wrong + ', tunggu-tanpa-soal ' + (st.noQ / st.t * 100).toFixed(0) + '%, jeda terpanjang antar-jawaban ' + maxStuck.toFixed(0) + ' dtk');
+    if (r.boss) ok('sim ' + tag + ': boss kalah, fase naik di jawaban ke-7 dan ke-14', r.boss.defeated && r.boss.phaseIdx === 2 && r.boss.hp <= 0, 'fase ' + (r.boss.phaseIdx + 1) + ', hp ' + r.boss.hp);
     ok('sim ' + tag + ': selalu ada target terjangkau', st.none / st.frames < 0.35 && maxNoOpen < 4.5, 'bingkai tanpa jalur terbuka ' + (st.none / st.frames * 100).toFixed(1) + '%, terlama ' + maxNoOpen.toFixed(1) + ' dtk, aktif terhalang ' + (st.blocked / st.frames * 100).toFixed(1) + '%');
     ok('sim ' + tag + ': durasi masuk akal (1-8 menit untuk bot cepat)', st.t > 60 && st.t < 480, st.t.toFixed(0) + ' dtk');
     ok('sim ' + tag + ': rintangan zona adil (peringatan >= 1 dtk, busur <= 30%)', hs.minWarn >= 1.0 && hs.maxCover <= 0.3001, 'muncul ' + hs.spawned + ' (' + Object.keys(hs.byKind).join(',') + '), ditolak ' + hs.rejected + ', busur maks ' + (hs.maxCover * 100).toFixed(0) + '%, peringatan min ' + hs.minWarn + ' dtk');
@@ -163,11 +165,36 @@
     G.handlers.quit();
   }
 
+  /** Step 5: dua portal, dua rantai, dua sarang; 20 soal terbagi dua; salah satu sarang kosong = kalah. */
+  async function testDual() {
+    const G = GA.game, sel = { slots: ['add', 'add', 'add', 'add', 'add'], same: true, random: false, diff: 'mudah' };
+    G.startAdventure(sel, true, 4); G.handlers.introGo();
+    for (let i = 0; i < 60 && G.state !== 'playing'; i++) await sleep(150);
+    const r = G.run, ids = {}, per = [0, 0];
+    r.chains.forEach(function (c, i) { c.spawnQ.concat(c.balls).forEach(function (s) { if (s.kind === 'num') { ids[s.qid] = (ids[s.qid] || 0) + 1; per[i]++; } }); });
+    ok('Step 5: dua rantai, dua sarang masing-masing 3 telur', r.chains.length === 2 && !!r.nest && r.nest[0] === 3 && r.nest[1] === 3 && !!r.path.second && r.lives === 6);
+    ok('Step 5: 20 soal unik terbagi dua rantai', Object.keys(ids).length === 20 && per[0] === 10 && per[1] === 10, 'rantai: ' + per.join('+'));
+    const eaten = [];
+    for (let k = 0; k < 3; k++) {
+      const c = r.chains[1];
+      for (let i = 0; i < 4000 && !c.balls.some(function (b) { return b.kind === 'num'; }); i++) { G.tick(1 / 30, true); }
+      const target = c.balls.find(function (b) { return b.kind === 'num'; }); if (!target) break;
+      c.balls.forEach(function (b) { if (b !== target) b.d = Math.min(b.d, target.d - 1); });
+      target.d = c.path.length;
+      for (let i = 0; i < 40; i++) G.tick(1 / 30, true);
+      eaten.push(r.nest[0] + '/' + r.nest[1] + ':' + G.state);
+    }
+    ok('Step 5: bola lolos hanya memecah telur di sarangnya; sarang kosong = kalah', r.nest[0] === 3 && r.nest[1] === 0 && G.state === 'dying', eaten.join(' '));
+    G.handlers.quit();
+  }
+
   async function runAll() {
+
     const t0 = performance.now();
     testDecks(); testWaves(); testStorage(); testStrings(); testContrast(); testPaths();
     testMuzzleClear();
     await testSteal();
+    await testDual();
     const plan = [[0, 'mudah'], [1, 'sedang'], [2, 'sulit'], [3, 'sedang'], [4, 'sedang'], [0, 'sulit']];
     for (const p of plan) { try { await simStep(p[0], p[1]); } catch (e) { ok('sim step ' + (p[0] + 1) + '/' + p[1], false, 'error: ' + e.message); } }
     results.push('--- ' + (fails ? fails + ' GAGAL' : 'SEMUA LULUS') + ' (' + ((performance.now() - t0) / 1000).toFixed(1) + ' dtk)');

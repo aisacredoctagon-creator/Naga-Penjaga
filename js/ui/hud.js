@@ -146,9 +146,12 @@
 
     // telur
     const ep = G.eggs, n2 = run.maxLives, es = Math.min(ep.h * 0.95, (ep.w - 8) / n2 * 1.08);
+    const dual = !!run.nest, lostSlot = dual ? Math.max(0, run.lostIdx) * 3 + run.nest[Math.max(0, run.lostIdx)] : run.lives;
     for (let i = 0; i < n2; i++) {
-      const x = ep.x + ep.w / 2 + (i - (n2 - 1) / 2) * (ep.w - 14) / n2, lost = run.lifeLostT > 0 && i === run.lives;
-      egg(ctx, x + (lost ? Math.sin(t * 60) * 3 : 0), ep.y + ep.h / 2 + (lost ? -3 : 0), es, i < run.lives, t, i);
+      const gap = dual ? (i < 3 ? -es * 0.18 : es * 0.18) : 0;   // dua sarang: dua kelompok tiga telur
+      const x = ep.x + ep.w / 2 + (i - (n2 - 1) / 2) * (ep.w - 14) / n2 + gap, lost = run.lifeLostT > 0 && i === lostSlot;
+      const on = dual ? (i < 3 ? i < run.nest[0] : i - 3 < run.nest[1]) : i < run.lives;
+      egg(ctx, x + (lost ? Math.sin(t * 60) * 3 : 0), ep.y + ep.h / 2 + (lost ? -3 : 0), es, on, t, i);
     }
 
     // plakat soal

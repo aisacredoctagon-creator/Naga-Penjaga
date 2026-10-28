@@ -9,7 +9,8 @@
   'use strict';
   const TAU = Math.PI * 2;
   const E = { L: null, path: null, R: 0, map: null, ext: null, info: null, flies: [], ripples: [], quality: 2, bird: null, birdT: 12 };
-  const P = { x: 0, y: 0, a: 0, d: 0, has: false, open: 0, target: 0, pulse: 0, col: null, parts: [], spawn: 0, rip: [], bolts: [], rot: 0, flash: 0 };
+  function mkPortal() { return { x: 0, y: 0, a: 0, d: 0, has: false, open: 0, target: 0, pulse: 0, col: null, parts: [], spawn: 0, rip: [], bolts: [], rot: 0, flash: 0 }; }
+  const PS = [mkPortal(), mkPortal()];     // portal utama + portal kedua (Step 5 punya dua sarang)
 
   /** Warna portal per tema: [terang, tengah, gelap, inti]. */
   const PORTAL_COL = {
@@ -131,9 +132,12 @@
 
   function setPath(L, path, R, sceneId) {
     E.L = L; E.path = path; E.R = R;
-    const p = path ? entry(L, path, R) : null;
-    P.has = !!p; if (p) { P.x = p.x; P.y = p.y; P.a = p.a; P.d = p.d; }
-    P.col = PORTAL_COL[sceneId] || PORTAL_COL.forest;
+    [path, path ? path.second : null].forEach(function (pa, i) {
+      const P = PS[i], p = pa ? entry(L, pa, R) : null;
+      P.has = !!p; if (p) { P.x = p.x; P.y = p.y; P.a = p.a; P.d = p.d; }
+      P.col = PORTAL_COL[sceneId] || PORTAL_COL.forest;
+      if (!p) { P.open = 0; P.target = 0; }
+    });
   }
 
   function build(L, path, R, map, ext, info, lights) {
@@ -149,7 +153,9 @@
 
   function easeOut(t) { return 1 - (1 - t) * (1 - t); }
 
-  function drawPortal(ctx, t, dt) {
+  function drawPortal(ctx, t, dt) { PS.forEach(function (P) { drawPortalOne(P, ctx, t, dt); }); }
+
+  function drawPortalOne(P, ctx, t, dt) {
     if (!P.has || P.open <= 0.001) { P.open = Math.max(0, P.open + (P.target - P.open) * Math.min(1, dt * 5)); return; }
     const open = P.open, R = E.R, col = P.col;
     P.open = P.target > P.open ? Math.min(P.target, P.open + dt / 0.8) : Math.max(P.target, P.open - dt / 0.5);
@@ -337,13 +343,13 @@
     setQuality: function (q) { E.quality = q; this.quality = q; if (GA.Birds) GA.Birds.setQuality(q); },
     /** Burung (tampak atas, di bawah bola): update + gambar. Dipanggil dari main sebelum rantai. */
     drawBirds: function (ctx, t, dt) { if (GA.Birds) { GA.Birds.update(dt, t); GA.Birds.draw(ctx, t); } },
-    entryD: function () { return P.has ? P.d : 0; },
-    portalPos: function () { return P.has ? { x: P.x, y: P.y, a: P.a } : null; },
+    entryD: function (i) { const P = PS[i || 0]; return P.has ? P.d : 0; },
+    portalPos: function (i) { const P = PS[i || 0]; return P.has ? { x: P.x, y: P.y, a: P.a } : null; },
     /** Kendali portal: reset(open) mengatur keadaan awal; open()/close() animasi; pulse() saat bola keluar. */
-    resetPortal: function (open) { P.open = open ? 1 : 0; P.target = open ? 1 : 0; P.pulse = 0; P.flash = 0; P.parts.length = 0; },
-    openPortal: function () { P.target = 1; P.flash = 0.9; },
-    closePortal: function () { P.target = 0; P.flash = 0.6; },
-    pulse: function (s) { P.pulse = Math.min(1.2, P.pulse + (s || 0.7)); },
+    resetPortal: function (open) { PS.forEach(function (P) { P.open = open && P.has ? 1 : 0; P.target = open && P.has ? 1 : 0; P.pulse = 0; P.flash = 0; P.parts.length = 0; }); },
+    openPortal: function () { PS.forEach(function (P) { if (P.has) { P.target = 1; P.flash = 0.9; } }); },
+    closePortal: function () { PS.forEach(function (P) { P.target = 0; P.flash = 0.6; }); },
+    pulse: function (s, i) { const P = PS[i || 0]; P.pulse = Math.min(1.2, P.pulse + (s || 0.7)); },
     drawPortal: drawPortal,
     /** Efek di bawah rantai (ruang logis): kolam, kabut, berkas cahaya. */
     drawUnder: function (ctx, t, dt) { drawPond(ctx, t, dt); drawMist(ctx, t); drawShafts(ctx, t); drawLights(ctx, t); },

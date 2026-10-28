@@ -64,7 +64,7 @@ Step terbuka berurutan per kesulitan (step n+1 terbuka setelah step n selesai). 
 | 4 | Gua Kristal Beku: `crystal`, `iceCave`, `amethyst` | Waktu Beku | Es Licin | + stalaktit jatuh, kristal pemantul, kelelawar (8) |
 | 5 | Menara Penyihir: `tower`, `tower2`, `library` | Telur Emas | Serangan Boss | + petir rune, tangan bayangan, jamur spora (11) + boss |
 
-Step 5 masih **satu sarang** di mesin permainan; geometri dua sarang (dua jalur, dua portal) sudah ada sebagai arketipe `dualU/dualW/dualC` dan divalidasi, tetapi mesinnya (dua rantai, dua sarang) menyusul di tahap boss.
+**Step 5 = dua sarang.** Jalurnya salah satu `dualU/dualW/dualC`: dua portal, dua rantai (`run.chains`), dua sarang berisi **3 telur** masing-masing (`run.nest = [3, 3]`). 20 soal dibagi 10 + 10 ke dua rantai (bola khusus dibagi dua), kecepatan tiap rantai ×0,88. Bola target yang lolos hanya memecahkan telur di sarangnya sendiri; salah jawab / rintangan mengambil telur dari sarang yang masih terbanyak; **kalah bila salah satu sarang kosong**. Bola telur emas menambah telur di sarang rantai asalnya. Ancaman ditandai cahaya merah berdenyut di sarang + panah merah di tepi arena (HUD menampilkan 3 + 3 telur).
 
 ### Rintangan zona (`js/hazards.js`)
 
@@ -84,7 +84,7 @@ skor ×2), **Perisai Telur** (satu kesalahan dimaafkan), **Waktu Beku** (sekali,
 **Telur Emas** (+1 telur di awal), **Kabut Pagi** (angka samar sesaat; jawaban aktif tetap terbaca), **Arus Deras** (dua segmen jalur tempat rantai
 melaju 1,5×, ditandai pita air), **Hawa Panas** (bidikan bergetar), **Es Licin** (sudut bidik berinersia).
 
-Boss (`js/boss.js`): setiap jawaban benar melukai boss (20 soal = boss kalah); fase berubah pada soal ke-7 dan ke-14 (`TUNE.hits = [7, 7, 6]`).
+Boss (`js/boss.js` + rig `js/render/wizard.js`): setiap jawaban benar melukai boss (20 soal = boss kalah); fase berubah pada soal ke-7 dan ke-14 (`TUNE.hits = [7, 7, 6]`) dengan **sinematik singkat yang bisa dilewati** (ketuk / Spasi / Enter; state `cine`, rantai berhenti, zoom ke boss, pita sinema). Penyihir digambar penuh dengan kode: sosok tinggi-kurus, jubah compang-camping (simulasi kain verlet 7×7), tudung runcing, wajah pucat berparut bermata hijau/ungu menyala, bantalan bahu bertumpuk (tulang + logam berkarat), sabuk & tali kulit, lengan dua ruas (IK) dengan jari panjang bercincin, tongkat berkristal berisi energi telur curian (cahaya makin besar tiap fase), tekstur prosedural (anyaman kain, kulit, karat, tulang). Animasi: melayang, gestur mantra, serangan sambil tertawa jahat, berkedip dengan perisai heksagonal saat terkena, aura amarah merah di pergantian fase, dan **hancur menjadi abu + energi ungu** saat kalah. Cahaya berasal dari sihirnya sendiri (lantai, jubah, wajah) dan ada bayangan lantai. Mengganti dengan sprite: `Theme.sprites.boss`.
 
 ### Uji otomatis
 
@@ -110,6 +110,7 @@ js/questions.js     generator soal, kategori & tabel kesulitan
 js/obstacles.js     akar berduri, kristal, lahar/petir, kelelawar
 js/levels.js        5 step, buff/nerf, tabel kesulitan (data)
 js/boss.js          Penyihir Jahat (modul terpisah, bisa diganti)
+js/render/wizard.js rig & gambar Penyihir (kain verlet, IK lengan, tekstur prosedural, hancur jadi abu)
 js/story.js         cerita & akhir (nama tokoh bisa diatur)
 js/ui.js            layar (DOM) + HUD (canvas)     js/menu.js   Main Menu
 js/main.js          loop, layout responsif, input, alur petualangan
@@ -180,7 +181,7 @@ Gambar bawaan semuanya prosedural. Untuk memakai ilustrasi sendiri, daftarkan be
 
 ## Jalur & peta (js/maps/)
 
-- `maps/paths.js`: **pustaka arketipe jalur** berbasis data. Tiap arketipe punya definisi LANDSCAPE dan PORTRAIT sendiri (titik kontrol ternormalisasi), posisi penembak/boss, dan opsional zona kecepatan. Step 1: `hook`, `serp3`, `s2`. Step 2: `zigzag`, `figure8` (persilangan dengan jembatan), `horseshoe`. Step 3: `bossU`, `bossU2`, `bossBowl`. Jalur dan peta dipilih acak per petualangan (`Levels.pick`), disimpan di `adv.picks` supaya Ulangi memakai yang sama.
+- `maps/paths.js`: **pustaka arketipe jalur** berbasis data. Tiap arketipe punya definisi LANDSCAPE dan PORTRAIT sendiri (titik kontrol ternormalisasi), posisi penembak/boss, dan opsional zona kecepatan. Step 1: `hook`, `serp3`, `s2`, `serp4`. Step 2: `zigzag`, `figure8` (persilangan dengan jembatan), `horseshoe`, `serp4w`. Step 3: `serp4`, `figure8`, `zigzag`, `serp3w`. Step 4: `horseshoe`, `serp4w`, `s2`, `serp3w`. Step 5: `dualU`, `dualW`, `dualC` (dua sarang). Jalur dan peta dipilih acak per petualangan (`Levels.pick`), disimpan di `adv.picks` supaya Ulangi memakai yang sama.
 - Spline Catmull-Rom sentripetal, tabel panjang busur (`path.js`), jumlah bola mengikuti panjang jalur dan `BALL_RADIUS`.
 - **Validator** (otomatis tiap jalur dibangun): jarak antar-segmen ≥ 2,5R + 8, radius tikungan ≥ 1,15R, jalur di dalam layar, ruang penembak/boss bebas, deteksi persilangan. Tikungan tajam dilunakkan otomatis.
 - **Jembatan**: di persilangan, deck batu digambar di lapisan depan; bola di jalur bawah lewat di bawahnya, bola di jalur atas (`path.overWindows`) digambar setelahnya.

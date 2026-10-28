@@ -157,7 +157,7 @@
     constructor(path, opts) {
       this.zones = null; this.overWindows = null;   // zona kecepatan; jendela jembatan (bola di sini digambar di atas jembatan)
       this.spawnQ = []; this.useQueue = false; this.ff = false;   // antrean gelombang & percepatan saat tidak ada target terlihat
-      this.entryD = 0; this.onEmerge = null;   // jarak titik portal; bola yang melewatinya "keluar" dari portal
+      this.idx = 0; this.entryD = 0; this.onEmerge = null;  // jarak titik portal; bola yang melewatinya "keluar" dari portal
       this.path = path;
       this.r = opts.r;
       this.D = this.r * 2 + 1;
@@ -184,7 +184,7 @@
 
     /** spec (mode gelombang): { qid, kind, gap }. qid = indeks soal di dek (bola target), kind = 'num' | 'curse' | 'frost' | 'egg'. */
     makeBall(d, spec) {
-      const b = { id: this.nextId++, d: d, kind: 'num', value: 0, text: '', ci: 0, x: 0, y: 0, a: 0, flipT: 0, nv: null, nt: null, wob: 0, red: 0, fog: 0, fogAge: 0, out: d >= this.entryD, rot: 0,
+      const b = { ch: this, id: this.nextId++, d: d, kind: 'num', value: 0, text: '', ci: 0, x: 0, y: 0, a: 0, flipT: 0, nv: null, nt: null, wob: 0, red: 0, fog: 0, fogAge: 0, out: d >= this.entryD, rot: 0,
         qid: spec && spec.qid != null ? spec.qid : null, gap: spec && spec.gap ? spec.gap : 0, want: spec ? spec.kind || 'num' : null };
       this.lastCi = b.ci = (this.lastCi + 1 + Math.floor(Math.random() * 7)) % 8;
       this.labeler(b);
