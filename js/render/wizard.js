@@ -47,7 +47,7 @@
   function pat(g, kind) { return pats[kind] || (pats[kind] = g.createPattern(tile(kind), 'repeat')); }
   /** Tumpuk tekstur di dalam jalur yang sedang aktif (path belum dibersihkan). */
   function tex(g, kind, a, scale) {
-    if (q() < 1) return;
+    if (q() < 2) return;      // tekstur hanya di kualitas Tinggi (±25 clip+isi per bingkai)
     g.save(); g.clip(); g.globalAlpha = a; g.fillStyle = pat(g, kind); const s = scale || 0.5; g.scale(s, s); g.fillRect(-400, -400, 800, 800); g.restore();
   }
 

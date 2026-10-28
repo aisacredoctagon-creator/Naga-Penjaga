@@ -84,7 +84,7 @@
 .k-chip-toggle.on { color: #3a1c06; background: linear-gradient(#fff0a8, #ffc84a); border-color: #4a2a08; box-shadow: 0 0 14px rgba(255, 190, 70, .5), 0 4px 0 #120804; }
 .k-chip-toggle.on .k-tl .ic { color: #8a4a10; }
 
-.k-seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; padding: 6px; background: var(--tex-wood-dark) center / cover, #3a2010; border: 3px solid #1c0e05; border-radius: var(--r-m); box-shadow: inset 0 3px 8px rgba(0, 0, 0, .55); }
+.k-seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; padding: 6px; background: var(--tex-wood-dark) center / cover, #3a2010; border: 3px solid #1c0e05; border-radius: var(--r-m); box-shadow: inset 0 3px 8px rgba(0, 0, 0, .55); }
 .k-seg-i {
   display: inline-flex; align-items: center; justify-content: center; gap: .35em; min-height: 46px; padding: 4px 6px; cursor: pointer; touch-action: manipulation;
   font: 800 17px var(--font-ui); color: #e8d8b0; background: rgba(255, 220, 160, .08); border: 2px solid rgba(0, 0, 0, .35); border-radius: 12px; text-shadow: 0 1px 0 rgba(0, 0, 0, .6);
@@ -107,7 +107,7 @@
 .k-res-i.k-tone-fire .ic { background: radial-gradient(circle at 35% 30%, #fff3a0, #ff9a3c 60%, #d9361a); color: #5a1a04; }
 
 /* ---------- kartu kategori ---------- */
-.k-cats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.k-cats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .k-card { font-family: var(--font-ui); cursor: pointer; touch-action: manipulation; color: #f3ecff; }
 .k-cat {
   --c: #8b5cf6; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 92px; padding: 8px 4px;
@@ -221,7 +221,7 @@
 @media (max-height: 520px) {
   .k-body { padding: 8px 8px 8px; gap: 8px; } .k-title { font-size: 22px; } .k-peek { top: -42px; width: 78px; height: 43px; }
   .k-btn { min-height: 48px; font-size: 18px; } .k-big { min-height: 52px; font-size: 22px; }
-  .k-cats { grid-template-columns: repeat(4, 1fr); } .k-cat { flex-direction: row; justify-content: flex-start; gap: 6px; min-height: 52px; padding: 4px 8px; } .k-medal { width: 32px; height: 32px; flex: none; } .k-medal .ic { width: 18px; height: 18px; } .k-cex { display: none; } .k-cname { font-size: 14px; text-align: left; }
+  .k-cats { grid-template-columns: repeat(4, minmax(0, 1fr)); } .k-cat { flex-direction: row; justify-content: flex-start; gap: 6px; min-height: 52px; padding: 4px 8px; } .k-medal { width: 32px; height: 32px; flex: none; } .k-medal .ic { width: 18px; height: 18px; } .k-cex { display: none; } .k-cname { font-size: 14px; text-align: left; }
   .k-step { min-height: 64px; padding: 6px 10px 6px 6px; grid-template-columns: 54px 1fr; } .k-num { width: 44px; height: 44px; font-size: 22px; } .k-sname { font-size: 17px; } .k-stars { font-size: 17px; }
   .k-extext { font-size: 26px; } .k-stars.big { font-size: 40px; } .k-big-score b { font-size: 30px; }
   .screen:not(#s-title) .k-res { display: none; }
@@ -232,4 +232,10 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .k-step.cur .k-num { animation: none; } .k-stars.big .star { animation: none; opacity: 1; transform: none; } .k-btn, .k-cat, .k-step, .k-track i { transition: none; }
+}
+
+/* ---------- layar sangat sempit (≤ 360px): kontrol segmen jadi 2×2, kartu kategori boleh membungkus teks ---------- */
+@media (max-width: 360px) {
+  .k-seg { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-columns: auto; }
+  .k-cname { font-size: 12px; overflow-wrap: anywhere; } .k-cat { min-width: 0; }
 }

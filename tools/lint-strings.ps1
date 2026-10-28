@@ -3,7 +3,7 @@
 param([int]$Max = 5)
 $file = Join-Path (Split-Path $PSScriptRoot -Parent) 'js\strings.js'
 $bad = 0
-Select-String -Path $file -Pattern "'([a-z0-9.]+)':\s*'((?:[^'\]|\.)*)'" -AllMatches | ForEach-Object {
+Select-String -Path $file -Pattern "'([a-z0-9.]+)':\s*'((?:[^'\\]|\\.)*)'" -AllMatches | ForEach-Object {
   foreach ($m in $_.Matches) {
     $k = $m.Groups[1].Value; $v = $m.Groups[2].Value
     if ($k -like 'story.*') { continue }

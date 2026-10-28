@@ -355,9 +355,12 @@
     /** Skalakan popup (didesain 350×640) agar pas di layar; discroll bila terlalu pendek. */
     fitPause: function () {
       const body = screens.pause.querySelector('.pz-body'), fit = document.getElementById('pz-fit');
-      const s = Math.max(0.78, Math.min(1.3, (body.clientWidth - 32) / 350, (body.clientHeight - 36) / 640));
-      fit.style.width = (350 * s) + 'px'; fit.style.height = (640 * s) + 'px';
-      document.getElementById('pz-stage').style.setProperty('--pz-s', s);
+      // layar pendek (HP landscape): banner booster disembunyikan, tinggi desain 530 dan skala minimum lebih kecil agar tombol Lanjut tetap terjangkau
+      const short = body.clientHeight < 440, H = short ? 530 : 640, stage = document.getElementById('pz-stage');
+      const s = Math.max(short ? 0.44 : 0.78, Math.min(1.3, (body.clientWidth - 32) / 350, (body.clientHeight - 36) / H));
+      stage.classList.toggle('pz-compact', short);
+      fit.style.width = (350 * s) + 'px'; fit.style.height = (H * s) + 'px';
+      stage.style.setProperty('--pz-s', s);
     },
 
     confirmOpen: function () { return document.getElementById('pz-confirm').classList.contains('show'); },

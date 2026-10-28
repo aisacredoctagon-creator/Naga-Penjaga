@@ -102,6 +102,7 @@ Semua suara disintesis dari kode (tanpa berkas): rantai sumber → pan → bus (
 Buka `index.html?test=1` (lewat server lokal): `js/dev/tests.js` memeriksa dek 20 soal berjawaban unik untuk semua kategori × kesulitan, pembagian gelombang,
 penyimpanan step, anti-macet (bola lolos ke sarang), dan menjalankan **bot** yang menamatkan step 1–5 (tanpa render) sambil memastikan 20/20 soal selesai,
 selalu ada target terjangkau, dan durasi wajar. Hasil tampil di pojok layar dan di `GA.Tests.results`.
+Juga diuji: arketipe jalur (semua radius, dua orientasi), rintangan zona, Step 5 dua sarang, fase boss, dan audio (semua suara berbunyi tanpa galat). Buka `index.html?resp=1` lalu jalankan `await GA.Resp.check()` di console untuk memeriksa tiap layar pada ukuran viewport saat ini (overflow, teks terpotong, popup jeda). `tools/lint-strings.ps1` memeriksa string UI maks. 5 kata.
 
 ## Struktur proyek
 

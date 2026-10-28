@@ -363,3 +363,7 @@
 /* area modal bisa digulir di layar pendek, tanpa bilah gulir yang mengganggu */
 .pz-body { scrollbar-width: none; -ms-overflow-style: none; }
 .pz-body::-webkit-scrollbar { display: none; }
+
+/* ---------- mode ringkas (layar sangat pendek): tanpa banner booster, tinggi desain 530px ---------- */
+.pz-stage.pz-compact { height: 530px; }
+.pz-stage.pz-compact .pz-banner { display: none; }

@@ -934,12 +934,12 @@
 
   window.addEventListener('keydown', function (e) {
     keys[e.key] = true;
+    if (state === 'cine' && (e.key === ' ' || e.key === 'Enter' || e.key === 'Escape')) { e.preventDefault(); skipCine(); return; }
     if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
       if (e.repeat) return;
       if (state === 'playing') pauseGame(); else if (state === 'paused' && !UI.pauseKey()) resumeGame();
       return;
     }
-    if (state === 'cine' && (e.key === ' ' || e.key === 'Enter' || e.key === 'Escape')) { e.preventDefault(); skipCine(); return; }
     if (state !== 'playing') return;
     if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); GA.lastFireKey = performance.now(); fire(); }
     if (e.key === 'q' || e.key === 'Q' || e.key === 'Shift') swapAmmo();
