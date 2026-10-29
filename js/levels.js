@@ -46,15 +46,15 @@
   const STAGES = [
     {
       id: 's1', place: 'Lembah Hutan Naga', tag: 'Stage 1', icon: 'dragon', format: 'result', story: 'story.s1', specials: { frost: 0, egg: 0 },
-      pool: { paths: ['hook', 'serp3', 's2', 'serp4'], maps: ['forest', 'grove', 'bloom'] }
+      pool: { paths: ['ring1', 'spiral1', 'twoside'], maps: ['forest', 'grove', 'bloom'] }
     },
     {
       id: 's2', place: 'Gunung & Gua Kristal', tag: 'Stage 2', icon: 'flame', format: 'missing', story: 'story.s2', specials: { frost: 1, egg: 1 },
-      pool: { paths: ['serp4', 'figure8', 'zigzag', 'serp3w', 'horseshoe'], maps: ['volcano', 'ashfield', 'magma', 'crystal', 'iceCave', 'amethyst'] }
+      pool: { paths: ['kuda', 'petal3', 'ring2'], maps: ['volcano', 'ashfield', 'magma', 'crystal', 'iceCave', 'amethyst'] }
     },
     {
       id: 's3', place: 'Menara Penyihir', tag: 'Stage 3', icon: 'wizard', format: 'mixed', story: 'story.s3', boss: true, specials: { frost: 2, egg: 1 },
-      pool: { paths: ['bossU', 'bossU2', 'bossBowl'], maps: ['tower', 'tower2', 'library'] }
+      pool: { paths: ['bkuda', 'bkuda2', 'bkudaW'], maps: ['tower', 'tower2', 'library'] }
     }
   ];
 

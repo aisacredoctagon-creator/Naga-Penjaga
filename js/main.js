@@ -34,7 +34,7 @@
     let ballR = Theme.ballRadiusFor(W, H, scale);
     if (run && Math.abs(ballR - run.baseR) < 3) ballR = run.baseR; // jangan bangun ulang jika jendela hanya berubah sedikit
     L = { portrait: portrait, W: W, H: H, scale: scale, dpr: dpr, cssW: cssW, cssH: cssH, ox: (cssW - W * scale) / 2, oy: (cssH - H * scale) / 2,
-      px: dpr * scale, hud: hud, ballR: ballR, pad: ballR + Theme.ball.trackMargin + 6, play: { x: 0, y: hud, w: W, h: H - hud - (portrait ? 12 : 0) } };
+      px: dpr * scale, hud: hud, ballR: ballR, pad: ballR + Theme.ball.trackMargin + 6, padTop: Math.round(2.5 * ballR * 1.12), play: { x: 0, y: hud, w: W, h: H - hud - (portrait ? 12 : 0) } };
     GA.view = { W: W, H: H };
     FX.unit = ballR / 25; Bullets.setSize(run ? run.R : ballR);
     canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
@@ -99,7 +99,7 @@
     if (r.chain) { r.chain.zones = chainZones(np); r.chain.overWindows = np.overWindows; r.chain.setPath(np, newR); }   // posisi relatif sepanjang jalur dipertahankan; bola yang rapat dirapatkan ulang (tanpa celah)
     fitShooter(r.shooter, np, newR);
     { const hon = r.haz.on; r.haz = makeHaz(r); r.haz.setOn(hon); }
-    if (r.boss) { r.boss.x = np.boss.x; r.boss.y = np.boss.y; r.boss.R = Math.round(2.45 * L.ballR); }
+    if (r.boss) { r.boss.x = np.boss.x; r.boss.y = np.boss.y; r.boss.R = np.boss.R || Math.round(2.45 * L.ballR); }
     Bullets.setSize(newR); Bullets.clear();
     r.shooter.setAngle(-Math.PI / 2);
   }
@@ -335,7 +335,7 @@
       qSerial: { enumerable: true, get: function () { return qm.serial; }, set: function (v) { qm.violation('run.qSerial = ' + v); } }
     });
     if (cfg.isBoss) {
-      run.boss = Bosses.create(cfg.boss, path.boss, Math.round(2.45 * L.ballR), cfg.total, gp.BOSS_HP_BARS);
+      run.boss = Bosses.create(cfg.boss, path.boss, path.boss.R || Math.round(2.45 * L.ballR), cfg.total, gp.BOSS_HP_BARS);
       run.boss.speech = ''; run.boss.speechT = 0; // dialog muncul setelah hitung mundur
       run.haz.setOn(false);    // rintangan zona baru aktif saat pola boss berikutnya
     }
@@ -790,8 +790,8 @@
     Path.drawNest(ctx, sc.path, R, t, sc === run ? sc.lives : 3, 3, sc.lifeLostT > 0 ? 1 : 0, nestThreat(sc));
     if (sc.boss) {
       sc.boss.draw(ctx, t);
-      if (L.portrait) sc.boss.drawHP(ctx, sc.boss.x, sc.boss.y + sc.boss.R * 1.75 + 8, Math.min(L.W * 0.6, 340));
-      else sc.boss.drawHP(ctx, sc.boss.x, L.play.y + 4, Math.min(L.W * 0.36, 300), true);     // landscape: bar tipis di atas arena (bawah ada naga)
+      if (L.portrait) sc.boss.drawHP(ctx, L.W / 2, L.play.y + 26, Math.min(L.W * 0.6, 340));      // potret: di pita antara HUD dan jalur
+      else sc.boss.drawHP(ctx, L.W / 2, L.play.y + 4, Math.min(L.W * 0.36, 300), true);     // lanskap: bar tipis di pita atas
     }
     if (sc.haz) { sc.haz.draw(ctx, t); sc.haz.drawOver(ctx, t, sc.shooter.aim); }      // asap/tangan penutup bidikan juga di bawah bola
     if (sc.chain) sc.chain.draw(ctx, t, L.px);      // lapisan 5: BOLA

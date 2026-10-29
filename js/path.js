@@ -134,15 +134,16 @@
     const pl = layout.play;
     const tr = !def && layout.portrait && pr.mode === 'transpose';
     const pad = layout.pad == null ? 40 : layout.pad; // jarak jalur dari tepi area main
-    const iw = pl.w - pad * 2, ih = pl.h - pad * 2;
+    const padTop = layout.padTop == null ? pad : layout.padTop;      // margin atas lebih besar: jalur, portal, dan bola >= 1,5R di bawah zona HUD
+    const iw = pl.w - pad * 2, ih = pl.h - padTop - pad;
     const map = function (p) {
       const u = tr ? p[1] : p[0], v = tr ? p[0] : p[1];
-      return [pl.x + pad + u * iw, pl.y + pad + v * ih];
+      return [pl.x + pad + u * iw, pl.y + padTop + v * ih];
     };
     const path = new Path(pr.pts.map(map));
     const sh = pr.shooter ? map(pr.shooter) : [pl.x + pl.w / 2, pl.y + pl.h / 2];
     path.shooter = { x: sh[0], y: sh[1] };
-    path.boss = pr.boss ? (function () { const b = map(pr.boss); return { x: b[0], y: b[1] }; })() : null;
+    path.boss = pr.boss ? (function () { const b = map(pr.boss); return { x: b[0], y: b[1], R: pr.bossR || 0 }; })() : null;      // R boss (0 = ukuran standar)
     path.presetId = presetId; path.play = pl;
     path.ctrl = pr.pts.map(map);
     return GA.Paths && def ? GA.Paths.refine(path, R, layout, def) : path;

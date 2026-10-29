@@ -16,7 +16,7 @@
     if (Math.hypot(b.x - hole.x, b.y - hole.y) < R * 1.1 && b.d < sc.path.length - R * 2) out.push('SARANG');
     if (sc.boss && Math.hypot(b.x - sc.boss.x, b.y - sc.boss.y) < sc.boss.R * 1.2 + R) out.push('BOSS');
     const dr = GA.Theme.dragon.radiusRatio * R;
-    if (Math.hypot(b.x - sc.shooter.x, b.y - sc.shooter.y) < dr * 1.5 + R * 0.9) out.push('NAGA');
+    if (b.d < sc.path.length - R && Math.hypot(b.x - sc.shooter.x, b.y - sc.shooter.y) < dr * 1.5 + R * 0.9) out.push('NAGA');      // bola yang jatuh ke sarang dikecualikan
     if (sc.obst && sc.obst.collide && sc.obst.collide(b.x, b.y, R * 0.8)) out.push('RINTANGAN');
     return out;
   }

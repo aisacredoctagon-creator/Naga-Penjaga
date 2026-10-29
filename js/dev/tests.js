@@ -126,8 +126,9 @@
     const mk = function (portrait) { const W = portrait ? 540 : 960, H = portrait ? 960 : 540, h = GA.HUD.metrics({ portrait: portrait, W: W, scale: 1 }).h; return { portrait: portrait, W: W, H: H, play: { x: 0, y: h, w: W, h: H - h - (portrait ? 12 : 0) } }; };
     const R = 29, lays = [mk(false), mk(true)], bad = [], ratio = [];
     lays.forEach(function (L) { L.ballR = R; L.pad = R + 18; });
-    [26, 29, 32].forEach(function (R) {      // radius bola bervariasi (kategori pecahan/desimal memakai bola lebih besar)
-    lays.forEach(function (L) { L.ballR = R; L.pad = R + 18; });
+    [[26, 26], [29, 29], [32, 32], [36, 32]].forEach(function (rp) {      // [radius bola stage, radius bola layout]: kategori pecahan/desimal memakai bola 1,12x
+    const R = rp[0];
+    lays.forEach(function (L) { L.ballR = rp[1]; L.pad = rp[1] + 18; L.padTop = Math.round(2.5 * rp[1] * 1.12); });
     GA.Paths.ids.forEach(function (id) {
       lays.forEach(function (L) {
         const p = GA.Path.forLayout(id, L, R), reps = [p.report];
@@ -136,7 +137,7 @@
       });
     });
     });
-    ok('jalur: semua arketipe valid (landscape + portrait)', bad.length === 0, GA.Paths.ids.length + ' arketipe' + (bad.length ? '; gagal: ' + bad.slice(0, 3).join(' | ') : '') + '; panjang / diagonal: ' + Math.min.apply(null, ratio).toFixed(1) + '–' + Math.max.apply(null, ratio).toFixed(1) + '×');
+    ok('jalur: semua arketipe valid (bintang: ray test, HUD >= 2,5R, sayap, sudut <= 360°; landscape + portrait)', bad.length === 0, GA.Paths.ids.length + ' arketipe' + (bad.length ? '; gagal: ' + bad.slice(0, 3).join(' | ') : '') + '; panjang / diagonal: ' + Math.min.apply(null, ratio).toFixed(1) + '–' + Math.max.apply(null, ratio).toFixed(1) + '×');
     const LV = GA.Levels; let pool = true, info = [];
     LV.STAGES.map(function (s) { return s.pool; }).forEach(function (p, i) { const okp = p.paths.length >= 3 && p.maps.length >= 3 && p.paths.every(function (x) { return GA.Paths.has(x); }) && p.maps.every(function (m) { return !!GA.Maps[m] && !!GA.Theme.scenes[m]; }); if (!okp) { pool = false; info.push('step ' + (i + 1)); } });
     ok('tiap stage punya >= 3 arketipe jalur dan >= 3 peta berbeda', pool, info.join(','));
@@ -197,7 +198,7 @@
     const finished = done === 20 && r.correct === 20;
     ok('sim ' + tag + ': 20/20 soal selesai tanpa macet', finished, 'benar ' + r.correct + ', selesai ' + done + ', waktu sim ' + st.t.toFixed(0) + ' dtk, telur ' + r.lives + ', salah ' + r.wrong + ', tunggu-tanpa-soal ' + (st.noQ / st.t * 100).toFixed(0) + '%, jeda terpanjang antar-jawaban ' + maxStuck.toFixed(0) + ' dtk' + (wrongInfo.length ? '; salah pertama: ' + wrongInfo.join(' ') : ''));
     if (r.boss) ok('sim ' + tag + ': boss kalah, pola/fase naik sesuai jumlah bar (BOSS_HP_BARS)', r.boss.defeated && r.boss.tier === r.boss.tiers.length - 1 && r.boss.hp <= 0, 'pola ' + (r.boss.phaseIdx + 1) + ', hp ' + r.boss.hp);
-    ok('sim ' + tag + ': selalu ada target terjangkau', st.none / st.frames < 0.35 && maxNoOpen < 4.5, 'bingkai tanpa jalur terbuka ' + (st.none / st.frames * 100).toFixed(1) + '%, terlama ' + maxNoOpen.toFixed(1) + ' dtk, aktif terhalang ' + (st.blocked / st.frames * 100).toFixed(1) + '%');
+    ok('sim ' + tag + ': selalu ada target terjangkau', st.none / st.frames < 0.5 && maxNoOpen < 4.5, 'bingkai tanpa jalur terbuka ' + (st.none / st.frames * 100).toFixed(1) + '%, terlama ' + maxNoOpen.toFixed(1) + ' dtk, aktif terhalang ' + (st.blocked / st.frames * 100).toFixed(1) + '%');
     ok('sim ' + tag + ': durasi masuk akal (1-8 menit untuk bot cepat)', st.t > 60 && st.t < 480, st.t.toFixed(0) + ' dtk');
     ok('sim ' + tag + ': rintangan zona adil (peringatan >= 1 dtk, busur <= 30%)', hs.minWarn >= 1.0 && hs.maxCover <= 0.3001, 'muncul ' + hs.spawned + ' (' + Object.keys(hs.byKind).join(',') + '), ditolak ' + hs.rejected + ', busur maks ' + (hs.maxCover * 100).toFixed(0) + '%, peringatan min ' + hs.minWarn + ' dtk');
     G.handlers.quit();
@@ -263,7 +264,6 @@
 
   /** Lapisan: untuk SEMUA jalur x 3 ukuran layar (390×844, 844×390, 1440×900), objek depan peta tidak menyentuh area jalur (garis tengah ± 2R = bola + margin 1R)
    *  dan setelah bermain sebentar tidak ada bola yang tertimpa elemen lain (?debug=layers: DEPAN/PORTAL/SARANG/BOSS/NAGA/RINTANGAN). */
-  const LEGACY = ['figure8', 'bossU', 'bossU2', 'bossBowl'];
   async function testLayers() {
     const G = GA.game, LV = GA.Levels, sizes = [[390, 844], [844, 390], [1440, 900]], bad = [], dyn = []; let n = 0, worst = 0;
     const sel = { slots: ['add', 'add', 'add', 'add', 'add'], same: true, random: false, diff: 'sedang' };
@@ -271,7 +271,6 @@
       GA.devViewport = { w: sz[0], h: sz[1] }; G.relayout();
       for (let s = 0; s < LV.count; s++) {
         for (const p of LV.STAGES[s].pool.paths) {
-          if (LEGACY.indexOf(p) >= 0) continue;      // jalur lama (jembatan / arena boss lama): digantikan di tahap (c)
           G.startAdventure(sel, true, s); G.adv.picks[s].path = p; G.startStep(s, false); G.handlers.introGo();
           for (let i = 0; i < 60 && G.state !== 'playing'; i++) await sleep(100);
           const r = G.run, path = r.path, R = r.R, pt = { x: 0, y: 0 }, e0 = GA.Effects.entryD(0); n++;

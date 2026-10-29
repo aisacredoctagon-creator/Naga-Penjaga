@@ -72,7 +72,7 @@
 
     /* ---- naga penjaga (js/dragon.js) ---- */
     dragon: {
-      wingSpan: 0.72,         // lebar sayap (skala; setengah bentang ≈ 1,85 × radius badan) — dibatasi agar tidak menutupi jalur, soket, atau soal
+      wingSpan: 0.62,         // lebar sayap (skala; setengah bentang ≈ 1,6 × radius badan = Paths.WING_REACH) — dibatasi agar tidak menutupi jalur/bola
       radiusRatio: 1.45,      // radius badan = radiusRatio × radius bola
       headDist: 0.7,          // pusat kepala dari pusat badan (× radius badan)
       mouthDist: 1.95,        // pusat bola api (tepat di depan ujung moncong) dari pusat badan (× radius badan)
