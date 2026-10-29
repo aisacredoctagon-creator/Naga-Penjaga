@@ -1,4 +1,4 @@
-/* maps/forest.js — data peta Step 1: Lembah Hutan Naga. Satu palet, satu arah cahaya (kiri-atas).
+/* maps/forest.js — data peta Stage 1: Lembah Hutan Naga. Satu palet, satu arah cahaya (kiri-atas).
  * Peta lain didaftarkan dengan cara yang sama di GA.Maps. Isi `pal` untuk mengganti warna; `mix` mengatur komposisi dekorasi.
  * Variasi `menu` memakai dekorasi yang sama dengan palet malam. Untuk gambar ilustrasi sendiri, isi `art` dengan path relatif
  * (mis. 'assets/maps/step1-landscape.webp'): jika berkas ada, dipakai sebagai lapisan dasar (jalur & efek tetap digambar kode). */
@@ -39,7 +39,7 @@
     fireflies: 44, shafts: 2
   });
 
-  // Varian Step 1: hutan senja (daun musim gugur, cahaya keemasan, lebih banyak jamur dan batu)
+  // Varian Stage 1: hutan senja (daun musim gugur, cahaya keemasan, lebih banyak jamur dan batu)
   GA.Maps.grove = Object.assign({}, forest, {
     id: 'grove', seed: 27,
     pal: Object.assign({}, forest.pal, {

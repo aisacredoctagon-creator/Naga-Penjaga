@@ -1,5 +1,5 @@
 /* assets.js — memuat aset gambar OPSIONAL dari assets/manifest.json. Bila manifest kosong/tidak ada, game memakai gambar prosedural bawaan.
- *   sprites: { ball, boss, rock, mover, portal, nest }   → Theme.sprites (menimpa gambar kode untuk elemen itu)
+ *   sprites: { ball, boss, portal, nest }   → Theme.sprites (menimpa gambar kode untuk elemen itu)
  *   maps:    { <idPeta>: { landscape, portrait } }       → GA.Maps[id].art (lapisan dasar peta; jalur, efek, dan portal tetap digambar kode)
  *   ui:      { wood, stone, parchment }                  → tekstur material UI
  * Semua path relatif terhadap assets/ (aman untuk GitHub Pages /Naga-Penjaga/). Catatan: fetch manifest tidak jalan lewat file:// (diabaikan diam-diam);

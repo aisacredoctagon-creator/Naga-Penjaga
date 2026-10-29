@@ -1,4 +1,4 @@
-/* maps/tower.js — peta Step 3: Menara Penyihir (lantai ubin batu gelap, lingkaran rune ungu menyala, obor, anglo, pilar, spanduk, kabut sihir)
+/* maps/tower.js — peta Stage 3: Menara Penyihir (lantai ubin batu gelap, lingkaran rune ungu menyala, obor, anglo, pilar, spanduk, kabut sihir)
  * dan variasinya Observatorium (palet biru-teal dengan rune biru, lebih banyak obor). Data murni; elemen depan 'hall' = spanduk & pilar. */
 (function (GA) {
   'use strict';

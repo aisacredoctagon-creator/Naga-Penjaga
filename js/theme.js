@@ -102,7 +102,7 @@
     // Ganti null dengan URL gambar untuk menimpa gambar placeholder.
     // ball: gambar bola kosong (angka tetap digambar di atasnya)
     sprites: {
-      ball: null, boss: null, rock: null, mover: null, portal: null, nest: null
+      ball: null, boss: null, portal: null, nest: null
     },
 
     _imgs: {},

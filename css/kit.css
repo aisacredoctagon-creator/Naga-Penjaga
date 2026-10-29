@@ -278,3 +278,5 @@
 .ov-wv { display: inline-flex; gap: 6px; font-size: 18px; } .ov-wv s { text-decoration-thickness: 2px; }
 .ov-btns { display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap; }
 @media (max-width: 420px) { .k-fmts { grid-template-columns: 1fr; } .ov-q { font-size: 22px; } }
+@media (orientation: landscape) { .ov-chip { aspect-ratio: auto; height: 46px; border-radius: 12px; } .ov-ok { border-radius: 23px; } .ov-grid { gap: 6px; } }
+@media (orientation: landscape) and (max-height: 520px) { #s-result .k-eyebrow { display: none; } .ov-card { min-height: 48px; padding: 4px 10px; } .ov-q { font-size: 22px; } #s-result .k-panel { gap: 8px; } }

@@ -31,9 +31,7 @@ untuk sprite, tanpa tulisan/logo, gaya fantasi kartun-realistis hangat (kayu, ba
 
 | Kunci manifest | Berkas contoh | Ukuran | Format | Digunakan untuk | Catatan |
 |---|---|---|---|---|---|
-| `sprites.boss` | `sprites/boss.png` | 512×512 | PNG transparan | Penyihir Jahat (Step 5; menggantikan seluruh rig kode `js/render/wizard.js`, jadi animasi jubah/tangan/hancur hilang) | Menghadap depan, pusat gambar = pusat badan; digambar ±2,6× radius bola. Bilah HP, dialog, dan animasi getar tetap dari kode. |
-| `sprites.rock` | `sprites/thorn.png` | 256×256 | PNG transparan | Akar berduri (rintangan Step 1) | Pandangan dari atas; ukuran ±2,3× radius rintangan. |
-| `sprites.mover` | `sprites/mover.png` | 256×256 | PNG transparan | Lahar & petir bergerak (Step 2–3) | Gambar yang sama dipakai untuk lahar dan petir; bentuk bulat. |
+| `sprites.boss` | `sprites/boss.png` | 512×512 | PNG transparan | Penyihir Jahat (Stage 3, final boss; menggantikan seluruh rig kode `js/render/wizard.js`, jadi animasi jubah/tangan/hancur hilang) | Menghadap depan, pusat gambar = pusat badan; digambar ±2,6× radius bola. Bilah HP, dialog, dan animasi getar tetap dari kode. |
 | `sprites.ball` | `sprites/orb.png` | 256×256 | PNG transparan | Badan semua bola sihir | **Satu gambar untuk semua warna** (tidak ada varian warna/rune); angka tetap digambar kode di atasnya. Gunakan hanya bila ingin menimpa total tampilan bola. |
 | `sprites.portal` | `sprites/portal-ring.png` | 512×512 | PNG transparan | Cincin portal tempat bola muncul | Hanya cincin/bingkainya (tengah berlubang/transparan); pusaran, sinar, dan partikel tetap dari kode. Cincin diputar pelan. Tepi luar cincin ≈ 96% lebar gambar. |
 | `sprites.nest` | `sprites/nest.png` | 512×512 | PNG transparan | Mangkuk sarang telur | Telur (maks. 6, melingkar di ±48% radius) digambar kode di atasnya, jadi biarkan bagian tengah kosong/berjerami. |
@@ -63,16 +61,16 @@ Aset berikut paling berdampak bila diganti ilustrasi buatan sendiri, tetapi **be
 | Naga penembak (spritesheet) | Bagian terpisah 1024×1024 per bagian (kepala, rahang, leher, badan, sayap kiri/kanan, ekor, kaki), PNG transparan | Animasi skeletal sekarang digambar kode (`js/dragon.js`); sprite bagian bisa menggantikan bentuk, animasi pegas tetap. |
 | Bola sihir 8 warna | 8 × 256×256 PNG, motif rune berbeda per warna | Perlu kait varian warna per indeks (sekarang `sprites.ball` hanya satu gambar). |
 | Bola api (frame animasi) | 8 frame 256×256 PNG transparan | Sekarang 8 frame prosedural di `js/render/fire.js`. |
-| Bola khusus (kutukan, beku, telur emas) | 3 × 256×256 PNG | Sekarang digambar kode (`drawSpecial` di `js/chain.js`). |
+| Bola khusus (beku, telur emas) | 2 × 256×256 PNG | Sekarang digambar kode (`drawSpecial` di `js/chain.js`). |
 | Telur naga | 6 × 128×160 PNG | Dipakai di sarang dan HUD; sekarang dibentuk kode. |
 | Bingkai HUD | 1920×160 PNG transparan (bisa 9-slice) | Sekarang bingkai kayu prosedural (`js/ui/hud.js`). |
 | Ikon UI | SVG 24×24 | Mudah diganti langsung di `js/ui/icons.js`. |
-| Musik, ambient & efek suara | OGG/MP3 | Audio disintesis Web Audio (`js/audio.js`): 71 efek, 6 ambient, 6 lagu per zona. Belum ada yang membaca berkas; untuk memakai rekaman, ganti isi fungsi di `SOUNDS`/`SONGS` dengan pemutaran `AudioBuffer` (nama suara tetap). |
+| Musik, ambient & efek suara | OGG/MP3 | Audio disintesis Web Audio (`js/audio.js`): 70 efek, 5 ambient, 5 lagu per zona. Belum ada yang membaca berkas; untuk memakai rekaman, ganti isi fungsi di `SOUNDS`/`SONGS` dengan pemutaran `AudioBuffer` (nama suara tetap). |
 
 ## Tiga aset yang paling berdampak bila diganti
 
 1. **Naga penembak** (`js/dragon.js`): karakter utama, selalu di layar dan paling sering dilihat. Bentuk sekarang dibangun dari kode (cukup bagus, tetapi tetap tampak "vektor"); sprite bagian + animasi pegas yang sudah ada akan langsung terasa lebih premium. Butuh kait kode (bagian B).
-2. **Latar peta per zona** (`maps.*`, 15 peta × 2 orientasi): memenuhi seluruh layar dan sudah tersambung lewat manifest, jadi hasil ilustrasi langsung terlihat tanpa kerja kode tambahan.
+2. **Latar peta per zona** (`maps.*`, 12 peta × 2 orientasi): memenuhi seluruh layar dan sudah tersambung lewat manifest, jadi hasil ilustrasi langsung terlihat tanpa kerja kode tambahan.
 3. **Penyihir Jahat** (`sprites.boss` atau sprite bagian untuk rig `wizard.js`): klimaks cerita. Rig kode sekarang sudah beranimasi penuh; mengganti dengan satu gambar diam justru menurunkan animasinya, jadi idealnya sprite **bagian** (tudung, wajah, jubah, lengan, tongkat) yang dikaitkan ke rig yang ada (belum ada kaitnya).
 
 ## Daftar placeholder (digambar/disintesis kode, belum aset akhir)
@@ -83,15 +81,15 @@ Aset berikut paling berdampak bila diganti ilustrasi buatan sendiri, tetapi **be
 | Penyihir Jahat | rig kode (kain verlet, IK, tekstur prosedural) | `js/render/wizard.js` |
 | Bola sihir, bola api, bola khusus, telur, sarang, portal | sprite/pola prosedural di cache | `js/render/balls.js`, `fire.js`, `eggs.js`, `effects.js` |
 | Latar peta (15) + dekor | prosedural berlapis (parallax, kabut, cahaya) | `js/render/background.js`, `decor*.js`, `js/maps/variants.js` |
-| Rintangan zona (11 jenis) | gambar kode dengan peringatan berdenyut | `js/hazards.js` |
+| Rintangan zona (10 jenis) | gambar kode dengan peringatan berdenyut | `js/hazards.js` |
 | UI kit (kayu/batu/perkamen) | tekstur prosedural CSS/canvas | `css/kit.css`, `js/ui/kit.js` |
 | Ilustrasi cerita | panel kode | `js/story.js` |
 | Mascot popup jeda | masih tampak samping (bukan atas) | `js/ui.js` (`drawMascot`) |
 | HUD kanvas | bingkai kayu prosedural, belum memakai gaya kit | `js/ui/hud.js` |
-| Semua suara | sintesis Web Audio (71 efek, 6 ambient, 6 lagu); belum diuji telinga | `js/audio.js` |
+| Semua suara | sintesis Web Audio (70 efek, 5 ambient, 5 lagu); belum diuji telinga | `js/audio.js` |
 
 ## Catatan performa & responsif (uji `?test=1` dan `?resp=1`)
 
 - Resolusi logis 960×540 / 540×960, diskalakan sampai 2× dan dibatasi `dpr` per tingkat kualitas (Tinggi 2, Sedang 1,5, Rendah 1). Mode Otomatis menurunkan tingkat bila FPS rata-rata < 50.
-- Tekstur kain/kulit/karat/tulang penyihir hanya di kualitas Tinggi; cahaya aditif dan partikel di Sedang ke atas. Step 5 (dua rantai, dua portal, boss) adalah step paling berat: ±1,8× biaya Step 1 pada rasterisasi perangkat lunak.
+- Tekstur kain/kulit/karat/tulang penyihir hanya di kualitas Tinggi; cahaya aditif dan partikel di Sedang ke atas. Stage 3 (boss, rig penyihir + rintangan) adalah stage paling berat pada rasterisasi perangkat lunak.
 - `?resp=1` lalu `await GA.Resp.check()` memeriksa tiap layar (judul, atur, cara main, menu, pembuka, jeda, hasil) pada ukuran viewport saat ini. Sudah lolos pada 320×568, 360×640, 568×320, 640×360, 667×375, 768×1024, 1920×1080, 2560×1080.
