@@ -16,27 +16,29 @@
     try {
       G.startAdventure(SEL(diff), true, stage); G.startStep(stage, true); G.skipCountdown();
       const r = G.run, sh = r.shooter, B = GA.Shooter.Bullets, maxLives = r.maxLives, causes = {};
-      let m = { x: 0, y: 0 }, t = 0, lastQ = -9, think = 0, wantWrong = false, lives = r.lives, wrongShots = 0, cool = 0;
+      let m = { x: 0, y: 0 }, qStart = 0, t = 0, lastQ = -9, think = 0, wantWrong = false, lives = r.lives, wrongShots = 0, cool = 0;
       const maxT = o.maxT || 900;
       while (t < maxT) {
         if (G.state === 'paused') G.handlers.resume();
         const st = G.state; if (st !== 'playing' && st !== 'cine') break;
         G.tick(DT, true); t += DT; cool -= DT;
-        if (r.lives < lives) { const k = r.reason || '?'; causes[k] = (causes[k] || 0) + (lives - r.lives); }
+        if (r.lives < lives) { const k = r.reason || '?'; causes[k] = (causes[k] || 0) + (lives - r.lives); if (o.log) o.log.push({ t: +t.toFixed(1), reason: k, qid: r.qid, solved: r.correct, think: +think.toFixed(1), wantWrong: wantWrong, since: +(t - qStart).toFixed(1), nballs: r.chain.balls.length, canFire: sh.canFire() }); }
         lives = r.lives;
         if (G.state !== 'playing' || !r.q) continue;
-        if (r.qid !== lastQ) { lastQ = r.qid; think = Math.max(o.minThink || 1.5, o.think[0] + o.think[1] * gauss(rnd)); wantWrong = rnd() >= o.acc; }
+        if (r.qid !== lastQ) { lastQ = r.qid; qStart = t; think = Math.max(o.minThink || 1.5, o.think[0] + o.think[1] * gauss(rnd)); wantWrong = rnd() >= o.acc; }
         think -= DT; if (think > 0 || cool > 0 || !sh.canFire() || G.anySettling() || r.chain.balls.some(function (b) { return b.sw; })) continue;
-        let tgt = null;
-        if (wantWrong) { const vis = G.pendingVisible().filter(function (b) { return b.kind === 'num' && b.qid !== r.qid && G.openLine(b); }); tgt = vis.length ? vis[Math.floor(rnd() * vis.length)] : null; }
-        else tgt = G.allBalls().find(function (b) { return b.kind === 'num' && b.qid === r.qid && b.ch.visible(b); });
-        if (!tgt) continue;
-        m = sh.muzzle(m);
-        for (let it = 0; it < 4; it++) { sh.setAngle(Math.atan2(tgt.y - m.y, tgt.x - m.x)); m = sh.muzzle(m); }
-        if (!G.openLine(tgt)) continue;
-        if (r.haz.blocksLine(m.x, m.y, tgt.x, tgt.y, Math.hypot(tgt.x - m.x, tgt.y - m.y) / B.speed + 0.15)) continue;
-        let deflect = false; for (let k = 0; k < r.haz.list.length; k++) { const e = r.haz.list[k]; if (e.mech === 'deflect') { const vx = tgt.x - m.x, vy = tgt.y - m.y, l2 = vx * vx + vy * vy || 1, u = Math.max(0, Math.min(1, ((e.x - m.x) * vx + (e.y - m.y) * vy) / l2)); if (Math.hypot(e.x - (m.x + u * vx), e.y - (m.y + u * vy)) < e.r + 24) deflect = true; } }
-        if (deflect) continue;
+        // bidik dulu (mulut naga bergeser mengikuti sudut), baru uji garis tembak: bola benar bila terbuka; bila ingin salah, coba bola angka lain satu per satu
+        const tryAim = function (b) {
+          sh.setAngle(Math.atan2(b.y - sh.y, b.x - sh.x)); m = sh.muzzle(m);      // sudut dari pusat naga (seperti pointer pemain): mulut ada di garis pusat → bola, jadi peluru lewat tepat di pusat bola
+          { const ux = Math.cos(sh.aim), uy = Math.sin(sh.aim); let hit = null; for (let d = 0; d < 1400 && !hit; d += 3) hit = r.chain.hit(m.x + ux * d, m.y + uy * d, B.r); if (hit !== b) return false; }      // prediksi fisik: bola pertama yang tersentuh peluru harus bola yang dituju (bukan openLine: mulut naga bisa sudah menempel pada bola bertetangga)
+          if (r.haz.blocksLine(m.x, m.y, b.x, b.y, Math.hypot(b.x - m.x, b.y - m.y) / B.speed + 0.15)) return false;
+          for (let k = 0; k < r.haz.list.length; k++) { const e = r.haz.list[k]; if (e.mech === 'deflect') { const vx = b.x - m.x, vy = b.y - m.y, l2 = vx * vx + vy * vy || 1, u = Math.max(0, Math.min(1, ((e.x - m.x) * vx + (e.y - m.y) * vy) / l2)); if (Math.hypot(e.x - (m.x + u * vx), e.y - (m.y + u * vy)) < e.r + 24) return false; } }
+          return true;
+        };
+        let aimed = false;
+        if (wantWrong) { const vis = G.pendingVisible().filter(function (b) { return b.kind === 'num' && b.qid !== r.qid; }); for (let i = vis.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)), x = vis[i]; vis[i] = vis[j]; vis[j] = x; } for (let i = 0; i < vis.length && !aimed; i++) aimed = tryAim(vis[i]); }
+        else { const tgt = G.allBalls().find(function (b) { return b.kind === 'num' && b.qid === r.qid && b.ch.visible(b); }); aimed = !!tgt && tryAim(tgt); }
+        if (!aimed) continue;
         if (wantWrong) { wrongShots++; wantWrong = false; think = 0.8; } else think = 1.2;      // setelah salah: menembak benar lagi hampir langsung; setelah benar: soal berganti
         G.fire(); cool = 0.35;
       }

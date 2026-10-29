@@ -13,16 +13,25 @@
   const WING_REACH = 1.6;
   const wingNeed = function (R) { return GA.Theme.dragon.radiusRatio * R * WING_REACH + R + 2; };
 
+  /** Jarak mulut naga dari pusat (tempat peluru lahir): radiusRatio × mouthDist × R. */
+  const muzzleL = function (R) { return GA.Theme.dragon.radiusRatio * GA.Theme.dragon.mouthDist * R; };
+
   /** INV-1 (tidak ada bola yang tertutup). Rantai penuh dan rapat: bola di arc s dan s ± k·D (D = 2R+1). Dari pivot naga C, untuk SETIAP posisi s (langkah 0,25R)
    *  ditembakkan tiga sinar: ke pusat bola dan ke titik tepi ±0,7R ke samping. Sinar harus pertama kali mengenai bola itu sendiri.
    *  Dua model sentuh: 'fat' = peluru nyata (peluru bergaris tengah = bola: sentuh pada jarak 0,92R + bulletR dari pusat bola; INI yang dialami pemain dan yang menjadi syarat lulus)
    *  dan 'thin' = sinar tipis (cakram bola R) sebagai pembanding. Mengembalikan { tot, fat, thin, badPts }. */
-  function inv1(path, R, bulletR) {
+  function inv1(path, R, bulletR, L0) {
     const xs = path.xs, ys = path.ys, st = path.step, cx = path.shooter.x, cy = path.shooter.y, D = 2 * R + 1, n = xs.length, stepS = Math.max(st, 0.25 * R), rf = 0.92 * R + bulletR;
     const at = function (s) { const f = s / st, i = Math.floor(f), t = f - i; if (i < 0 || i >= n - 1) return null; return [xs[i] + (xs[i + 1] - xs[i]) * t, ys[i] + (ys[i + 1] - ys[i]) * t]; };
-    const first = function (ux, uy, balls, rad) {
-      let best = 1e12, bi = -1;
-      for (let i = 0; i < balls.length; i++) { const qx = balls[i][0] - cx, qy = balls[i][1] - cy, t = qx * ux + qy * uy, h2 = qx * qx + qy * qy - t * t; if (t <= 0 || h2 >= rad * rad) continue; const th = t - Math.sqrt(rad * rad - h2); if (th < best) { best = th; bi = i; } }
+    // peluru berangkat dari MULUT naga (L0 dari pusat, di garis bidik), bukan dari pusat: bola yang sudah bersentuhan saat peluru lahir kena di s = L0 (Chain.hit memilih pusat bola TERDEKAT)
+    const L = L0 || 0, first = function (ux, uy, balls, rad) {
+      let best = 1e12, bi = -1, bd = 1e12; const mx = cx + ux * L, my = cy + uy * L;
+      for (let i = 0; i < balls.length; i++) {
+        const qx = balls[i][0] - cx, qy = balls[i][1] - cy, t = qx * ux + qy * uy, h2 = qx * qx + qy * qy - t * t; if (h2 >= rad * rad) continue;
+        const sq = Math.sqrt(rad * rad - h2); if (t + sq <= L) continue;
+        const th = Math.max(t - sq, L), dm = (balls[i][0] - mx) * (balls[i][0] - mx) + (balls[i][1] - my) * (balls[i][1] - my);
+        if (th < best - 1e-6 || (Math.abs(th - best) <= 1e-6 && dm < bd)) { best = th; bi = i; bd = dm; }
+      }
       return bi;
     };
     let tot = 0, fat = 0, thin = 0, ki = 0; const badPts = [], rays = [];
@@ -98,7 +107,7 @@
         const sx = d.cx + P[0][0], sy = d.cy + P[0][1];
         if (sx < pl.x + PR || sx > pl.x + pl.w - PR || sy < pl.y + PR || sy > pl.y + pl.h - PR) { why.portal++; continue; }
         if (minSegGap(path, R) < 2.5 * R + 8) { why.gap++; continue; }
-        if (inv1(path, R, R).fat === 0) best = { P: P, c: cands[i] }; else why.inv1++;
+        if (inv1(path, R, R, muzzleL(R)).fat === 0) best = { P: P, c: cands[i] }; else why.inv1++;
       }
       if (!best) { const c = { sweep: 250, asp: 1, A: 0, endR: Math.min(rcap, rMaxY) }; best = { P: build(c), c: c, failed: true, why: why }; }
       best.rcap = rcap; fit = fitCache[key] = best;
@@ -224,7 +233,7 @@
     const PR = 2.2 * R, sx = xs[Math.max(0, first)], sy = ys[Math.max(0, first)];
     if (sx < pl.x + PR - 1 || sx > pl.x + pl.w - PR + 1 || sy < pl.y + PR - 1 || sy > pl.y + pl.h - PR + 1) issues.push({ kind: 'portal', msg: 'portal tidak penuh di area bermain' });
     // INV-1 dengan peluru nyata (syarat lulus) + sinar tipis (pembanding)
-    const v = inv1(path, R, R);
+    const v = inv1(path, R, R, muzzleL(R));
     if (v.fat > 0) issues.push({ kind: 'inv1', msg: 'INV-1: ' + v.fat + '/' + v.tot + ' sinar mengenai bola lain lebih dulu (peluru nyata)' });
     return { issues: issues, inv1: v, rayBad: v.badPts, minCenter: minR, endDist: endD, sweepDeg: sweepDeg };
   }
@@ -286,6 +295,6 @@
     ctx.restore();
   }
 
-  GA.Paths = { has: has, resolve: resolve, refine: refine, analyze: analyze, analyzeStar: analyzeStar, inv1: inv1, padTopFor: padTopFor, drawDebug: drawDebug, ids: PLAY_IDS, all: Object.keys(ARCH), wingNeed: wingNeed, WING_REACH: WING_REACH };
+  GA.Paths = { has: has, resolve: resolve, refine: refine, analyze: analyze, analyzeStar: analyzeStar, inv1: inv1, muzzleL: muzzleL, padTopFor: padTopFor, drawDebug: drawDebug, ids: PLAY_IDS, all: Object.keys(ARCH), wingNeed: wingNeed, WING_REACH: WING_REACH };
   GA.debug = /[?&]debug(=1|&|$)/.test(location.search);
 })(window.GA = window.GA || {});

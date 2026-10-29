@@ -52,7 +52,7 @@
 
     /* --- telur (nyawa), bintang, boss, penukaran bola (bukan slider) --- */
     EGGS_MAX: 3,                    // telur = nyawa, selalu 3/3 di awal tiap stage (termasuk saat Ulangi)
-    WRONG_ANSWERS_PER_EGG: 1,       // sekian jawaban salah = 1 telur hilang (longgarkan nanti bila perlu)
+    WRONG_ANSWERS_PER_EGG: 2,       // sekian jawaban salah = 1 telur hilang (revisi 7 tahap c: 2; bot akurasi 90% hanya bisa menang ~68% bila 1)
     STAR_3_PCT: 0.9,                // bintang 3: benar-pertama-kali >= 90%
     STAR_2_PCT: 0.7,                // bintang 2: >= 70%; bintang 1: stage selesai
     BOSS_HP_BARS: 2,                // 1 atau 2 bar darah boss (2: bar 1 habis di soal ke-10 = fase 2)
