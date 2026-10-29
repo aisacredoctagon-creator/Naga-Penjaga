@@ -124,7 +124,7 @@
 
   // varian peta memakai warna dasar adegan induknya (jalur, sarang, penanda)
   // varian peta memakai warna latar zona induknya (js/maps/variants.js)
-  { const A = { forest: ['grove', 'swamp', 'swampDusk', 'coast', 'bloom'], volcano: ['crystal', 'ashfield', 'magma', 'iceCave', 'amethyst'], tower: ['tower2', 'library'] }; Object.keys(A).forEach(function (z) { A[z].forEach(function (id) { Theme.scenes[id] = Theme.scenes[z]; }); }); }
+  { const A = { forest: ['grove', 'bloom'], volcano: ['crystal', 'ashfield', 'magma', 'iceCave', 'amethyst'], tower: ['tower2', 'library'] }; Object.keys(A).forEach(function (z) { A[z].forEach(function (id) { Theme.scenes[id] = Theme.scenes[z]; }); }); }
 
   GA.Theme = Theme;
 })(window.GA = window.GA || {});

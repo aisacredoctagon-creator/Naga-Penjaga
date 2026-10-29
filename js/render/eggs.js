@@ -15,7 +15,7 @@
     ice:    { c: ['#f0fbff', '#8fd0f5', '#3a78b8'], glow: '140,210,255', fleck: 'rgba(30,70,130,0.4)' },
     forest: { c: ['#f4ffd8', '#9ad468', '#37722a'], glow: '170,255,120', fleck: 'rgba(30,80,20,0.42)' }
   };
-  const SCENE_STYLE = { forest: 'twig', grove: 'twig', swamp: 'twig', bloom: 'twig', swampDusk: 'twig', coast: 'twig', volcano: 'ash', ashfield: 'ash', magma: 'ash', crystal: 'frost', iceCave: 'frost', amethyst: 'frost', tower: 'rune', tower2: 'rune', library: 'rune', menu: 'twig' };
+  const SCENE_STYLE = { forest: 'twig', grove: 'twig', bloom: 'twig', volcano: 'ash', ashfield: 'ash', magma: 'ash', crystal: 'frost', iceCave: 'frost', amethyst: 'frost', tower: 'rune', tower2: 'rune', library: 'rune', menu: 'twig' };
 
   function tpx(ctx) { const m = ctx.getTransform ? ctx.getTransform().a : 1; return Math.max(0.5, Math.round(m * 4) / 4); }   // piksel perangkat per unit logis (kunci cache)
   function mk(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h || w; return c; }

@@ -1,4 +1,4 @@
-/* shooter.js — penembak (Naga Penjaga, lihat dragon.js), bola api (membawa pengali skor ×1–×3), dan peluru.
+/* shooter.js — penembak (Naga Penjaga, lihat dragon.js), bola api, dan peluru.
  * Ukuran semua bola diturunkan dari radius bola (Theme.BALL_RADIUS): bola api di mulut = bola peluru = bola rantai. */
 (function (GA) {
   'use strict';
@@ -22,7 +22,6 @@
       this.cur = makeAmmo(); this.nxt = makeAmmo();
       this.reload = 0; this.swapT = 0;
       this.guideLen = 400;
-      this.off = 0; this.slip = false; this.goal = this.angle;   // getaran bidik (Hawa Panas) & bidikan licin (Es Licin)
       this.dragon = new GA.Dragon.Dragon();
     }
     /** ballR = radius bola. Semua ukuran turunan dari konstanta di Theme. */
@@ -39,13 +38,12 @@
     aimAt(px, py) {
       if (Math.hypot(px - this.x, py - this.y) < 20) return;
       const a = Math.atan2(py - this.y, px - this.x);
-      if (this.slip) { this.goal = a; return; }       // nerf Es Licin: sudut menyusul pelan (berinersia)
-      this.goal = a; this.angle = a;
+      this.angle = a;
       this.dragon.setAim(this.aim);
     }
-    setAngle(a) { this.angle = a; this.goal = a; this.dragon.setAim(this.aim); }
-    /** Sudut tembak sebenarnya = sudut bidik + getaran (nerf Hawa Panas). */
-    get aim() { return this.angle + this.off; }
+    setAngle(a) { this.angle = a; this.dragon.setAim(this.aim); }
+    /** Sudut tembak sebenarnya = sudut bidik. */
+    get aim() { return this.angle; }
     canFire() { return this.reload <= 0 && this.dragon.frozen <= 0; }
     /** Titik peluru keluar: pusat bola api di mulut naga. */
     muzzle(out) {
@@ -83,10 +81,6 @@
     update(dt) {
       if (this.reload > 0) this.reload -= dt;
       if (this.swapT > 0) this.swapT -= dt;
-      if (this.slip && this.goal !== undefined) {
-        let df = this.goal - this.angle; while (df > Math.PI) df -= 2 * Math.PI; while (df < -Math.PI) df += 2 * Math.PI;
-        this.angle += df * Math.min(1, dt * 3.2);
-      }
       this.dragon.setAim(this.aim);
       this.dragon.update(dt, this.reload <= 0);
       const FX = GA.FX, ex = this.dragon.expr;

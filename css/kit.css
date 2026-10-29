@@ -239,3 +239,42 @@
   .k-seg { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-columns: auto; }
   .k-cname { font-size: 12px; overflow-wrap: anywhere; } .k-cat { min-width: 0; }
 }
+
+/* ---------- stage: ikon di layar pembuka, kartu hasil di Pilih Stage, format soal di Cara Main ---------- */
+.k-stage-ic { width: 64px; height: 64px; margin: 0 auto; border-radius: 50%; display: grid; place-items: center; color: #fff3d0; background: radial-gradient(circle at 35% 30%, #ffd27a, #c8741a 60%, #6a360a); border: 3px solid var(--gold-2); box-shadow: 0 4px 0 #120804, 0 0 18px rgba(255, 190, 70, .45); }
+.k-stage-ic.boss { background: radial-gradient(circle at 35% 30%, #d9a8ff, #7c3aed 60%, #2a1060); }
+.k-stage-ic .ic { width: 34px; height: 34px; }
+.k-fmt2 { font-size: 13px; font-weight: 700; color: #8a4a10; }
+.k-fmts { display: grid; gap: 8px; grid-template-columns: repeat(3, 1fr); }
+.k-fmtc { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 6px; background: rgba(255, 255, 255, .45); border: 3px solid var(--gold-2); border-radius: var(--r-m); text-align: center; font-size: 13px; font-weight: 800; color: #8a4a10; }
+.k-fmtc .k-extext { font-size: 22px; }
+.k-fmtc .k-extext i { font-style: normal; opacity: .6; }
+.k-step-li { position: relative; }
+.k-resbtn { position: absolute; right: 10px; top: 10px; z-index: 2; width: 44px; height: 44px; border-radius: 12px; border: 3px solid var(--gold-2); background: linear-gradient(#5a3a1a, #2c180a); color: #ffe9a8; display: grid; place-items: center; cursor: pointer; touch-action: manipulation; }
+.k-resbtn .ic { width: 22px; height: 22px; } .k-resbtn:hover { filter: brightness(1.2); } .k-resbtn:focus-visible { outline: 4px solid var(--rune); outline-offset: 2px; }
+
+/* kotak kosong soal (▢): bergaris putus, berkedip halus (juga digambar di canvas oleh MathText) */
+.mblank { display: inline-block; width: .9em; height: .9em; vertical-align: -.12em; margin: 0 .08em; border: .09em dashed currentColor; border-radius: .2em; animation: mBlank 1.4s ease-in-out infinite; }
+@keyframes mBlank { 50% { opacity: .35; } }
+
+/* ---------- overview jawaban stage ---------- */
+.ov-top { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; }
+.ov-pct { display: inline-flex; align-items: center; gap: 4px; font: 800 20px var(--font-ui); color: #1f6b3a; } .ov-pct .ic { width: 22px; height: 22px; }
+.ov-grid { display: grid; gap: 8px; grid-template-columns: repeat(5, 1fr); }
+@media (orientation: landscape) { .ov-grid { grid-template-columns: repeat(10, 1fr); } }
+.ov-chip { position: relative; min-width: 44px; min-height: 44px; aspect-ratio: 1; display: grid; place-items: center; font-family: var(--font-ui); cursor: pointer; touch-action: manipulation; padding: 0; color: #fff; border: 3px solid #fff; box-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
+.ov-chip .ov-n { position: absolute; left: 4px; top: 1px; font: 800 11px var(--font-ui); font-style: normal; opacity: .95; }
+.ov-chip .ic { width: 55%; height: 55%; margin-top: 8px; }
+.ov-ok { border-radius: 50%; background: radial-gradient(circle at 35% 30%, #8affb0, #2fbf71 60%, #146a34); }
+.ov-redo { border-radius: 10px; background: radial-gradient(circle at 35% 30%, #ffe48a, #e8a22a 60%, #8a5a0a); }
+.ov-none { border-radius: 10px; background: rgba(60, 40, 20, .35); border-style: dashed; color: #5a3a1a; box-shadow: none; }
+.ov-chip.sel { outline: 4px solid var(--rune); outline-offset: 2px; }
+.ov-chip:focus-visible { outline: 4px solid var(--rune); outline-offset: 2px; }
+.ov-card { min-height: 64px; display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; padding: 8px 12px; background: rgba(255, 255, 255, .55); border: 3px solid var(--gold-2); border-radius: var(--r-m); font-weight: 800; color: #2a1a3a; }
+.ov-hint { font-size: 14px; color: #8a4a10; }
+.ov-q { display: inline-flex; align-items: center; gap: 10px; font-size: 26px; } .ov-q b { font-size: 14px; color: #8a4a10; }
+.ov-q em { font-style: normal; color: #1f6b3a; } .ov-arrow .ic { width: 20px; height: 20px; color: #8a4a10; }
+.ov-w { display: inline-flex; align-items: center; gap: 6px; font-size: 18px; color: #b0242e; } .ov-w .ic { width: 18px; height: 18px; }
+.ov-wv { display: inline-flex; gap: 6px; font-size: 18px; } .ov-wv s { text-decoration-thickness: 2px; }
+.ov-btns { display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap; }
+@media (max-width: 420px) { .k-fmts { grid-template-columns: 1fr; } .ov-q { font-size: 22px; } }

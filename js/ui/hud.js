@@ -150,20 +150,17 @@
     }
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
 
-    // step: lima permata + "n/5"
-    const sp = G.step; ctx.fillStyle = '#c9a060'; ctx.font = '700 11px ' + Fo.title; ctx.textAlign = 'center'; ctx.fillText('STEP', sp.x + sp.w / 2, sp.y + 14);
-    for (let i = 0; i < 5; i++) gem(ctx, sp.x + sp.w / 2 + (i - 2) * (sp.w * 0.19), sp.y + sp.h * 0.5, sp.w * 0.07, i < run.stepNo - 1 ? 2 : (i === run.stepNo - 1 ? 1 : 0), t);
-    ctx.fillStyle = U.gold[0]; ctx.font = '800 ' + (por ? 15 : 14) + 'px ' + Fo.ui; ctx.fillText(run.stepNo + '/5', sp.x + sp.w / 2, sp.y + sp.h - 7);
+    // stage: tiga permata + "n/3"
+    const sp = G.step; ctx.fillStyle = '#c9a060'; ctx.font = '700 11px ' + Fo.title; ctx.textAlign = 'center'; ctx.fillText('STAGE', sp.x + sp.w / 2, sp.y + 14);
+    for (let i = 0; i < 3; i++) gem(ctx, sp.x + sp.w / 2 + (i - 1) * (sp.w * 0.24), sp.y + sp.h * 0.5, sp.w * 0.09, i < run.stepNo - 1 ? 2 : (i === run.stepNo - 1 ? 1 : 0), t);
+    ctx.fillStyle = U.gold[0]; ctx.font = '800 ' + (por ? 15 : 14) + 'px ' + Fo.ui; ctx.fillText(run.stepNo + '/3', sp.x + sp.w / 2, sp.y + sp.h - 7);
     ctx.textAlign = 'left';
 
-    // telur
+    // telur: selalu 3 (nyawa); telur yang baru pecah bergetar sesaat
     const ep = G.eggs, n2 = run.maxLives, es = Math.min(ep.h * 0.95, (ep.w - 8) / n2 * 1.08);
-    const dual = !!run.nest, lostSlot = dual ? Math.max(0, run.lostIdx) * 3 + run.nest[Math.max(0, run.lostIdx)] : run.lives;
     for (let i = 0; i < n2; i++) {
-      const gap = dual ? (i < 3 ? -es * 0.18 : es * 0.18) : 0;   // dua sarang: dua kelompok tiga telur
-      const x = ep.x + ep.w / 2 + (i - (n2 - 1) / 2) * (ep.w - 14) / n2 + gap, lost = run.lifeLostT > 0 && i === lostSlot;
-      const on = dual ? (i < 3 ? i < run.nest[0] : i - 3 < run.nest[1]) : i < run.lives;
-      egg(ctx, x + (lost ? Math.sin(t * 60) * 3 : 0), ep.y + ep.h / 2 + (lost ? -3 : 0), es, on, t, i);
+      const x = ep.x + ep.w / 2 + (i - (n2 - 1) / 2) * (ep.w - 14) / n2, lost = run.lifeLostT > 0 && i === run.lives;
+      egg(ctx, x + (lost ? Math.sin(t * 60) * 3 : 0), ep.y + ep.h / 2 + (lost ? -3 : 0), es, i < run.lives, t, i);
     }
 
     // plakat soal
@@ -230,11 +227,6 @@
     };
     if (run.slowT > 0) chip('Lambat ' + Math.ceil(run.slowT) + 'd', '#3aa0e0');
     if (run.shooter && run.shooter.frozen) chip('Naga beku', '#5a80e0');
-    if (run.fx) {
-      if (run.fx.shield > 0) chip('Perisai', '#2f9ad0');
-      if (run.fx.twinReady) chip('Api Ganda siap', '#e8782a');
-      if (run.fx.freeze > 0) chip('Waktu Beku', '#4a8ad8');
-    }
 
     if (run.feedback && run.feedback.t > 0) {
       const f = run.feedback, a = Math.min(1, f.t * 3); ctx.globalAlpha = a;

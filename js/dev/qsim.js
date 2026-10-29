@@ -1,7 +1,7 @@
 /* dev/qsim.js — simulasi soal aktif TANPA render (GA.QSim.run). Dimuat dengan ?debug=sim (hasil tampil di layar + console; GA.QSim.results)
  * dan dipanggil dari ?test=1. Memastikan soal aktif TIDAK berubah kecuali lewat QuestionManager.advance() dengan pemicu sah:
- *   idle penuh (rantai bergerak sepanjang step), tembakan salah, bola dicuri ke sarang, semua step (rintangan jalur/arena, kabut, kelelawar,
- *   buff/nerf, boss + Step 5 dua sarang), resize & rotasi berulang, jeda/lanjut + blur, ganti kualitas, TIMEOUT boss, pemulihan snapshot,
+ *   idle penuh (rantai bergerak sepanjang stage), tembakan salah, bola dicuri ke sarang, semua stage (rintangan zona, kabut, penukaran bola,
+ *   boss 1-2 bar), resize & rotasi berulang, jeda/lanjut + blur, ganti kualitas, TIMEOUT boss, pemulihan snapshot,
  *   dan keterbacaan plakat soal di 390x844, 844x390, 1440x900. Tidak butuh Node: memakai game yang sama lewat GA.game.tick(dt, true). */
 (function (GA) {
   'use strict';
@@ -10,8 +10,8 @@
   function ok(name, cond, info) { results.push((cond ? 'PASS  ' : 'FAIL  ') + name + (info ? '  — ' + info : '')); if (!cond) fails++; return cond; }
   const sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
   const DT = 1 / 30;
-  const SEL = function (diff) { return { slots: ['add', 'sub', 'mul', 'div', 'int'], same: false, random: false, diff: diff || 'sedang' }; };
-  const FRACSEL = { slots: ['frac', 'dec', 'int', 'mul', 'div'], same: false, random: false, diff: 'sulit' };
+  const SEL = function (diff) { return { slots: ['add', 'sub', 'mul'], same: false, random: false, diff: diff || 'sedang' }; };
+  const FRACSEL = { slots: ['frac', 'dec', 'int'], same: false, random: false, diff: 'sulit' };
 
   /** Pemain bot: menembak bola jawaban soal aktif bila garis tembak aman (sama dengan bot di tests.js, disederhanakan). mode: 'bot' | 'wrong' | 'none'. */
   function Bot(mode, thinkSec) {
@@ -26,14 +26,13 @@
     else tgt = G.allBalls().find(function (b) { return b.kind === 'num' && b.qid === r.qid && b.ch.visible(b); });
     if (!tgt) return;
     let m = sh.muzzle({ x: 0, y: 0 }); const B = GA.Shooter.Bullets;
-    for (let it = 0; it < 4; it++) { sh.setAngle(Math.atan2(tgt.y - m.y, tgt.x - m.x) - sh.off); m = sh.muzzle({ x: 0, y: 0 }); }
+    for (let it = 0; it < 4; it++) { sh.setAngle(Math.atan2(tgt.y - m.y, tgt.x - m.x)); m = sh.muzzle({ x: 0, y: 0 }); }
     if (!G.openLine(tgt)) return;
     if (r.haz.blocksLine(m.x, m.y, tgt.x, tgt.y, Math.hypot(tgt.x - m.x, tgt.y - m.y) / B.speed + 0.15)) return;
-    if (r.obst.predictedHit(m.x, m.y, tgt.x, tgt.y, B.speed, B.rObs * 0.55 + 8)) return;
     for (let k = 0; k < r.haz.list.length; k++) { const e = r.haz.list[k]; if (e.mech === 'deflect') { const vx = tgt.x - m.x, vy = tgt.y - m.y, l2 = vx * vx + vy * vy || 1, u = Math.max(0, Math.min(1, ((e.x - m.x) * vx + (e.y - m.y) * vy) / l2)); if (Math.hypot(e.x - (m.x + u * vx), e.y - (m.y + u * vy)) < e.r + 24) return; } }
     if (this.mode === 'wrong') {      // pastikan bola pertama yang kena memang bola angka salah (bukan jawaban benar)
       let px = m.x, py = m.y, pred = null; const ux = Math.cos(sh.aim), uy = Math.sin(sh.aim);
-      for (let s = 0; s < 120 && !pred; s++) { px += ux * 9; py += uy * 9; for (let k = 0; k < r.chains.length && !pred; k++) pred = r.chains[k].hit(px, py, B.r); }
+      for (let s = 0; s < 120 && !pred; s++) { px += ux * 9; py += uy * 9; pred = r.chain.hit(px, py, B.r); }
       if (!pred || pred.kind !== 'num' || pred.qid === r.qid) return;
     }
     G.fire(); this.shots++; this.think = this.mode === 'wrong' ? 2 : 1.6;
@@ -50,7 +49,7 @@
     if (o.setup) o.setup(r, G, obs);
     while (obs.t < maxT && (G.state === 'playing' || G.state === 'cine' || G.state === 'paused')) {
       if (G.state === 'paused') { G.handlers.resume(); continue; }
-      if (o.immortal) { if (r.nest) { r.nest[0] = Math.max(r.nest[0], 2); r.nest[1] = Math.max(r.nest[1], 2); r.lives = r.nest[0] + r.nest[1]; } else r.lives = Math.max(r.lives, 3); }
+      if (o.immortal) r.lives = Math.max(r.lives, 3);
       if (o.before) o.before(obs.t, r, G, bot);
       G.tick(DT, true); obs.t += DT; obs.ticks++;
       if (o.after) o.after(obs.t, r, G, bot);
@@ -63,7 +62,7 @@
         if (!legit) obs.badChange.push({ t: +obs.t.toFixed(2), from: prevId, to: id });
       }
       if (id >= 0) {      // jawaban untuk soal aktif harus selalu ada (di rantai atau antre di portal)
-        const has = G.allBalls().some(function (b) { return b.kind === 'num' && b.qid === id; }) || r.chains.some(function (c) { return c.spawnQ.some(function (s) { return s.kind === 'num' && s.qid === id; }); });
+        const has = G.allBalls().some(function (b) { return b.kind === 'num' && b.qid === id; }) || r.chain.spawnQ.some(function (s) { return s.kind === 'num' && s.qid === id; });
         if (!has) { obs.missing++; missRun++; obs.maxMissingRun = Math.max(obs.maxMissingRun, missRun); } else missRun = 0;
       }
       prevId = id; prevQ = r.q; prevSerial = serial; prevLog = lg; prevCorrect = r.correct;
@@ -83,10 +82,10 @@
 
   /* ---------- skenario ---------- */
   async function scIdle() {
-    for (const step of [0, 3, 4]) {
+    for (const step of [0, 1, 2]) {
       const first = { q: null };
       const o = await drive({ step: step, mode: 'none', secs: 90, immortal: true, setup: function (r) { first.q = null; }, after: function (t, r) { if (!first.q && r.q) first.q = r.q; } });
-      clean(o, ['STEP_START'], 'idle penuh step ' + (step + 1) + ' (rantai bergerak, rintangan, buff/nerf aktif)');
+      clean(o, ['STEP_START'], 'idle penuh stage ' + (step + 1) + ' (rantai bergerak, rintangan zona aktif)');
       ok('idle step ' + (step + 1) + ': teks soal tidak berubah (objek sama)', !!first.q && o.r.q === first.q && o.r.q.text === first.q.text, first.q ? first.q.text : '-');
       G().handlers.quit();
     }
@@ -107,14 +106,14 @@
         if (!q0) q0 = r.q;
         if (waiting) return;
         if (stolen < 4 && t > 6 + stolen * 14) {      // paksa bola jawaban soal aktif sampai di sarang
-          const c = r.chains.find(function (cc) { return cc.balls.some(function (b) { return b.kind === 'num' && b.qid === r.qid && cc.visible(b); }); });
+          const c = r.chain.balls.some(function (b) { return b.kind === 'num' && b.qid === r.qid && r.chain.visible(b); }) ? r.chain : null;
           const tg = c && c.balls.find(function (b) { return b.kind === 'num' && b.qid === r.qid; });
           if (tg && c.hcd <= 0) { c.balls.splice(c.balls.indexOf(tg), 1); c.balls.unshift(tg); c.balls.forEach(function (b) { if (b !== tg) b.d = Math.min(b.d, c.path.length - c.D * 2); }); tg.d = c.path.length; stolen++; waiting = true; wait = 0; }
         }
       },
       after: function (t, r) {
         if (!waiting) return;
-        wait += DT; const ab = r.chains.reduce(function (a, c) { return a || c.balls.find(function (b) { return b.kind === 'num' && b.qid === r.qid && c.visible(b) && b.out; }); }, null);
+        wait += DT; const ab = r.chain.balls.find(function (b) { return b.kind === 'num' && b.qid === r.qid && r.chain.visible(b) && b.out; });
         if (ab && wait > 0.5 && ab.reborn) { back++; if (ab.reborn) rebornSeen++; maxWait = Math.max(maxWait, wait); waiting = false; }
         else if (wait > 20) { waiting = false; }
       } });
@@ -124,13 +123,13 @@
   }
 
   async function scFull() {
-    for (const step of [0, 1, 2, 3, 4]) {
-      const o = await drive({ step: step, mode: 'bot', secs: 900, immortal: true, think: [8, 6, 5, 5, 4][step] });
+    for (const step of [0, 1, 2]) {
+      const o = await drive({ step: step, mode: 'bot', secs: 900, immortal: true, think: [8, 5, 4][step] });
       const solved = o.qm.log.filter(function (e) { return e.reason === 'ANSWERED_CORRECT'; }).map(function (e) { return e.from; }).sort(function (a, b) { return a - b; });
       const perm = solved.length === 20 && solved.every(function (v, i) { return v === i; });
-      clean(o, ['STEP_START', 'ANSWERED_CORRECT', 'TIMEOUT'], 'step ' + (step + 1) + ' penuh (bot)');
-      ok('step ' + (step + 1) + ': 20 soal terjawab tepat sekali masing-masing', perm && o.r.correct === 20 && o.qm.solvedCount() === 20, 'terjawab ' + solved.length + ', benar ' + o.r.correct + ', ' + fmt(o.reasons));
-      ok('step ' + (step + 1) + ': setiap perubahan soal teramati = satu jawaban benar / TIMEOUT', o.changes.length === (o.reasons.ANSWERED_CORRECT || 0) + (o.reasons.TIMEOUT || 0), o.changes.length + ' perubahan teramati');
+      clean(o, ['STEP_START', 'ANSWERED_CORRECT', 'TIMEOUT'], 'stage ' + (step + 1) + ' penuh (bot)');
+      ok('stage ' + (step + 1) + ': 20 soal terjawab tepat sekali masing-masing', perm && o.r.correct === 20 && o.qm.solvedCount() === 20, 'terjawab ' + solved.length + ', benar ' + o.r.correct + ', ' + fmt(o.reasons));
+      ok('stage ' + (step + 1) + ': setiap perubahan soal teramati = satu jawaban benar / TIMEOUT', o.changes.length === (o.reasons.ANSWERED_CORRECT || 0) + (o.reasons.TIMEOUT || 0), o.changes.length + ' perubahan teramati');
       G().handlers.quit();
     }
   }
@@ -182,11 +181,11 @@
   }
 
   async function scTimeout() {
-    // Step 5, fase 3 (soal berbatas waktu): bot menjawab sampai fase 3, lalu diam sampai beberapa TIMEOUT; setelah itu selesaikan.
+    // Stage 3, fase akhir boss (soal berbatas waktu): bot menjawab sampai fase itu, lalu diam sampai beberapa TIMEOUT; setelah itu selesaikan.
     let phase3 = false, idleStart = 0, expires = [], q = null, qAt = 0, lastTime = null, beforeAdv = null;
-    const o = await drive({ step: 4, mode: 'bot', secs: 1200, immortal: true, think: 4,
+    const o = await drive({ step: 2, mode: 'bot', secs: 1200, immortal: true, think: 4,
       before: function (t, r, g, bot) {
-        if (!phase3 && r.boss && r.boss.phaseIdx === 2 && g.state === 'playing') { phase3 = true; idleStart = t; bot.mode = 'none'; }
+        if (!phase3 && r.boss && r.boss.phase.questionTime > 0 && g.state === 'playing') { phase3 = true; idleStart = t; bot.mode = 'none'; }
         if (phase3 && bot.mode === 'none' && expires.length >= 3 && t > idleStart) bot.mode = 'bot';
         if (phase3 && r.qExpire > 0 && !beforeAdv) beforeAdv = { id: r.qid, t: t, queue: r.qm.queue() };
       },
@@ -194,7 +193,7 @@
         const e = r.qm.log[r.qm.log.length - 1];
         if (e && e.reason === 'TIMEOUT' && (!expires.length || expires[expires.length - 1].serial !== r.qm.serial)) { expires.push({ serial: r.qm.serial, from: e.from, to: e.to, t: t, wait: beforeAdv ? t - beforeAdv.t : -1, qBefore: beforeAdv ? beforeAdv.queue : null, qAfter: r.qm.queue() }); beforeAdv = null; }
       } });
-    clean(o, ['STEP_START', 'ANSWERED_CORRECT', 'TIMEOUT'], 'boss fase 3 dengan TIMEOUT');
+    clean(o, ['STEP_START', 'ANSWERED_CORRECT', 'TIMEOUT'], 'boss fase akhir dengan TIMEOUT');
     const moved = expires.length >= 3 && expires.every(function (e) { return e.qBefore && e.qAfter[e.qAfter.length - 1] === e.from && e.qAfter[0] === e.to && e.to !== e.from; });
     ok('TIMEOUT: efek tampil dulu (≥ 0,4 dtk) lalu soal pindah, soal lama kembali ke ujung antrean', moved && expires.every(function (e) { return e.wait >= 0.4; }), expires.length + ' TIMEOUT, jeda efek ' + expires.map(function (e) { return e.wait.toFixed(2); }).join('/'));
     const solved = o.qm.log.filter(function (e) { return e.reason === 'ANSWERED_CORRECT'; }).map(function (e) { return e.from; }).sort(function (a, b) { return a - b; });
@@ -218,7 +217,7 @@
       let frozen = Object.isFrozen(a.active) && Object.isFrozen(a.questions[0]); try { 'use strict'; a.active.text = 'x'; frozen = frozen && a.active.text !== 'x'; } catch (e) { /* mode ketat: melempar = beku */ }
       if (!frozen) rest = false;
     }
-    ok('seed: dek & urutan identik untuk seed sama, berbeda untuk percobaan lain (5 step)', same && diff);
+    ok('seed: dek & urutan identik untuk seed sama, berbeda untuk percobaan lain (3 stage)', same && diff);
     ok('pemulihan: snapshot → restore memberi soal aktif, antrean, dan terjawab yang sama; soal beku (immutable)', rest);
     // guard: menimpa soal aktif di luar advance() harus melempar Error (mode ketat) dan tercatat
     const G2 = GA.game; G2.startAdventure(sel, true, 0); const r = G2.run; let threw = false; const before = r.qm.violations.length;
@@ -233,7 +232,7 @@
   async function scReadable() {
     const G2 = GA.game, MT = GA.MathText, c = document.createElement('canvas').getContext('2d');
     const texts = ['−3/4 + 5/6 − 1/2 = ?', '12,75 × 4,8 = ?', '−125 ÷ (−5) + 17 − (−46) = ?', '(−7) × (−12) − 38 + 99 = ?', '7/12 + 3/8 = ?', '123,456 + 78,9 = ?', '3 3/4 ÷ 1 1/2 = ?'];
-    G2.startAdventure(FRACSEL, true, 4); G2.handlers.introGo(); for (let i = 0; i < 80 && G2.state !== 'playing'; i++) await sleep(120);
+    G2.startAdventure(FRACSEL, true, 2); G2.handlers.introGo(); for (let i = 0; i < 80 && G2.state !== 'playing'; i++) await sleep(120);
     const r = G2.run; const q0 = r.q, out = []; let allFit = true, minPx = 1e9;
     for (const sz of [[390, 844], [844, 390], [1440, 900]]) {
       GA.devViewport = { w: sz[0], h: sz[1] }; G2.relayout(); if (G2.state === 'paused') G2.handlers.resume();

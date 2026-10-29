@@ -4,7 +4,7 @@
  *   slow     memperlambat peluru, tidak memblokir           thorn (semak berduri tipis)
  *   deflect  membelokkan peluru yang melintas               wave (arus/ombak)
  *   reflect  memantulkan peluru satu kali                   lily (teratai/batu licin), crystal (kristal pemantul)
- *   strike   menghancurkan peluru saat AKTIF (telur hilang) geyser (lahar), hotrock (batu panas jatuh), stalactite, root (akar menyapu), rune (petir rune, lajur)
+ *   strike   menghancurkan peluru saat AKTIF (telur hilang) geyser (lahar), hotrock (batu panas jatuh), stalactite, rune (petir rune, lajur)
  *   veil     menyamarkan angka bola di area                 spore (jamur spora)
  *   blind    menutup garis bidik sementara (asap kutukan)   hands (tangan bayangan)
  * Siklus: peringatan (warn, ≥ 1 dtk, lingkaran berdenyut + tanda seru) → aktif (on) → memudar (fade) → hilang.
@@ -14,7 +14,7 @@
  *   - rintangan tidak muncul di alur, di lintasan mulut naga, atau menimpa rintangan lain;
  *   - sebelum muncul, diuji bahwa masih ada bola target terlihat yang punya garis tembak terbuka (ctx.targetsOpen);
  *   - tidak ada yang permanen: semua punya umur.
- * Jumlah jenis bertambah kumulatif per step (data di levels.js). Kecepatan muncul mengikuti kesulitan. */
+ * Jumlah jenis bertambah kumulatif per stage (data di levels.js); jumlah serentak dibatasi `maxTotal` (Gameplay.HAZ_MAX). Kecepatan muncul mengikuti kesulitan. */
 (function (GA) {
   'use strict';
   const TAU = Math.PI * 2, rr = function (a, b) { return a + Math.random() * (b - a); };
@@ -28,7 +28,6 @@
     geyser:     { mech: 'strike',  r: [26, 32], warn: 1.0, on: [1.4, 1.8], base: 9,  max: 1, blocks: true },
     hotrock:    { mech: 'strike',  r: [28, 34], warn: 1.2, on: [0.6, 0.8], base: 12, max: 1, blocks: true },
     stalactite: { mech: 'strike',  r: [22, 28], warn: 1.0, on: [0.6, 0.8], base: 12, max: 1, blocks: true },
-    root:       { mech: 'strike',  r: [20, 24], warn: 1.1, on: [1.6, 2.0], base: 11, max: 1, blocks: true, sweep: true },
     rune:       { mech: 'strike',  r: [18, 22], warn: 1.0, on: [0.5, 0.6], base: 13, max: 1, blocks: true, lane: true },
     spore:      { mech: 'veil',    r: [60, 76], warn: 1.0, on: [3.0, 4.0], base: 15, max: 1, blocks: false },
     hands:      { mech: 'blind',   r: [40, 46], warn: 1.0, on: [2.2, 3.0], base: 18, max: 1, blocks: false }
@@ -58,9 +57,9 @@
     phase(e) { return e.t < e.warn ? 'warn' : (e.t < e.warn + e.dur ? 'on' : 'fade'); }
     isOn(e) { return e.t >= e.warn && e.t < e.warn + e.dur; }
 
-    /** Posisi rintangan yang bergerak (akar menyapu). */
+    /** Posisi rintangan (semua diam di tempat). */
     pos(e, out) {
-      if (e.to && this.isOn(e)) { const u = (e.t - e.warn) / e.dur; out.x = e.x + (e.to.x - e.x) * u; out.y = e.y + (e.to.y - e.y) * u; } else { out.x = e.x; out.y = e.y; }
+      out.x = e.x; out.y = e.y;
       return out;
     }
 
@@ -77,7 +76,7 @@
     /** Coba munculkan satu rintangan; diuji aturan keadilan. true = berhasil. */
     spawn(kind) {
       const c = this.c, K = KINDS[kind], R = c.R, rad = rr(K.r[0], K.r[1]) * (0.75 + 0.25 * R / 25), s = c.shooter, rO = c.rObs(), bd = c.bounds;
-      const e = { id: this.nid++, kind: kind, mech: K.mech, r: rad, x: 0, y: 0, t: 0, warn: K.warn, dur: rr(K.on[0], K.on[1]), dir: Math.random() < 0.5 ? -1 : 1, rot: Math.random() * TAU, to: null, lane: !!K.lane, fired: false, bounced: 0 };
+      const e = { id: this.nid++, kind: kind, mech: K.mech, r: rad, x: 0, y: 0, t: 0, warn: K.warn, dur: rr(K.on[0], K.on[1]), dir: Math.random() < 0.5 ? -1 : 1, rot: Math.random() * TAU, lane: !!K.lane, fired: false, bounced: 0 };
       if (K.mech === 'veil') {
         const b = c.randomBall(); if (!b) return false; e.x = b.x; e.y = b.y;
       } else {
@@ -93,7 +92,6 @@
           e.x = x; e.y = y; ok = true;
         }
         if (!ok) return false;
-        if (K.sweep) { const a = Math.atan2(e.y - s.y, e.x - s.x) + Math.PI / 2, L = rr(60, 90); e.to = { x: e.x + Math.cos(a) * L, y: e.y + Math.sin(a) * L }; e.x -= Math.cos(a) * L * 0.5; e.y -= Math.sin(a) * L * 0.5; e.to.x -= Math.cos(a) * L * 0.5; e.to.y -= Math.sin(a) * L * 0.5; }
       }
       // aturan keadilan: busur tertutup ≤ 30%, dan masih ada target terjangkau
       if (K.blocks) {
@@ -124,7 +122,7 @@
         this.timers[k] -= dt;
         if (this.timers[k] > 0) continue;
         const n = this.list.filter(function (e) { return e.kind === k; }).length;
-        if (n < KINDS[k].max && this.spawn(k)) this.timers[k] = this.cfg[k].every * rr(0.8, 1.2); else this.timers[k] = 1.2;
+        if (n < KINDS[k].max && this.list.length < (this.c.maxTotal || 99) && this.spawn(k)) this.timers[k] = this.cfg[k].every * rr(0.8, 1.2); else this.timers[k] = 1.2;
         this.stats.maxCover = Math.max(this.stats.maxCover, this.coverage() / TAU);
       }
     }
@@ -167,9 +165,9 @@
         const e = this.list[i]; if (!KINDS[e.kind].blocks) continue;
         const te = e.t + (ahead || 0); if (te > e.warn + e.dur) continue;                 // sudah selesai pada saat peluru tiba
         if (e.lane) { if ((x0 - e.x) * (x1 - e.x) < 0 || Math.abs(x1 - e.x) < e.r + rO || Math.abs(x0 - e.x) < e.r + rO) return e; continue; }
-        p.x = e.x; p.y = e.y; if (e.to) { const u = Math.max(0, Math.min(1, (te - e.warn) / e.dur)); p.x = e.x + (e.to.x - e.x) * u; p.y = e.y + (e.to.y - e.y) * u; }
+        p.x = e.x; p.y = e.y;
         const fx = p.x - x0, fy = p.y - y0, proj = fx * ux + fy * uy; if (proj < 0 || proj > L) continue;
-        const d2 = fx * fx + fy * fy - proj * proj, q = e.r + rO * 0.55 + (e.to ? 14 : 0); if (d2 < q * q) return e;
+        const d2 = fx * fx + fy * fy - proj * proj, q = e.r + rO * 0.55; if (d2 < q * q) return e;
       }
       return null;
     }
@@ -202,7 +200,6 @@
         this.pos(e, p);
         const x = p.x, y = p.y, r = e.r;
         if (ph === 'warn') {
-          if (e.to) { ctx.strokeStyle = 'rgba(255,200,70,0.55)'; ctx.lineWidth = r * 1.2; ctx.setLineDash([10, 9]); ctx.lineDashOffset = -t * 30; ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.to.x, e.to.y); ctx.stroke(); ctx.setLineDash([]); }
           this.warnRing(ctx, e, t, e.mech === 'veil' ? 'rgba(190,230,150,0.9)' : warnCol);
           if (e.mech === 'strike') { const u = e.t / e.warn; ctx.fillStyle = 'rgba(' + hot + ',' + (0.12 + 0.18 * u).toFixed(2) + ')'; ctx.beginPath(); ctx.arc(e.x, e.y, r * (0.5 + 0.5 * u), 0, TAU); ctx.fill(); }
           if (e.mech === 'slow' || e.mech === 'reflect') { ctx.globalAlpha = 0.35 * fade * (e.t / e.warn); this.drawBody(ctx, e, x, y, r, t, sk); }
@@ -257,13 +254,6 @@
           const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, 2, x, y, r); g.addColorStop(0, ice ? '#ffffff' : '#ffd08a'); g.addColorStop(0.5, ice ? '#9ad0f0' : '#7a3a22'); g.addColorStop(1, ice ? '#3a70a8' : '#241008'); ctx.fillStyle = g; ctx.strokeStyle = 'rgba(10,6,4,0.85)'; ctx.lineWidth = 2;
           ctx.beginPath(); if (ice) { ctx.moveTo(x, y - r * 1.3); ctx.lineTo(x + r * 0.7, y + r * 0.6); ctx.lineTo(x - r * 0.7, y + r * 0.6); ctx.closePath(); } else { for (let i = 0; i < 9; i++) { const a = i / 9 * TAU, rr2 = r * (0.8 + 0.25 * ((i * 53) % 10) / 10); if (i) ctx.lineTo(x + Math.cos(a) * rr2, y + Math.sin(a) * rr2); else ctx.moveTo(x + Math.cos(a) * rr2, y + Math.sin(a) * rr2); } ctx.closePath(); }
           ctx.fill(); ctx.stroke(); break;
-        }
-        case 'root': {
-          const ang = e.to ? Math.atan2(e.to.y - e.y, e.to.x - e.x) : 0; ctx.save(); ctx.translate(x, y); ctx.rotate(ang); ctx.lineCap = 'round';
-          ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = r * 1.6; ctx.beginPath(); ctx.moveTo(-r * 2.4 + 3, 5); ctx.lineTo(r * 0.6 + 3, 5); ctx.stroke();
-          ctx.strokeStyle = '#3a2412'; ctx.lineWidth = r * 1.5; ctx.beginPath(); ctx.moveTo(-r * 2.4, 0); ctx.bezierCurveTo(-r * 1.4, -r * 0.6, -r * 0.6, r * 0.6, r * 0.6, 0); ctx.stroke();
-          ctx.strokeStyle = '#7a5230'; ctx.lineWidth = r * 0.9; ctx.stroke(); ctx.strokeStyle = 'rgba(140,220,90,0.8)'; ctx.lineWidth = r * 0.25; ctx.beginPath(); ctx.moveTo(-r * 2, -r * 0.1); ctx.bezierCurveTo(-r * 1.3, -r * 0.5, -r * 0.5, r * 0.4, r * 0.4, -r * 0.1); ctx.stroke();
-          ctx.restore(); break;
         }
         case 'spore': {
           const pf = HazardSet.puff(); for (let i = 0; i < 6; i++) { const a = t * 0.6 + i * 1.05, d = r * 0.35 * (1 + 0.2 * Math.sin(t * 2 + i)), s = r * (0.9 + 0.2 * Math.sin(t + i)); ctx.globalAlpha *= 0.55; ctx.drawImage(pf, x + Math.cos(a) * d - s / 2, y + Math.sin(a) * d - s / 2, s, s); ctx.globalAlpha /= 0.55; }

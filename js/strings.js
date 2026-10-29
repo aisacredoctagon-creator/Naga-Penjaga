@@ -10,7 +10,7 @@
     // umum
     'common.back': 'Kembali', 'common.go': 'Mulai!', 'common.next': 'Lanjut', 'common.skip': 'Lewati', 'common.menu': 'Menu',
     'common.again': 'Main Lagi', 'common.yes': 'Ya', 'common.no': 'Batal', 'common.ok': 'Oke',
-    'common.score': 'Skor', 'common.example': 'Contoh', 'common.questions': 'soal', 'common.boss': 'Boss', 'common.step': 'Step',
+    'common.score': 'Skor', 'common.example': 'Contoh', 'common.questions': 'soal', 'common.boss': 'Boss', 'common.stage': 'Stage', 'common.retry': 'Ulangi',
 
     // judul
     'title.play': 'Main', 'title.howto': 'Cara Main', 'title.settings': 'Atur',
@@ -26,43 +26,43 @@
     'how.title': 'Cara Main',
     'how.aim': 'Bidik', 'how.aim2': 'Geser, lalu lepas', 'how.hit': 'Tembak jawaban', 'how.hit2': 'Bola dengan angka benar',
     'how.egg': 'Jaga telur', 'how.egg2': 'Salah = telur hilang',
-    'how.curse': 'Kutukan', 'how.frost': 'Beku', 'how.gold': 'Emas',
-    'how.goal': '20 soal per step',
+    'how.f1': 'Hitung hasil', 'how.f2': 'Cari angka hilang', 'how.f3': 'Gabungan',
+    'how.goal': '20 soal per stage',
 
     // menu & pilih step
-    'menu.title': 'Petualangan', 'menu.same': 'Satu kategori', 'menu.random': 'Acak', 'menu.pick': 'Pilih Step',
+    'menu.title': 'Petualangan', 'menu.same': 'Satu kategori', 'menu.random': 'Acak', 'menu.pick': 'Pilih Stage',
     'menu.cat': 'Kategori', 'menu.diff': 'Kesulitan', 'menu.boss': 'Boss',
     'diff.mudah': 'Mudah', 'diff.sedang': 'Sedang', 'diff.sulit': 'Sulit',
-    'menu.hint.same': 'Semua step sama', 'menu.hint.per': 'Pilih tiap step', 'menu.hint.random': 'Kategori diacak',
-    'steps.title': 'Pilih Step', 'steps.locked': 'Terkunci', 'steps.mix': 'Campuran',
+    'menu.hint.same': 'Semua stage sama', 'menu.hint.per': 'Pilih tiap stage', 'menu.hint.random': 'Kategori diacak',
+    'steps.title': 'Pilih Stage', 'steps.locked': 'Terkunci', 'steps.mix': 'Campuran', 'steps.result': 'Hasil',
 
-    // layar awal step
-    'intro.buff': 'Buff', 'intro.nerf': 'Nerf', 'intro.specials': 'Bola khusus',
-    'sp.curse': 'Kutukan', 'sp.frost': 'Beku', 'sp.egg': 'Emas',
-    'sp.curse2': 'Jangan tembak', 'sp.frost2': 'Rantai melambat', 'sp.egg2': '+1 telur',
+    // layar awal stage + bola khusus
+    'sp.frost': 'Beku', 'sp.egg': 'Emas',
+    'sp.frost2': 'Rantai melambat', 'sp.egg2': '+1 telur',
+    'fmt.result': 'Hitung hasil', 'fmt.missing': 'Cari angka hilang', 'fmt.mixed': 'Gabungan',
+    'fmt.result2': 'Isi kotak: hasilnya', 'fmt.missing2': 'Isi kotak: angka hilang', 'fmt.mixed2': 'Dua jenis soal, bergantian',
 
     // hasil
-    'step.done': 'Step {n} Selesai!', 'step.next': 'Step {n}', 'step.egg': '+1 telur!',
+    'step.done': 'Stage {n} Selesai!', 'step.next': 'Stage {n}', 'ov.first': 'Benar pertama', 'ov.eggs': 'Telur', 'ov.wrong': 'Salah', 'ov.unanswered': 'Belum terjawab', 'ov.lose': 'Telur Habis', 'ov.tap': 'Ketuk nomor soal',
     'res.win': 'Menang!', 'res.lose': 'Telur Dicuri', 'res.best': 'Rekor Baru!', 'res.stats': '✓ {c}   ✗ {w}   ×{k}',
     'res.hi': 'Rekor',
 
     // kejadian di arena (popup melayang)
-    'fx.wrong': 'Salah!', 'fx.curse': 'KUTUKAN!', 'fx.slow': 'Lambat!', 'fx.egg': '+1 telur', 'fx.swap': 'Tukar!', 'fx.shield': 'Perisai!',
-    'fx.stolen': 'Telur dicuri!', 'fx.twin': 'Api Ganda!', 'fx.freeze': 'Waktu Beku!', 'fx.changed': 'Soal berganti', 'fx.warn': 'Awas!', 'fx.frozen': 'Beku!', 'fx.twinready': 'Api Ganda siap!', 'fx.twin2': 'Api Ganda ×2', 'fx.c1': 'Hebat!', 'fx.c2': 'Mantap!', 'fx.c3': 'Luar biasa!', 'fx.boss': 'BOSS KALAH!', 'fx.stepdone': 'STEP SELESAI!',
-    'fb.curse': 'Jangan tembak kutukan!', 'fb.obst': 'Kena rintangan!', 'fb.obst2': 'Tunggu celah.', 'fb.hole': 'Bola sampai di sarang!', 'fb.hole2': 'Soal muncul lagi.', 'fb.time': 'Waktu habis!',
+    'fx.wrong': 'Salah!', 'fx.slow': 'Lambat!', 'fx.egg': '+1 telur',
+    'fx.stolen': 'Telur dicuri!', 'fx.changed': 'Soal berganti', 'fx.warn': 'Awas!', 'fx.frozen': 'Beku!', 'fx.c1': 'Hebat!', 'fx.c2': 'Mantap!', 'fx.c3': 'Luar biasa!', 'fx.boss': 'BOSS KALAH!', 'fx.stepdone': 'STAGE SELESAI!',
+    'fb.obst': 'Kena rintangan!', 'fb.obst2': 'Tunggu celah.', 'fb.hole': 'Bola sampai di sarang!', 'fb.hole2': 'Soal muncul lagi.', 'fb.time': 'Waktu habis!',
 
     // coachmark (muncul pertama kali saja)
     'cine.skip': 'Ketuk untuk lewati', 'coach.1': 'Geser untuk membidik', 'coach.2': 'Lepas untuk menembak', 'coach.3': 'Bidik bola jawaban',
 
     // cerita (dikecualikan dari lint): maksimal 5 panel, satu kalimat pendek
     'story.1.t': 'Penjaga Telur', 'story.1': '{dragonName} menjaga telur-telur naga.',
-    'story.2.t': 'Si Penyihir', 'story.2': '{wizardName} mengirim bola sihir untuk mencuri telur.',
+    'story.2.t': 'Si Penyihir', 'story.2': '{wizardName} mengirim bola sihir lewat tiga negeri.',
     'story.3.t': 'Telur Hilang!', 'story.3': 'Bola sihir menggulung ke sarang!',
     'story.4.t': 'Semburkan Api!', 'story.4': 'Tembak bola berisi jawaban yang benar.',
-    'story.win.t': 'Telur Selamat!', 'story.win': '{wizardName} kalah. Lembah aman kembali!',
+    'story.win.t': 'Telur Selamat!', 'story.win': '{wizardName} kalah. Tiga negeri aman!',
     'story.lose.t': 'Telur Dicuri', 'story.lose': '{dragonName} belum menyerah. Coba lagi!',
-    'story.s1': 'Penyihir menyelinap lewat hutan.', 'story.s2': 'Jejaknya menuju rawa berkabut.',
-    'story.s3': 'Jejaknya menuju gunung api.', 'story.s4': 'Es menjebak bidikan di gua kristal.', 'story.s5': 'Puncak menara. Selamatkan semua telur!'
+    'story.s1': 'Penyihir menyelinap lewat hutan.', 'story.s2': 'Jejaknya menuju gunung api dan gua kristal.', 'story.s3': 'Puncak menara. Selamatkan semua telur!'
   };
 
   function T(key, vars) {

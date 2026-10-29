@@ -26,11 +26,11 @@
   function deepFreeze(o) { Object.keys(o).forEach(function (k) { const v = o[k]; if (v && typeof v === 'object' && !Object.isFrozen(v)) deepFreeze(v); }); return Object.freeze(o); }
 
   class QuestionManager {
-    /** opts: { topics, total, seed, onChange(ev) }. Pembangkit dek dari GA.Questions.deck(topics, total, rng). */
+    /** opts: { topics, total, seed, format, onChange(ev) }. Pembangkit dek dari GA.Questions.deck(topics, total, rng, format) (format: result | missing | mixed). */
     constructor(opts) {
       this.seed = opts.seed >>> 0; this.onChange = opts.onChange || null;
       this._rng = prng(this.seed);
-      const raw = GA.Questions.deck(opts.topics, opts.total, this._rng);
+      const raw = GA.Questions.deck(opts.topics, opts.total, this._rng, opts.format);
       const answers = raw.map(function (q) { return q.answerText; });
       this.questions = Object.freeze(raw.map(function (q, i) {
         const o = {}; Object.keys(q).forEach(function (k) { if (k !== 'done') o[k] = q[k]; });
@@ -39,13 +39,18 @@
       }));
       this.order = Object.freeze(shuffle(this.questions.map(function (q) { return q.id; }), this._rng));
       this._state = this.questions.map(function () { return STATE.PENDING; });
+      this._stats = this.questions.map(function () { return { wrong: 0, vals: [] }; });
       this._queue = [];            // id yang belum selesai; elemen pertama = soal aktif
       this._cur = -1; this.serial = 0; this.started = false;
       this.log = []; this.violations = []; this.t = 0;
     }
 
-    /** Generator acak ber-seed milik step ini (untuk pembagian rantai Step 5 dsb.; JANGAN dipakai di loop update/render). */
+    /** Generator acak ber-seed milik stage ini (acak urutan bola dsb.; JANGAN dipakai di loop update/render). */
     rand() { return this._rng(); }
+
+    /** Catatan untuk overview jawaban: jumlah tembakan salah dan nilai yang salah ditembak. Hanya mencatat; tidak mengubah soal atau antrean. */
+    noteWrong(id, text) { const s = this._stats[id]; s.wrong++; if (s.vals.indexOf(text) < 0) s.vals.push(text); }
+    stats(id) { return this._stats[id]; }
 
     get active() { return this._cur >= 0 ? this.questions[this._cur] : null; }
     get activeId() { return this._cur; }

@@ -130,10 +130,9 @@
     ice: function () { tone(1400, 900, 0.25, 'sine', 0.2); tone(1800, 1200, 0.25, 'sine', 0.14, 0.05); },
     bolt: function () { tone(300, 1200, 0.18, 'sawtooth', 0.2); tone(1200, 300, 0.18, 'sawtooth', 0.14, 0.1); },
     thorn: function () { noise(0.16, 0.28, 0, 1400); tone(210, 90, 0.14, 'square', 0.14); },
-    curse: function () { noise(0.4, 0.4, 0, 600); tone(140, 45, 0.45, 'sawtooth', 0.26); tone(90, 40, 0.4, 'square', 0.12, 0.05); },
     frost: function () { tone(1500, 950, 0.25, 'sine', 0.2, 0, { wet: 0.25 }); tone(2000, 1300, 0.25, 'sine', 0.13, 0.05, { wet: 0.25 }); },
-    crystal: function () { tone(1320, 1760, 0.12, 'triangle', 0.2, 0, { wet: 0.3 }); tone(1760, 2200, 0.1, 'sine', 0.12, 0.05, { wet: 0.3 }); },
     shield: function () { tone(1800, 2700, 0.22, 'triangle', 0.12, 0, { wet: 0.4 }); noise(0.18, 0.13, 0, 6000, { type: 'highpass' }); tone(300, 200, 0.2, 'sine', 0.14); },
+    crystal: function () { tone(1320, 1760, 0.12, 'triangle', 0.2, 0, { wet: 0.3 }); tone(1760, 2200, 0.1, 'sine', 0.12, 0.05, { wet: 0.3 }); },
     warn: function () { tone(1000, 1000, 0.07, 'square', 0.1); tone(1000, 1000, 0.07, 'square', 0.1, 0.12); },
     /* ---- boss ---- */
     spell: function () { tone(220, 660, 0.35, 'sawtooth', 0.14, 0, { lp: 2600, wet: 0.2 }); tone(330, 990, 0.35, 'triangle', 0.12, 0.08, { wet: 0.2 }); noise(0.25, 0.14, 0, 2000); },
@@ -172,7 +171,6 @@
     hz_geyser: function () { noise(1.4, 0.3, 0, 500, { type: 'bandpass', q: 0.8, f1: 1700, att: 0.15, wet: 0.15 }); tone(90, 50, 0.4, 'sine', 0.3); },
     hz_hotrock: function () { tone(1500, 300, 0.45, 'sine', 0.1); tone(140, 55, 0.25, 'sine', 0.32, 0.42); noise(0.2, 0.3, 0.42, 800); },
     hz_stalactite: function () { noise(0.04, 0.28, 0, 6000, { type: 'highpass' }); tone(1900, 420, 0.22, 'triangle', 0.12, 0.02, { wet: 0.3 }); tone(900, 500, 0.12, 'sine', 0.1, 0.3, { wet: 0.4 }); },
-    hz_root: function () { tone(110, 190, 0.5, 'sawtooth', 0.1, 0, { lp: 420, vib: [9, 8] }); noise(0.12, 0.2, 0.3, 2800, { type: 'highpass' }); },
     hz_rune: function () { tone(2200, 180, 0.16, 'sawtooth', 0.14, 0, { lp: 4000 }); noise(0.1, 0.22, 0, 5000, { type: 'highpass', wet: 0.2 }); },
     hz_spore: function () { noise(0.4, 0.18, 0, 700, { type: 'lowpass', att: 0.04 }); tone(220, 180, 0.3, 'sine', 0.08, 0, { wet: 0.2 }); },
     hz_hands: function () { tone(120, 85, 1.4, 'sine', 0.14, 0, { att: 0.4, vib: [5, 6], wet: 0.4 }); noise(1.0, 0.07, 0.1, 1600, { type: 'bandpass', q: 3, f1: 800, att: 0.4, wet: 0.5 }); },
@@ -180,8 +178,6 @@
     /* ---- ambient: kejadian acak per zona (dibunyikan lewat bus ambient) ---- */
     amb_bird: function () { const b = rnd(2400, 3600), n = 2 + Math.floor(Math.random() * 3); for (let i = 0; i < n; i++) tone(b * rnd(0.95, 1.1), b * rnd(1.15, 1.45), 0.07, 'sine', 0.07, i * 0.09, { wet: 0.25 }); },
     amb_cricket: function () { for (let i = 0; i < 6; i++) tone(4200, 4200, 0.03, 'square', 0.015, i * 0.055, { lp: 5000 }); },
-    amb_frog: function () { const f = rnd(90, 130); tone(f, f * 0.7, 0.16, 'square', 0.07, 0, { lp: 500, vib: [34, 20] }); tone(f * 1.1, f * 0.75, 0.12, 'square', 0.06, 0.2, { lp: 500, vib: [34, 20] }); },
-    amb_bubble: function () { const f = rnd(300, 600); tone(f, f * 2.2, 0.09, 'sine', 0.07); },
     amb_crackle: function () { for (let i = 0; i < 5; i++) noise(0.03, rnd(0.05, 0.14), rnd(0, 0.5), 3500, { type: 'highpass' }); },
     amb_boom: function () { noise(1.6, 0.18, 0, 160, { type: 'lowpass', att: 0.4, wet: 0.4 }); tone(48, 36, 1.4, 'sine', 0.2, 0, { att: 0.3 }); },
     amb_chime: function () { const s = [880, 1047, 1319, 1568, 1760, 2093], f = s[Math.floor(Math.random() * s.length)]; tone(f, f, 1.4, 'sine', 0.05, 0, { wet: 0.7 }); tone(f * 2.01, f * 2.01, 0.8, 'sine', 0.02, 0, { wet: 0.7 }); },
@@ -199,7 +195,6 @@
   const AMB = {
     menu:    { bed: { type: 'bandpass', f: 600, q: 0.5, g: 0.035, lfo: 0.08 }, ev: [['amb_chime', 6, 12]] },
     forest:  { bed: { type: 'bandpass', f: 800, q: 0.4, g: 0.05, lfo: 0.12 }, ev: [['amb_bird', 3, 8], ['amb_cricket', 6, 12]] },
-    swamp:   { bed: { type: 'lowpass', f: 420, q: 0.5, g: 0.07, lfo: 0.07 }, ev: [['amb_frog', 2.5, 6], ['amb_bubble', 3, 7], ['amb_cricket', 8, 16]] },
     volcano: { bed: { type: 'lowpass', f: 170, q: 0.7, g: 0.12, lfo: 0.05 }, ev: [['amb_crackle', 1.6, 4], ['amb_boom', 9, 16]] },
     crystal: { bed: { type: 'bandpass', f: 1800, q: 2.5, g: 0.03, lfo: 0.08 }, ev: [['amb_chime', 3, 7], ['amb_drip', 2, 5]] },
     tower:   { bed: { type: 'bandpass', f: 320, q: 0.8, g: 0.08, lfo: 0.06 }, ev: [['amb_wind', 6, 12], ['amb_thunder', 12, 22], ['amb_whisper', 8, 16], ['amb_bell', 20, 35]] }
@@ -239,7 +234,6 @@
   const SONGS = {
     menu:    { bpm: 84,  wave: 'triangle', bass: 'sine',     perc: 0, chords: [[57, 60, 64], [53, 57, 60], [55, 59, 62], [52, 55, 59]] },
     forest:  { bpm: 100, wave: 'triangle', bass: 'sine',     perc: 0, chords: [[60, 64, 67], [57, 60, 64], [53, 57, 60], [55, 59, 62]] },
-    swamp:   { bpm: 86,  wave: 'sine',     bass: 'triangle', perc: 0, chords: [[57, 60, 64], [55, 59, 62], [53, 57, 60], [52, 55, 59]] },
     volcano: { bpm: 116, wave: 'sawtooth', bass: 'square',   perc: 1, chords: [[57, 60, 64], [56, 59, 63], [53, 56, 60], [52, 56, 59]] },
     crystal: { bpm: 92,  wave: 'sine',     bass: 'sine',     perc: 0, chords: [[62, 65, 69], [60, 64, 67], [58, 62, 65], [57, 60, 64]] },
     tower:   { bpm: 120, wave: 'square',   bass: 'sawtooth', perc: 1, chords: [[57, 60, 64], [55, 58, 62], [53, 56, 60], [56, 59, 63]] }
@@ -289,7 +283,7 @@
     isEnabled: function () { return enabled; },
     setMusic: function (v) { musicOn = !!v; if (musicOn && song && ctx) { nextT = ctx.currentTime + 0.05; } },
     isMusic: function () { return musicOn; },
-    /** Mulai musik untuk zona: menu | forest | swamp | volcano | crystal | tower (mengganti lagu bila beda). */
+    /** Mulai musik untuk zona: menu | forest | volcano | crystal | tower (mengganti lagu bila beda). */
     music: function (id) { if (id === songId && timer) return; startMusic(id); },
     stopMusic: function () { clearInterval(timer); timer = 0; song = null; songId = ''; },
     /** Intensitas musik 0..2 (boss: fase 1..3). */

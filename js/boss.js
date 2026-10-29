@@ -3,11 +3,12 @@
  * Untuk MENGGANTI boss: panggil GA.Bosses.register({...}) dengan id baru lalu isi `boss.id` di levels.js.
  * Definisi boss berisi:
  *   id, name, title        identitas
- *   phases[]               { name, speedMul, movers, mixed, questionTime, spells[], spellEvery, say }
- *                          (jumlah pukulan per fase diambil dari cfg.hits di levels.js)
+ *   phases[]               pola serangan { name, speedMul, movers (rintangan zona aktif), mixed, questionTime, spells[], spellEvery, say } dari ringan ke berat
  *   lines                  kalimat boss (hit, attack, defeat, spell)
  *   draw(ctx, b, t)        gambar boss (placeholder lewat kode; boleh diganti sprite via Theme)
- * Instance boss (`b`) punya: x, y, R, hp, maxHp, phase, hurt, attackT, castT, defeatT, dan metode hit()/attack()/tick().
+ * Darah boss PROPORSIONAL: 20 soal = 20 HP (tiap jawaban benar -1). Gameplay.BOSS_HP_BARS = 2: bar 1 habis di soal ke-10 dan memicu FASE 2
+ * (sinematik singkat, pola paling berat = gabungan fase 2+3 lama). BOSS_HP_BARS = 1: satu bar, pola meningkat bertahap (tanpa sinematik).
+ * Instance boss (`b`) punya: x, y, R, hp, maxHp, bars, tier, phase, hurt, attackT, castT, defeatT, dan metode hit()/attack()/tick().
  * Mantra ('fog' | 'frost' | 'swap') diumumkan lewat tick(); efeknya dijalankan main.js.
  */
 (function (GA) {
@@ -50,37 +51,44 @@
 
   /* ---------- instance boss ---------- */
   class Boss {
-    constructor(def, cfg, pos, R) {
+    /** total = jumlah soal (= HP), bars = 1 | 2 bar darah. */
+    constructor(def, cfg, pos, R, total, bars) {
       this.def = def; this.cfg = cfg;
       this.x = pos.x; this.y = pos.y; this.R = R;
-      const hits = cfg.hits || [3, 3, 3];
-      this.phases = def.phases.map(function (p, i) {
-        const q = Object.assign({}, p, { hits: hits[i] || 3 });
-        if (q.mixed && cfg.phase3Time) q.questionTime = cfg.phase3Time;
-        return q;
-      });
-      this.maxHp = this.phases.reduce(function (s, p) { return s + p.hits; }, 0);
-      this.hp = this.maxHp;
-      this.phaseIdx = 0; this.inPhase = 0;
+      this.total = total; this.maxHp = total; this.hp = total; this.answered = 0;
+      this.bars = bars === 1 ? 1 : 2;
+      const P = def.phases.map(function (p) { return Object.assign({}, p); }), tm = cfg.phaseTime || 0;
+      if (this.bars === 2) {
+        // fase 2 = gabungan pola fase 2 + fase 3 lama (spell lebih sering, soal berbatas waktu)
+        const last = Object.assign({}, P[2], { name: 'Fase 2 – Sihir Terkuat', questionTime: tm || P[2].questionTime });
+        this.tiers = [{ at: 0, p: P[0] }, { at: Math.round(total / 2), p: last }];
+      } else {
+        if (tm) P[2].questionTime = tm;
+        this.tiers = [{ at: 0, p: P[0] }, { at: Math.round(total * 0.35), p: P[1] }, { at: Math.round(total * 0.7), p: P[2] }];
+      }
+      this.tier = 0;
       this.hurt = 0; this.attackT = 0; this.castT = 0; this.laughT = 0; this.wrathT = 0; this.defeated = false; this.defeatT = 0;
       this.spellT = 0; this.spellQueue = [];
       this.speech = ''; this.speechT = 0;
-      this.say(this.phases[0].say, 3.2);
+      this.say(this.phase.say, 3.2);
     }
-    get phase() { return this.phases[this.phaseIdx]; }
-    get topics() { return this.phase.mixed ? this.cfg.mixedTopics : this.cfg.topics; }
+    get phase() { return this.tiers[this.tier].p; }
+    get phaseIdx() { return this.tier; }
     get name() { return this.def.name; }
+    /** Bar darah ke-i (0..bars-1): sisa 0..1. */
+    barFrac(i) { const per = this.total / this.bars, left = this.hp - (this.bars - 1 - i) * per; return this.defeated ? 0 : Math.max(0, Math.min(1, left / per)); }
     say(text, dur) { this.speech = text; this.speechT = dur || 2.2; }
     resetSpellTimer() { const p = this.phase; this.spellT = p.spellEvery ? p.spellEvery * 0.7 : 0; }
 
-    /** Jawaban benar: boss terluka. Hasil: 'hit' | 'phase' | 'defeat' */
+    /** Jawaban benar: boss terluka. Hasil: 'hit' | 'phase' (bar 1 habis: sinematik) | 'tier' (pola meningkat, tanpa sinematik) | 'defeat' */
     hit() {
-      this.hp--; this.inPhase++; this.hurt = 0.5;      // perisai berkedip
+      this.hp--; this.answered++; this.hurt = 0.5;      // perisai berkedip
       if (this.hp <= 0) { this.defeated = true; this.defeatT = 0; this.say(this.def.lines.defeat, 3.4); return 'defeat'; }
-      if (this.inPhase >= this.phase.hits) {
-        this.phaseIdx++; this.inPhase = 0; this.wrathT = 1.8; this.hurt = 0.6; this.attackT = 0; this.castT = 0;   // amarah (aura merah) saat pindah fase
+      let ti = this.tier; for (let i = 0; i < this.tiers.length; i++) if (this.answered >= this.tiers[i].at) ti = i;
+      if (ti !== this.tier) {
+        this.tier = ti; this.wrathT = 1.8; this.hurt = 0.6; this.attackT = 0; this.castT = 0;   // amarah (aura merah) saat pola berganti
         this.say(this.phase.say, 3.4); this.resetSpellTimer();
-        return 'phase';
+        return this.bars === 2 ? 'phase' : 'tier';
       }
       const l = this.def.lines.hit; this.say(l[Math.floor(Math.random() * l.length)], 1.4);
       return 'hit';
@@ -137,27 +145,24 @@
       lines.forEach(function (l, i) { ctx.fillText(l, x + w / 2, by + 9 + lh * (i + 0.5)); });
       ctx.globalAlpha = 1;
     }
-    /** Bar HP bersegmen per fase. cx,cy = tengah atas bar. */
+    /** Bar darah: 1 atau 2 bar tebal yang jelas (bar kedua = fase 2). cx,cy = tengah atas; compact = tipis (tanpa nama). */
     drawHP(ctx, cx, cy, w, compact) {
-      const h = compact ? 12 : 22, gap = compact ? 4 : 5, n = this.phases.length;
-      const sw = (w - gap * (n - 1)) / n;
+      const n = this.bars, h = compact ? 14 : 22, gap = 6, sw = (w - gap * (n - 1)) / n;
       let x = cx - w / 2;
       if (!compact) {
         ctx.font = '800 15px ' + Theme.fonts.ui; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
         ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(20,30,70,0.9)';
-        const label = this.def.name + ' — ' + (this.defeated ? 'Kalah!' : this.phase.name);
+        const label = this.def.name + (this.bars === 2 ? ' · ' + (this.defeated ? 'Kalah!' : (this.tier + 1) + '/2') : (this.defeated ? ' · Kalah!' : ''));
         ctx.strokeText(label, x, cy - 3); ctx.fillStyle = '#fff'; ctx.fillText(label, x, cy - 3);
       }
       for (let i = 0; i < n; i++) {
-        const p = this.phases[i];
-        const left = i < this.phaseIdx ? 0 : (i === this.phaseIdx ? p.hits - this.inPhase : p.hits);
-        const f = this.defeated ? 0 : left / p.hits;
-        ctx.fillStyle = 'rgba(20,30,70,0.85)'; GA.Path.roundRect(ctx, x, cy, sw, h, h / 2.4); ctx.fill();
+        const f = this.barFrac(i), cur = !this.defeated && i === this.tier;
+        ctx.fillStyle = 'rgba(20,30,70,0.88)'; GA.Path.roundRect(ctx, x, cy, sw, h, h / 2.4); ctx.fill();
         if (f > 0) {
-          const g = ctx.createLinearGradient(0, cy, 0, cy + h); g.addColorStop(0, '#d9a8ff'); g.addColorStop(1, '#7c3aed');
-          ctx.fillStyle = g; GA.Path.roundRect(ctx, x + 3, cy + 3, Math.max(10, (sw - 6) * f), h - 6, 7); ctx.fill();
+          const g = ctx.createLinearGradient(0, cy, 0, cy + h); g.addColorStop(0, i ? '#ff9ad0' : '#d9a8ff'); g.addColorStop(1, i ? '#d02a7a' : '#7c3aed');
+          ctx.fillStyle = g; GA.Path.roundRect(ctx, x + 3, cy + 3, Math.max(8, (sw - 6) * f), h - 6, 7); ctx.fill();
         }
-        ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; GA.Path.roundRect(ctx, x, cy, sw, h, 9); ctx.stroke();
+        ctx.lineWidth = cur ? 3.5 : 2.5; ctx.strokeStyle = cur ? '#ffe27a' : '#fff'; GA.Path.roundRect(ctx, x, cy, sw, h, h / 2.4); ctx.stroke();
         x += sw + gap;
       }
     }
@@ -167,9 +172,9 @@
     register: function (def) { registry[def.id] = def; },
     get: function (id) { return registry[id]; },
     drawFigure: drawFigure,
-    create: function (cfg, pos, R) {
+    create: function (cfg, pos, R, total, bars) {
       const def = registry[cfg.id] || registry.penyihir;
-      return new Boss(def, cfg, pos, R);
+      return new Boss(def, cfg, pos, R, total, bars);
     }
   };
 })(window.GA = window.GA || {});

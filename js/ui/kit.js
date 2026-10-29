@@ -9,7 +9,7 @@
  *   Kit.toggle({ act, label, icon, on, chip, sync })     sakelar (role=switch)
  *   Kit.segmented({ act, label, items:[{ id, label, icon, on, tone }] })     pilihan tunggal (role=radiogroup)
  *   Kit.progress({ value, max, kind, label })            bilah api / energi
- *   Kit.card({ kind:'cat'|'step', ... })                 kartu kategori (warna per kategori) & kartu step
+ *   Kit.card({ kind:'cat'|'step', ... })                 kartu kategori (warna per kategori) & kartu stage
  *   Kit.stars(n, total)   Kit.eggs(have, max)   Kit.resbar({ eggs, stars, score })
  *   Kit.tip(html, text)                                  tooltip (hover/fokus; di sentuh lewat fokus)
  * DOM (satu instans): Kit.toast(text, ms)   Kit.confirm({ title, text, yes, onYes })   Kit.coach(text, ms) */
@@ -104,7 +104,7 @@
       }
       // kartu step
       const cls = 'k-card k-step' + (o.locked ? ' locked' : '') + (o.done ? ' done' : '') + (o.cur ? ' cur' : '') + (o.boss ? ' boss' : '');
-      return '<li class="k-step-li"><button type="button" class="' + cls + '" data-act="' + o.act + '" data-i="' + o.i + '"' + (o.locked ? ' disabled aria-label="' + esc(T('steps.locked')) + '"' : '') + '>' +
+      return '<li class="k-step-li">' + (o.hasResult ? '<button type="button" class="k-resbtn" data-act="s-result" data-i="' + o.i + '" aria-label="' + esc(T('steps.result')) + '">' + I('list') + '</button>' : '') + '<button type="button" class="' + cls + '" data-act="' + o.act + '" data-i="' + o.i + '"' + (o.locked ? ' disabled aria-label="' + esc(T('steps.locked')) + '"' : '') + '>' +
         '<span class="k-num">' + (o.locked ? I('lock') : o.n) + '</span>' +
         '<span class="k-sbody"><span class="k-stag">' + esc(o.tag) + '</span><b class="k-sname">' + esc(o.name) + '</b>' +
         '<span class="k-smeta">' + I(o.icon, 'ic-inline') + ' ' + esc(o.meta) + '</span>' + Kit.stars(o.stars, 3) + (o.best ? '<span class="k-sbest">' + I('star', 'ic-inline') + ' ' + o.best + '</span>' : '') + '</span></button></li>';

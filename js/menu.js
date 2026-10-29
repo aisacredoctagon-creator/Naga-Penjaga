@@ -1,12 +1,11 @@
-/* menu.js — Main Menu (kategori + kesulitan) dan Pilih Step (peta petualangan 5 simpul). Dibangun dari UI kit (js/ui/kit.js).
- * Pilihan terakhir disimpan di localStorage (Storage.sel). Kategori & tabel kesulitan ada di questions.js, step di levels.js. */
+/* menu.js — Main Menu (kategori + kesulitan) dan Pilih Stage (peta petualangan 3 simpul). Dibangun dari UI kit (js/ui/kit.js).
+ * Pilihan terakhir disimpan di localStorage (Storage.sel). Kategori & tabel kesulitan ada di questions.js, stage di levels.js. */
 (function (GA) {
   'use strict';
   const Q = GA.Questions, Storage = GA.Storage, MT = GA.MathText, K = GA.Kit, T = GA.T;
 
   const I = function (n, c) { return GA.Icons.html(n, c); };
   const EXAMPLES = { add: '7 + 5', sub: '15 − 8', mul: '6 × 7', div: '48 ÷ 6', int: '(−4) + 9', frac: '1/2 + 1/4', dec: '0,5 + 1,2', mix: '✦' };
-  const NODE_ICO = ['dragon', 'wave', 'flame', 'snow', 'wizard'];
 
   let H = null, sel = null, active = 0;
 
@@ -28,12 +27,12 @@
   function catOf(i) { return sel.random ? null : Q.categoryById(sel.same ? sel.slots[0] : sel.slots[i]); }
 
   function renderMenu() {
-    const LV = GA.Levels, steps = LV.STEPS;
-    $('m-res').innerHTML = K.resbar({ eggs: LV.START_EGGS, stars: Storage.totalStars(), score: Storage.data.highScore });
+    const LV = GA.Levels, steps = LV.STAGES;
+    $('m-res').innerHTML = K.resbar({ eggs: GA.Gameplay.DEFAULTS.EGGS_MAX, stars: Storage.totalStars(), score: Storage.data.highScore });
     $('m-opts').innerHTML = K.toggle({ act: 'm-same', icon: 'mix', label: T('menu.same'), on: sel.same, chip: true }) + K.toggle({ act: 'm-random', icon: 'dice', label: T('menu.random'), on: sel.random, chip: true });
     // tab step hanya saat memilih per step
-    $('m-slots').innerHTML = (sel.same || sel.random) ? '' : K.segmented({ act: 'm-slot', label: T('common.step'), items: steps.map(function (s, i) {
-      return { id: i, label: i === steps.length - 1 ? T('common.boss') : String(i + 1), icon: NODE_ICO[i], on: i === active };
+    $('m-slots').innerHTML = (sel.same || sel.random) ? '' : K.segmented({ act: 'm-slot', label: T('common.stage'), items: steps.map(function (s, i) {
+      return { id: i, label: i === steps.length - 1 ? T('common.boss') : String(i + 1), icon: s.icon, on: i === active };
     }) });
     const cur = currentCat();
     $('m-cats').innerHTML = Q.CATEGORIES.map(function (c) {
@@ -43,11 +42,11 @@
   }
 
   function renderSteps() {
-    const LV = GA.Levels, steps = LV.STEPS, diff = sel.diff, p = Storage.prog(diff), open = Storage.unlocked(diff);
-    $('s-res').innerHTML = K.resbar({ eggs: LV.START_EGGS, stars: Storage.totalStars(), score: Storage.data.highScore });
+    const LV = GA.Levels, steps = LV.STAGES, diff = sel.diff, p = Storage.prog(diff), open = Storage.unlocked(diff);
+    $('s-res').innerHTML = K.resbar({ eggs: GA.Gameplay.DEFAULTS.EGGS_MAX, stars: Storage.totalStars(), score: Storage.data.highScore });
     $('s-map').innerHTML = steps.map(function (s, i) {
       const cat = catOf(i), locked = i >= open, cleared = p.stars[i] > 0;
-      return K.card({ kind: 'step', act: 's-go', i: i, n: i + 1, tag: s.boss ? T('common.boss') : T('common.step') + ' ' + (i + 1), name: s.place, icon: NODE_ICO[i],
+      return K.card({ kind: 'step', act: 's-go', i: i, n: i + 1, tag: s.boss ? T('common.stage') + ' ' + (i + 1) + ' · ' + T('common.boss') : T('common.stage') + ' ' + (i + 1), name: s.place, icon: s.icon, hasResult: !!Storage.lastResult(diff, i),
         meta: cat ? cat.name : T('menu.random'), stars: p.stars[i], best: p.best[i], locked: locked, done: cleared, cur: i === open - 1 && !cleared, boss: !!s.boss });
     }).join('');
   }
@@ -61,7 +60,7 @@
     open: function () { sel = Storage.sel; active = 0; renderMenu(); GA.UI.show('menu'); },
     openSteps: function () { renderSteps(); GA.UI.show('steps'); },
 
-    /** Pilihan saat ini: { slots:[5], same, random, diff } */
+    /** Pilihan saat ini: { slots:[3], same, random, diff } */
     selection: function () { return { slots: sel.slots.slice(), same: sel.same, random: sel.random, diff: sel.diff }; },
 
     act: function (a, b) {
@@ -75,6 +74,7 @@
         case 'm-start': Storage.sel = sel; Menu.openSteps(); return;
         case 's-back': Menu.open(); return;
         case 's-go': H.start(Menu.selection(), +b.dataset.i); return;
+        case 's-result': H.openResult(sel.diff, +b.dataset.i); return;
       }
     }
   };

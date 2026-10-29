@@ -10,14 +10,14 @@
   const TAU = Math.PI * 2;
   const E = { L: null, path: null, R: 0, map: null, ext: null, info: null, flies: [], ripples: [], quality: 2, bird: null, birdT: 12 };
   function mkPortal() { return { x: 0, y: 0, a: 0, d: 0, has: false, open: 0, target: 0, pulse: 0, col: null, parts: [], spawn: 0, rip: [], bolts: [], rot: 0, flash: 0 }; }
-  const PS = [mkPortal(), mkPortal()];     // portal utama + portal kedua (Step 5 punya dua sarang)
+  const PS = [mkPortal()];     // satu portal (tempat bola sihir muncul)
 
   /** Warna portal per tema: [terang, tengah, gelap, inti]. */
   const PORTAL_COL = {
     forest: ['#e4ccff', '#9a62f0', '#2c1170', '#ffffff'], menu: ['#d4e0ff', '#7a8cf0', '#1c2070', '#ffffff'],
     volcano: ['#ffc4ec', '#d044b4', '#4a0a50', '#fff0fa'], grove: ['#d8ccff', '#8a6af0', '#241070', '#ffffff'], crystal: ['#cfe6ff', '#5aa0ff', '#14286a', '#ffffff'], tower2: ['#ffb0c8', '#a02aa0', '#2a0640', '#ffd0d8'], tower: ['#c9a0ff', '#6a2ad0', '#12053a', '#ff6a8a']
   };
-  ['bloom', 'swamp', 'swampDusk', 'coast'].forEach(function (k) { PORTAL_COL[k] = PORTAL_COL[k] || PORTAL_COL.grove; });
+  PORTAL_COL.bloom = PORTAL_COL.bloom || PORTAL_COL.grove;
   ['ashfield', 'magma'].forEach(function (k) { PORTAL_COL[k] = PORTAL_COL.volcano; });
   ['iceCave', 'amethyst'].forEach(function (k) { PORTAL_COL[k] = PORTAL_COL.crystal; });
   PORTAL_COL.library = PORTAL_COL.tower2;
@@ -132,12 +132,10 @@
 
   function setPath(L, path, R, sceneId) {
     E.L = L; E.path = path; E.R = R;
-    [path, path ? path.second : null].forEach(function (pa, i) {
-      const P = PS[i], p = pa ? entry(L, pa, R) : null;
-      P.has = !!p; if (p) { P.x = p.x; P.y = p.y; P.a = p.a; P.d = p.d; }
-      P.col = PORTAL_COL[sceneId] || PORTAL_COL.forest;
-      if (!p) { P.open = 0; P.target = 0; }
-    });
+    const P = PS[0], p = path ? entry(L, path, R) : null;
+    P.has = !!p; if (p) { P.x = p.x; P.y = p.y; P.a = p.a; P.d = p.d; }
+    P.col = PORTAL_COL[sceneId] || PORTAL_COL.forest;
+    if (!p) { P.open = 0; P.target = 0; }
   }
 
   function build(L, path, R, map, ext, info, lights) {
@@ -343,13 +341,13 @@
     setQuality: function (q) { E.quality = q; this.quality = q; if (GA.Birds) GA.Birds.setQuality(q); },
     /** Burung (tampak atas, di bawah bola): update + gambar. Dipanggil dari main sebelum rantai. */
     drawBirds: function (ctx, t, dt) { if (GA.Birds) { GA.Birds.update(dt, t); GA.Birds.draw(ctx, t); } },
-    entryD: function (i) { const P = PS[i || 0]; return P.has ? P.d : 0; },
-    portalPos: function (i) { const P = PS[i || 0]; return P.has ? { x: P.x, y: P.y, a: P.a } : null; },
+    entryD: function () { const P = PS[0]; return P.has ? P.d : 0; },
+    portalPos: function () { const P = PS[0]; return P.has ? { x: P.x, y: P.y, a: P.a } : null; },
     /** Kendali portal: reset(open) mengatur keadaan awal; open()/close() animasi; pulse() saat bola keluar. */
     resetPortal: function (open) { PS.forEach(function (P) { P.open = open && P.has ? 1 : 0; P.target = open && P.has ? 1 : 0; P.pulse = 0; P.flash = 0; P.parts.length = 0; }); },
     openPortal: function () { PS.forEach(function (P) { if (P.has) { P.target = 1; P.flash = 0.9; } }); },
     closePortal: function () { PS.forEach(function (P) { P.target = 0; P.flash = 0.6; }); },
-    pulse: function (s, i) { const P = PS[i || 0]; P.pulse = Math.min(1.2, P.pulse + (s || 0.7)); },
+    pulse: function (s) { const P = PS[0]; P.pulse = Math.min(1.2, P.pulse + (s || 0.7)); },
     drawPortal: drawPortal,
     /** Efek di bawah rantai (ruang logis): kolam, kabut, berkas cahaya. */
     drawUnder: function (ctx, t, dt) { drawPond(ctx, t, dt); drawMist(ctx, t); drawShafts(ctx, t); drawLights(ctx, t); },

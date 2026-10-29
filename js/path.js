@@ -145,12 +145,7 @@
     path.boss = pr.boss ? (function () { const b = map(pr.boss); return { x: b[0], y: b[1] }; })() : null;
     path.presetId = presetId; path.play = pl;
     path.ctrl = pr.pts.map(map);
-    const out = GA.Paths && def ? GA.Paths.refine(path, R, layout, def) : path;
-    if (pr.pts2 && GA.Paths && def) {      // jalur kedua (dua sarang)
-      const p2 = new Path(pr.pts2.map(map)); p2.shooter = out.shooter; p2.boss = out.boss; p2.presetId = presetId + ':2'; p2.play = pl; p2.ctrl = pr.pts2.map(map);
-      out.second = GA.Paths.refine(p2, R, layout, def); GA.Paths.crossCheck(out, R);
-    }
-    return out;
+    return GA.Paths && def ? GA.Paths.refine(path, R, layout, def) : path;
   }
 
   /* ---------- gambar alur, lubang, START & FINISH ---------- */

@@ -63,18 +63,18 @@
     lays.forEach(function (L) { L.ballR = R; L.pad = R + 18; });
     GA.Paths.ids.forEach(function (id) {
       lays.forEach(function (L) {
-        const p = GA.Path.forLayout(id, L, R), reps = [p.report].concat(p.second ? [p.second.report] : []);
+        const p = GA.Path.forLayout(id, L, R), reps = [p.report];
         reps.forEach(function (rep, k) { if (rep && !rep.ok) bad.push(id + (L.portrait ? '/P' : '/L') + (k ? '#2' : '') + ': ' + rep.issues.map(function (i) { return i.msg; }).join('; ')); });
-        if (!p.second) ratio.push(p.length / Math.hypot(L.play.w, L.play.h));
+        ratio.push(p.length / Math.hypot(L.play.w, L.play.h));
       });
     });
     });
-    ok('jalur: semua arketipe valid (landscape + portrait, termasuk dua-sarang)', bad.length === 0, GA.Paths.ids.length + ' arketipe' + (bad.length ? '; gagal: ' + bad.slice(0, 3).join(' | ') : '') + '; panjang / diagonal: ' + Math.min.apply(null, ratio).toFixed(1) + '–' + Math.max.apply(null, ratio).toFixed(1) + '×');
+    ok('jalur: semua arketipe valid (landscape + portrait)', bad.length === 0, GA.Paths.ids.length + ' arketipe' + (bad.length ? '; gagal: ' + bad.slice(0, 3).join(' | ') : '') + '; panjang / diagonal: ' + Math.min.apply(null, ratio).toFixed(1) + '–' + Math.max.apply(null, ratio).toFixed(1) + '×');
     const LV = GA.Levels; let pool = true, info = [];
-    LV.POOL.forEach(function (p, i) { const okp = p.paths.length >= 3 && p.maps.length >= 3 && p.paths.every(function (x) { return GA.Paths.has(x); }) && p.maps.every(function (m) { return !!GA.Maps[m] && !!GA.Theme.scenes[m]; }); if (!okp) { pool = false; info.push('step ' + (i + 1)); } });
-    ok('tiap step punya >= 3 arketipe jalur dan >= 3 peta berbeda', pool, info.join(','));
+    LV.STAGES.map(function (s) { return s.pool; }).forEach(function (p, i) { const okp = p.paths.length >= 3 && p.maps.length >= 3 && p.paths.every(function (x) { return GA.Paths.has(x); }) && p.maps.every(function (m) { return !!GA.Maps[m] && !!GA.Theme.scenes[m]; }); if (!okp) { pool = false; info.push('step ' + (i + 1)); } });
+    ok('tiap stage punya >= 3 arketipe jalur dan >= 3 peta berbeda', pool, info.join(','));
     const tiers = LV.HAZ_TIERS.map(function (_, i) { return LV.hazFor(i, 0.6).length; });
-    ok('rintangan zona bertambah kumulatif per step', tiers.every(function (n, i) { return i === 0 || n > tiers[i - 1]; }), 'jenis per step: ' + tiers.join(', '));
+    ok('rintangan zona bertambah kumulatif per stage', tiers.every(function (n, i) { return i === 0 || n > tiers[i - 1]; }), 'jenis per stage: ' + tiers.join(', '));
   }
 
   function testStorage() {
@@ -87,8 +87,8 @@
 
   /** Bot sempurna: menjawab soal aktif dengan menembak bola targetnya (hanya bila garis tembak terbuka). */
   async function simStep(step, diff) {
-    const G = GA.game, LV = GA.Levels, tag = 'step ' + (step + 1) + '/' + diff;
-    const sel = { slots: ['add', 'sub', 'mul', 'div', 'int'], same: false, random: false, diff: diff };
+    const G = GA.game, LV = GA.Levels, tag = 'stage ' + (step + 1) + '/' + diff;
+    const sel = { slots: ['add', 'sub', 'mul'], same: false, random: false, diff: diff };
     G.startAdventure(sel, true, step);
     G.handlers.introGo();
     for (let i = 0; i < 60 && G.state !== 'playing'; i++) await sleep(150);
@@ -112,15 +112,14 @@
       if (!ab) continue;
       const open = G.openLine(ab); if (!open) st.blocked++;
       let m = sh.muzzle({ x: 0, y: 0 }), want = Math.atan2(ab.y - m.y, ab.x - m.x);
-      for (let it = 0; it < 3; it++) { sh.setAngle(want - sh.off); m = sh.muzzle({ x: 0, y: 0 }); want = Math.atan2(ab.y - m.y, ab.x - m.x); }      // mulut naga bergeser saat memutar: bidik berulang sampai konvergen
-      sh.setAngle(want - sh.off);
+      for (let it = 0; it < 3; it++) { sh.setAngle(want); m = sh.muzzle({ x: 0, y: 0 }); want = Math.atan2(ab.y - m.y, ab.x - m.x); }      // mulut naga bergeser saat memutar: bidik berulang sampai konvergen
+      sh.setAngle(want);
       let clear = open;
       if (clear && r.haz.blocksLine(m.x, m.y, ab.x, ab.y, Math.hypot(ab.x - m.x, ab.y - m.y) / GA.Shooter.Bullets.speed + 0.15)) clear = false;   // tunggu rintangan zona selesai (ray test prediktif)
-      if (clear && r.obst.predictedHit(m.x, m.y, ab.x, ab.y, GA.Shooter.Bullets.speed, GA.Shooter.Bullets.rObs * 0.55 + 8)) clear = false;   // tunggu lava/petir lewat (ray test prediktif)
       if (clear) for (let k = 0; k < r.haz.list.length; k++) { const e = r.haz.list[k]; if (e.mech === 'deflect' && segDist(e.x, e.y, m.x, m.y, ab.x, ab.y) < e.r + 24) { clear = false; break; } }   // ombak membelokkan api: bot sempurna menunggu (rantai rapat: peluru yang melenceng mengenai bola tetangga)
       if (clear && think <= 0 && sh.canFire() && !G.anySettling()) {
         { const B = GA.Shooter.Bullets, m2 = sh.muzzle({ x: 0, y: 0 }), ux = Math.cos(sh.aim), uy = Math.sin(sh.aim); let px = m2.x, py = m2.y, pred = null;   // diagnostik: bola pertama yang akan kena
-          for (let s = 0; s < 120 && !pred; s++) { px += ux * 9; py += uy * 9; for (let k = 0; k < r.chains.length && !pred; k++) pred = r.chains[k].hit(px, py, B.r); }
+          for (let s = 0; s < 120 && !pred; s++) { px += ux * 9; py += uy * 9; pred = r.chain.hit(px, py, B.r); }
           lastFire = { t: st.t.toFixed(0), path: r.cfg.pathId, tgt: ab.ch.balls.indexOf(ab), hit: pred ? pred.ch.balls.indexOf(pred) : -1, aim: ((Math.atan2(ab.y - m2.y, ab.x - m2.x) - sh.aim) * Math.hypot(ab.x - m2.x, ab.y - m2.y)).toFixed(0) + 'px', haz: r.haz.list.map(function (e) { return e.kind + ':' + e.mech; }).join(',') }; }
         if (lastFire.hit >= 0 && lastFire.hit !== lastFire.tgt && (st.mis = (st.mis || 0) + dt) < 2.5) { /* bola lain akan kena lebih dulu: tunggu rantai bergeser */ } else { st.mis = 0; G.fire(); think = 1.6; } }
       if (r.wrong > wrongSeen) { wrongSeen = r.wrong; if (wrongInfo.length < 3) wrongInfo.push(JSON.stringify(lastFire)); }
@@ -129,31 +128,11 @@
     const hs = G.run.haz.stats, r = G.run, done = r.qm.solvedCount();
     const finished = done === 20 && r.correct === 20;
     ok('sim ' + tag + ': 20/20 soal selesai tanpa macet', finished, 'benar ' + r.correct + ', selesai ' + done + ', waktu sim ' + st.t.toFixed(0) + ' dtk, telur ' + r.lives + ', salah ' + r.wrong + ', tunggu-tanpa-soal ' + (st.noQ / st.t * 100).toFixed(0) + '%, jeda terpanjang antar-jawaban ' + maxStuck.toFixed(0) + ' dtk' + (wrongInfo.length ? '; salah pertama: ' + wrongInfo.join(' ') : ''));
-    if (r.boss) ok('sim ' + tag + ': boss kalah, fase naik di jawaban ke-7 dan ke-14', r.boss.defeated && r.boss.phaseIdx === 2 && r.boss.hp <= 0, 'fase ' + (r.boss.phaseIdx + 1) + ', hp ' + r.boss.hp);
+    if (r.boss) ok('sim ' + tag + ': boss kalah, pola/fase naik sesuai jumlah bar (BOSS_HP_BARS)', r.boss.defeated && r.boss.tier === r.boss.tiers.length - 1 && r.boss.hp <= 0, 'pola ' + (r.boss.phaseIdx + 1) + ', hp ' + r.boss.hp);
     ok('sim ' + tag + ': selalu ada target terjangkau', st.none / st.frames < 0.35 && maxNoOpen < 4.5, 'bingkai tanpa jalur terbuka ' + (st.none / st.frames * 100).toFixed(1) + '%, terlama ' + maxNoOpen.toFixed(1) + ' dtk, aktif terhalang ' + (st.blocked / st.frames * 100).toFixed(1) + '%');
     ok('sim ' + tag + ': durasi masuk akal (1-8 menit untuk bot cepat)', st.t > 60 && st.t < 480, st.t.toFixed(0) + ' dtk');
     ok('sim ' + tag + ': rintangan zona adil (peringatan >= 1 dtk, busur <= 30%)', hs.minWarn >= 1.0 && hs.maxCover <= 0.3001, 'muncul ' + hs.spawned + ' (' + Object.keys(hs.byKind).join(',') + '), ditolak ' + hs.rejected + ', busur maks ' + (hs.maxCover * 100).toFixed(0) + '%, peringatan min ' + hs.minWarn + ' dtk');
     G.handlers.quit();
-  }
-
-  /** Ray test rintangan statis: lintasan mulut naga (semua sudut bidik) tidak boleh bertabrakan dengan rintangan saat peluru keluar. */
-  function testMuzzleClear() {
-    const G = GA.game, LV = GA.Levels, B = GA.Shooter.Bullets; let bad = 0, n = 0, worst = '';
-    const sel = { slots: ['add', 'add', 'add', 'add', 'add'], same: true, random: false, diff: 'sulit' };
-    for (let s = 0; s < LV.count; s++) {
-      LV.POOL[s].paths.forEach(function (p) {
-        G.startAdventure(sel, true, s); G.adv.picks[s].path = p; G.startStep(s, false);
-        const r = G.run, sh = r.shooter, m = { x: 0, y: 0 }; n++;
-        const save = sh.angle, al = r.obst.alpha; r.obst.alpha = 0;      // hanya rintangan statis (yang bergerak bersifat sementara)
-        for (let a = 0; a < 360; a += 4) {
-          sh.setAngle(a * Math.PI / 180); sh.muzzle(m);
-          if (r.obst.collide(m.x, m.y, B.rObs) || r.obst.crystalHit(m.x, m.y, B.rObs)) { bad++; worst = 'step ' + (s + 1) + '/' + p + ' sudut ' + a; break; }
-        }
-        sh.setAngle(save); r.obst.alpha = al;
-        G.handlers.quit();
-      });
-    }
-    ok('rintangan statis tidak menimpa lintasan mulut naga (semua jalur x step)', bad === 0, n + ' layout diuji' + (worst ? ', gagal: ' + worst : ''));
   }
 
   /** Bola target lolos ke sarang: soalnya harus keluar lagi dari portal, progres jawaban benar tetap. */
@@ -172,27 +151,31 @@
     G.handlers.quit();
   }
 
-  /** Step 5: dua portal, dua rantai, dua sarang; 20 soal terbagi dua; salah satu sarang kosong = kalah. */
-  async function testDual() {
-    const G = GA.game, sel = { slots: ['add', 'add', 'add', 'add', 'add'], same: true, random: false, diff: 'mudah' };
-    G.startAdventure(sel, true, 4); G.handlers.introGo();
+  /** Tiga stage, telur 3/3 (refresh tiap stage + Ulangi), WRONG_ANSWERS_PER_EGG, batas telur 0..3, satu portal/sarang/rantai, tanpa buff/nerf/kutukan. */
+  async function testStages() {
+    const G = GA.game, LV = GA.Levels, GP = GA.Gameplay.DEFAULTS, sel = { slots: ['add', 'sub', 'mul'], same: false, random: false, diff: 'sedang' };
+    ok('3 stage: Stage 3 = boss, tiap stage 20 soal, format hasil/hilang/gabungan', LV.count === 3 && LV.STAGES[2].boss && LV.STAGES.map(function (s) { return s.format; }).join() === 'result,missing,mixed' && LV.TOTAL_Q === 20);
+    ok('rintangan serentak maks. 2/3/4 dan jenis kumulatif', GA.Gameplay.HAZ_MAX.join() === '2,3,4' && LV.hazFor(0, 0.6).length === 2 && LV.hazFor(1, 0.6).length === 4 && LV.hazFor(2, 0.6).length > 4);
+    G.startAdventure(sel, true, 0); G.handlers.introGo();
     for (let i = 0; i < 60 && G.state !== 'playing'; i++) await sleep(150);
-    const r = G.run, ids = {}, per = [0, 0];
-    r.chains.forEach(function (c, i) { c.spawnQ.concat(c.balls).forEach(function (s) { if (s.kind === 'num') { ids[s.qid] = (ids[s.qid] || 0) + 1; per[i]++; } }); });
-    ok('Step 5: dua rantai, dua sarang masing-masing 3 telur', r.chains.length === 2 && !!r.nest && r.nest[0] === 3 && r.nest[1] === 3 && !!r.path.second && r.lives === 6);
-    ok('Step 5: 20 soal unik terbagi dua rantai', Object.keys(ids).length === 20 && per[0] === 10 && per[1] === 10, 'rantai: ' + per.join('+'));
-    const eaten = [];
-    for (let k = 0; k < 3; k++) {
-      const c = r.chains[1];
-      for (let i = 0; i < 4000 && !c.balls.some(function (b) { return b.kind === 'num'; }); i++) { G.tick(1 / 30, true); }
-      const target = c.balls.find(function (b) { return b.kind === 'num'; }); if (!target) break;
-      c.balls.forEach(function (b) { if (b !== target) b.d = Math.min(b.d, target.d - 1); });
-      target.d = c.path.length;
-      for (let i = 0; i < 40; i++) G.tick(1 / 30, true);
-      eaten.push(r.nest[0] + '/' + r.nest[1] + ':' + G.state);
-    }
-    ok('Step 5: bola lolos hanya memecah telur di sarangnya; sarang kosong = kalah', r.nest[0] === 3 && r.nest[1] === 0 && G.state === 'dying', eaten.join(' '));
+    let r = G.run;
+    ok('telur 3/3 di awal stage; satu rantai, satu sarang, tanpa buff/nerf', r.lives === 3 && r.maxLives === 3 && !!r.chain && !r.chains && !r.nest && !r.fx && !r.cfg.buff && !r.cfg.nerf);
+    G.loseEgg('uji'); G.loseEgg('uji'); const after2 = r.lives; G.healEgg(); G.healEgg(); G.healEgg(); const healed = r.lives;
+    ok('telur tidak pernah > 3 (telur emas) atau < 0', after2 === 1 && healed === 3, after2 + ' lalu ' + healed);
     G.handlers.quit();
+    G.startAdventure(sel, true, 0); G.handlers.introGo(); for (let i = 0; i < 60 && G.state !== 'playing'; i++) await sleep(150);
+    r = G.run; G.loseEgg('uji');
+    const lost = r.lives; G.handlers.restart(); for (let i = 0; i < 60 && G.state !== 'playing'; i++) await sleep(150);
+    ok('Ulangi: telur kembali 3/3 dan soal baru (percobaan 2)', lost === 2 && G.run.lives === 3 && G.run.attempt === 2, 'telur ' + lost + '→' + G.run.lives);
+    G.handlers.quit();
+  }
+
+  /** Migrasi simpanan lama (5 step, kunci hilang/rusak) tidak crash dan dipotong ke 3 stage. */
+  function testMigrate() {
+    const M = GA.Storage.migrate, legacy = { sel: { slots: ['add', 'sub', 'mul', 'div', 'int'], same: false, diff: 'sulit' }, prog: { sedang: { stars: [3, 2, 1, 3, 3], best: [100, 200, 300, 400, 500] } }, highScore: 999, introSeen: true };
+    let threw = false, a, b, c, d;
+    try { a = M(legacy); b = M(null); c = M({ sel: 7, prog: [1], highScore: 'x', last: 5, settings: 3 }); d = M(JSON.parse('{"v":1,"prog":{"mudah":{"stars":null}}}')); } catch (e) { threw = true; }
+    ok('migrasi simpanan lama: dipotong ke 3 stage, kunci rusak/hilang aman', !threw && a.v === 2 && a.sel.slots.length === 3 && a.prog.sedang.stars.join() === '3,2,1' && a.prog.sedang.best.length === 3 && a.highScore === 999 && a.introSeen === true && b.sel === null && c.highScore === 0 && d.prog.mudah.stars.join() === '0,0,0', threw ? 'melempar galat' : 'v' + a.v + ' ' + a.prog.sedang.stars.join('/'));
   }
 
   /** Audio: semua suara berbunyi tanpa galat; tiap jenis rintangan, mekanik, dan zona punya suara/ambient/musik. */
@@ -214,10 +197,9 @@
 
 
     const t0 = performance.now();
-    testDecks(); testWaves(); testStorage(); testStrings(); testContrast(); testPaths();
-    testMuzzleClear();
+    testDecks(); testWaves(); testStorage(); testMigrate(); testStrings(); testContrast(); testPaths();
+    await testStages();
     await testSteal();
-    await testDual();
     await testAudio();
     for (let i = 0; i < 40 && !GA.Sim; i++) await sleep(50);
     if (GA.Sim) {      // simulasi kerapatan rantai (js/dev/chainsim.js; juga ?debug=sim)
@@ -231,7 +213,7 @@
       GA.QSim.results.forEach(function (line) { if (line.indexOf('---') !== 0) results.push(line); });
       fails += GA.QSim.fails;
     }
-    const plan = [[0, 'mudah'], [1, 'sedang'], [2, 'sulit'], [3, 'sedang'], [4, 'sedang'], [0, 'sulit']];
+    const plan = [[0, 'mudah'], [1, 'sedang'], [2, 'sulit'], [2, 'sedang'], [0, 'sulit'], [1, 'mudah']];
     for (const p of plan) { try { await simStep(p[0], p[1]); } catch (e) { ok('sim step ' + (p[0] + 1) + '/' + p[1], false, 'error: ' + e.message); } }
     results.push('--- ' + (fails ? fails + ' GAGAL' : 'SEMUA LULUS') + ' (' + ((performance.now() - t0) / 1000).toFixed(1) + ' dtk)');
     GA.Tests.done = true;

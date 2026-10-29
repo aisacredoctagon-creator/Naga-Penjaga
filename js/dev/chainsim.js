@@ -27,7 +27,7 @@
   function mkChain(path, R, gp, n) {
     const c = new GA.Chain.Chain(path, { r: R, gp: gp });
     c.entryD = c.unit * 2.6;      // titik portal ±2,6 diameter dari awal jalur (nilai nyata: 172 px di R=32)
-    c.setQueue(specs(n, ['curse', 'frost', 'egg']));
+    c.setQueue(specs(n, ['frost', 'egg', 'frost']));
     return c;
   }
 
@@ -71,7 +71,7 @@
       if (now > nextIns) {
         nextIns = now + 5 + r() * 5;
         const k = 2 + Math.floor(r() * Math.max(1, c.balls.filter(function (b) { return c.visible(b); }).length - 2));
-        if (c.balls.length > 3) { c.insert(Math.min(k, c.balls.length), { kind: 'curse' }); st.inserted++; }
+        if (c.balls.length > 3) { c.insert(Math.min(k, c.balls.length), { kind: 'frost' }); st.inserted++; }
       }
       if (c.holeReached()) { const f = c.balls[0]; c.remove(f); st.nest++; c.retreat(10 * c.unit); }      // bola lolos (jarang): rantai mundur
       monitor(c, st, now);
@@ -98,11 +98,11 @@
       for (const Lay of LAYS) {
         for (const R of Rs) {
           const L = { portrait: Lay.portrait, W: Lay.W, H: Lay.H, play: Lay.play, ballR: R, pad: R + 18 };
-          const p0 = GA.Path.forLayout(id, L, R), paths = [p0].concat(p0.second ? [p0.second] : []);
+          const p0 = GA.Path.forLayout(id, L, R), paths = [p0];
           for (let pi = 0; pi < paths.length; pi++) {
             const path = paths[pi], tag = id + '/' + Lay.name + '/R' + R + (pi ? '#2' : '');
             for (let di = 0; di < diffs.length; di++) {
-              const diff = diffs[di], step = id.indexOf('dual') === 0 ? 4 : 0;
+              const diff = diffs[di];
               const st = play(path, R, diff, 1000 + n * 7 + di, 45); n++;
               minQ = Math.min(minQ, st.min); maxQ = Math.max(maxQ, st.max); sMin = Math.min(sMin, st.sMin); sMax = Math.max(sMax, st.sMax);
               if (st.maxBadT > worst.t) worst = { t: st.maxBadT, id: tag + '/' + diff };
@@ -171,7 +171,7 @@
     ok('dua bola hancur berdekatan (celah 1 + 1 bola): semua celah menutup < 400 ms', tClose2 <= MAX_BAD, (tClose2 * 1000).toFixed(0) + ' ms');
     // sisip
     const k = Math.max(2, Math.floor(c.balls.filter(function (b) { return c.visible(b); }).length / 2)), nBefore = c.balls.length;
-    const nb = c.insert(k, { kind: 'curse' });
+    const nb = c.insert(k, { kind: 'frost' });
     let maxStep = 0, prevPos = c.balls.map(function (b) { return b.d + b.vo; }), tIns = 0, tShift = -1;
     for (; tIns < 1; tIns += 1 / 120) {
       c.update(1 / 120);

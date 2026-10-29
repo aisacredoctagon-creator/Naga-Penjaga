@@ -12,7 +12,7 @@
     gull:  { size: 15, body: '#f4f4f0', wing: '#d8dce0', tip: '#2a2a32', head: '#f4f4f0', beak: '#f0a030', flap: 7, glide: 0.55, feathers: true },
     bat:   { size: 12, body: '#2a1c30', wing: '#3a2842', tip: '#1a1022', head: '#2a1c30', beak: '#2a1c30', flap: 11, glide: 0.2, feathers: false }
   };
-  const BY_SCENE = { forest: ['crow', 'crow', 'eagle'], grove: ['crow', 'crow', 'eagle'], bloom: ['crow', 'eagle'], menu: ['crow'], swamp: ['gull'], swampDusk: ['bat', 'gull'], coast: ['gull'], crystal: ['bat'], iceCave: ['bat'], amethyst: ['bat'], tower: ['bat'], tower2: ['bat'], library: ['bat'], volcano: ['bat'], ashfield: ['bat'], magma: ['bat'] };
+  const BY_SCENE = { forest: ['crow', 'crow', 'eagle'], grove: ['crow', 'crow', 'eagle'], bloom: ['crow', 'eagle'], menu: ['crow'], crystal: ['bat'], iceCave: ['bat'], amethyst: ['bat'], tower: ['bat'], tower2: ['bat'], library: ['bat'], volcano: ['bat'], ashfield: ['bat'], magma: ['bat'] };
 
   const B = { ext: null, kinds: [], on: false, q: 2, flocks: [], next: 6, perched: 0 };
 

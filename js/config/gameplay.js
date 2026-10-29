@@ -6,7 +6,7 @@
  * Tiga lapis nilai (yang belakangan menang):
  *   DEFAULTS            nilai dasar semua kesulitan & step
  *   PER_DIFF[diff]      nilai khusus kesulitan (mudah / sedang / sulit)
- *   STEP_SPEED_MULT[n]  pengali CHAIN_BASE_SPEED per step (Step 5 = dua rantai pendek, jadi lebih pelan)
+ *   STAGE_SPEED_MULT[n] pengali CHAIN_BASE_SPEED per stage (Stage 3 = jalur boss pendek, lebih pelan)
  *   overrides           dari panel ?debug=tune (hanya aktif dengan parameter itu; tidak pernah tampil ke pemain biasa)
  *
  * resolve(diff, step) -> objek datar { CHAIN_BASE_SPEED, ... } yang dipegang `run.gp`; Chain membacanya tiap frame,
@@ -17,7 +17,7 @@
 
   const DEFAULTS = {
     /* --- kecepatan rantai (diameter/detik) --- */
-    CHAIN_BASE_SPEED: 0.2,          // kecepatan normal bola terdepan (diisi ulang dari PER_DIFF x STEP_SPEED_MULT)
+    CHAIN_BASE_SPEED: 0.2,          // kecepatan normal bola terdepan (diisi ulang dari PER_DIFF x STAGE_SPEED_MULT)
     CHAIN_ENTRY_SPEED_MULT: 3.0,    // fase masuk: paling tidak sekian kali CHAIN_BASE_SPEED...
     SPAWN_FILL_TIME: 6,             // ...dan cukup cepat agar bola fase masuk habis keluar dalam sekian detik (yang lebih cepat menang)
     ENTRY_HEAD_FRAC: 0.25,          // fase masuk berhenti saat kepala rantai mencapai sekian bagian jalur terlihat (portal -> sarang)
@@ -28,8 +28,6 @@
     FROST_SLOW_MULT: 0.3,           // pengali kecepatan saat rantai beku (bola beku / buff Waktu Beku)
     FAST_MULT: 2.3,                 // pengali saat `fastT` (cadangan)
     FROST_BALL_TIME: 6,             // lama melambat setelah bola beku ditembak (dtk)
-    FREEZE_BUFF_TIME: 7,            // lama melambat buff Waktu Beku (dtk)
-    CURRENT_NERF_MULT: 1.5,         // nerf Arus Deras: pengali di segmen arus
 
     /* --- tekanan bertahap & segmen sarang --- */
     CHAIN_PRESSURE_RAMP: 0.15,      // tambahan kecepatan maksimum (+15%) di ujung rampa
@@ -50,8 +48,23 @@
     RETREAT_SPEED: 12,              // d/dtk gerak mundur
     NEST_RETREAT_DIAMS: 10,         // bola target lolos ke sarang: rantai mundur sejauh ini...
     NEST_RETREAT_SPEED: 14,         // ...dengan kecepatan ini (d/dtk)...
-    NEST_HOLD: 0.5                  // ...lalu diam sebentar (dtk)
+    NEST_HOLD: 0.5,                 // ...lalu diam sebentar (dtk)
+
+    /* --- telur (nyawa), bintang, boss, penukaran bola (bukan slider) --- */
+    EGGS_MAX: 3,                    // telur = nyawa, selalu 3/3 di awal tiap stage (termasuk saat Ulangi)
+    WRONG_ANSWERS_PER_EGG: 1,       // sekian jawaban salah = 1 telur hilang (longgarkan nanti bila perlu)
+    STAR_3_PCT: 0.9,                // bintang 3: benar-pertama-kali >= 90%
+    STAR_2_PCT: 0.7,                // bintang 2: >= 70%; bintang 1: stage selesai
+    BOSS_HP_BARS: 2,                // 1 atau 2 bar darah boss (2: bar 1 habis di soal ke-10 = fase 2)
+    SWAP_TELEGRAPH: 1.8,            // detik indikator sebelum dua bola bertukar tempat
+    SWAP_ANIM: 0.45,                // detik gerak tukar (melengkung)
+    SWAP_END_GUARD: 0.1             // bola di 10% terakhir jalur menuju sarang tidak boleh ditukar
   };
+
+  /** Jeda antar-penukaran bola [min, maks] detik per stage (acak di dalam rentang); null = tanpa penukaran. Stage 3 fase 2 boss: dua pasangan sekaligus. */
+  const SWAP_EVERY = [null, [20, 30], [12, 20]];
+  /** Rintangan zona: jumlah serentak maksimum per stage. */
+  const HAZ_MAX = [2, 3, 4];
 
   /** Nilai per kesulitan: Mudah < Sedang < Sulit. CHAIN_BASE_SPEED ±+35% dari rata-rata lama (0,12 / 0,15 / 0,18 d/dtk). */
   const PER_DIFF = {
@@ -60,8 +73,8 @@
     sulit:  { CHAIN_BASE_SPEED: 0.25, RETREAT_SEC: 5.5 }
   };
 
-  /** Pengali CHAIN_BASE_SPEED tiap step (indeks 0..4). Step 5 = dua rantai pada jalur pendek (11-18 d), jadi jauh lebih pelan. */
-  const STEP_SPEED_MULT = [1, 1, 1, 1, 0.4];
+  /** Pengali CHAIN_BASE_SPEED tiap stage (indeks 0..2). Stage 1 = nilai step lama 1, Stage 2 = step lama 3, Stage 3 (boss) = step lama 5: jalur boss pendek (±22 d), jadi lebih pelan. */
+  const STAGE_SPEED_MULT = [1, 1, 0.5];
 
   /** Metadata slider panel ?debug=tune: [min, max, langkah, satuan]. */
   const META = {
@@ -107,7 +120,7 @@
   /** Isi `out` (objek yang dipegang run) dengan nilai terselesaikan untuk kesulitan & step. */
   function fill(out, diff, step) {
     Object.assign(out, DEFAULTS, PER_DIFF[diff] || PER_DIFF.sedang);
-    out.CHAIN_BASE_SPEED *= STEP_SPEED_MULT[Math.max(0, Math.min(STEP_SPEED_MULT.length - 1, step | 0))];
+    out.CHAIN_BASE_SPEED *= STAGE_SPEED_MULT[Math.max(0, Math.min(STAGE_SPEED_MULT.length - 1, step | 0))];
     for (const k in overrides) if (k in DEFAULTS) out[k] = overrides[k];
     return out;
   }
@@ -119,7 +132,7 @@
   function refresh() { if (tracked) fill(tracked.gp, tracked.diff, tracked.step); }
 
   const Gameplay = {
-    DEFAULTS: DEFAULTS, PER_DIFF: PER_DIFF, STEP_SPEED_MULT: STEP_SPEED_MULT, META: META, TUNABLE: TUNABLE,
+    DEFAULTS: DEFAULTS, PER_DIFF: PER_DIFF, STAGE_SPEED_MULT: STAGE_SPEED_MULT, SWAP_EVERY: SWAP_EVERY, HAZ_MAX: HAZ_MAX, META: META, TUNABLE: TUNABLE,
     debug: debug, overrides: overrides,
     resolve: resolve, fill: fill, track: track,
     /** Panel: atur satu nilai (berlaku langsung). */

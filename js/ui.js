@@ -10,11 +10,6 @@
 
   function el(html) { const d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstChild; }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-  function starsHTML(n, total) {
-    let s = '';
-    for (let i = 0; i < (total || 3); i++) s += '<span class="star' + (i < n ? ' on' : '') + '" style="--i:' + i + '">★</span>';
-    return s;
-  }
 
   /* ---------- popup JEDA (desain Figma 123:122; gaya di css/pause.css) ---------- */
   // Teks sub-judul humor: [baris 1, baris 2]. Satu dipilih acak tiap popup dibuka. Silakan ganti/tambah.
@@ -99,8 +94,13 @@
         '<div class="k-howc"><span class="k-pic">' + I('flame') + '</span><div><b>' + T('how.hit') + '</b><br><small>' + T('how.hit2') + '</small></div></div>' +
         '<div class="k-howc"><span class="k-pic">' + I('egg') + '</span><div><b>' + T('how.egg') + '</b><br><small>' + T('how.egg2') + '</small></div></div>' +
       '</div>' +
+      '<div class="k-fmts">' +
+        '<div class="k-fmtc"><b>' + T('how.f1') + '</b><span class="k-extext">' + MT.html('2 + 1 = ▢') + '</span></div>' +
+        '<div class="k-fmtc"><b>' + T('how.f2') + '</b><span class="k-extext">' + MT.html('▢ + 3 = 18') + '</span></div>' +
+        '<div class="k-fmtc"><b>' + T('how.f3') + '</b><span class="k-extext">' + MT.html('2 + 1 = ▢') + ' <i>+</i> ' + MT.html('▢ + 3 = 18') + '</span></div>' +
+      '</div>' +
       '<div class="k-chips">' + K.chip(T('how.goal'), { icon: 'target' }) + '</div>' +
-      '<div class="k-legend"><span class="k-leg"><span data-icon="curse"></span>' + T('sp.curse') + '</span><span class="k-leg"><span data-icon="frost"></span>' + T('sp.frost') + '</span><span class="k-leg"><span data-icon="egg"></span>' + T('sp.egg') + '</span></div>' }) + '</section>',
+      '<div class="k-legend"><span class="k-leg"><span data-icon="frost"></span>' + T('sp.frost') + '</span><span class="k-leg"><span data-icon="egg"></span>' + T('sp.egg') + '</span></div>' }) + '</section>',
 
     story: '<section class="screen dim scroll" id="s-story">' + K.panel({ cls: 'k-story', role: 'dialog', body:
       '<canvas id="st-art" class="k-story-art" width="480" height="300" aria-hidden="true"></canvas>' +
@@ -184,11 +184,15 @@
         case 'p-resume': H.resume(); break;
         case 'p-sound': H.toggleSound(); break;
         case 'p-booster': this.onBoosterClick(); break;
-        case 'p-restart': this.confirmOr('Ulangi step?', 'Progres step hilang.', 'Ya, ulangi', H.restart, b); break;
+        case 'p-restart': this.confirmOr('Ulangi stage?', 'Progres stage hilang.', 'Ya, ulangi', H.restart, b); break;
         case 'p-quit': this.confirmOr('Ke menu?', 'Progres hilang.', 'Ya, ke menu', H.quit, b); break;
         case 'c-no': this.closeConfirm(true); break;
         case 'c-yes': { const fn = this._confirmFn; this.closeConfirm(false); if (fn) fn(); break; }
-        case 'next-step': H.nextStep(); break;
+        case 'ov-next': case 'next-step': H.nextStep(); break;
+        case 'ov-retry': H.restart(); break;
+        case 'ov-menu': H.quit(); break;
+        case 'ov-back': GA.Menu.openSteps(); break;
+        case 'ov-chip': this.ovCard(+b.dataset.i); break;
         case 'again': H.again(); break;
         case 'to-menu': H.toMenu(); break;
         case 'quit': H.quit(); break;
@@ -223,7 +227,7 @@
 
     refreshTitle: function () {
       const el2 = document.getElementById('t-res');
-      if (el2) el2.innerHTML = GA.Kit.resbar({ eggs: GA.Levels.START_EGGS, stars: Storage.totalStars(), score: Storage.data.highScore });
+      if (el2) el2.innerHTML = GA.Kit.resbar({ eggs: GA.Gameplay.DEFAULTS.EGGS_MAX, stars: Storage.totalStars(), score: Storage.data.highScore });
     },
     /* ---------- cerita (panel bergambar) ---------- */
     /** list: Story.intro / win / lose. opts: { onDone, skippable }. */
@@ -267,20 +271,17 @@
     },
     stopStoryAnim: function () { cancelAnimationFrame(this._storyRaf); this._storyRaf = 0; },
 
-    /** Layar pembuka step. info: { tag, place, story, catName, catIcon, exampleHtml, specials[], diffName, total, buff, nerf } */
+    /** Layar pembuka stage: nama + ikon stage, CONTOH SOAL bergambar sesuai format stage (kotak kosong berkedip), lalu tombol mulai → hitung mundur 3-2-1.
+     * info: { stageNo, tag, place, icon, story, boss, format, catName, catIcon, exampleHtml, diffName, total } */
     showIntro: function (info) {
-      const K = GA.Kit, sp = info.specials || [];
-      const bn = function (kind, o) { return '<div class="k-bnc ' + kind + '">' + K.tip('<span class="k-bi">' + I(o.icon) + '</span>', o.desc || '') + '<b>' + esc(o.name) + '</b><small>' + T('intro.' + kind) + '</small></div>'; };
-      const leg = sp.map(function (k) { return '<span class="k-leg"><span data-icon="' + k + '"></span>' + esc(T('sp.' + k)) + '</span>'; }).join('');
+      const K = GA.Kit;
       screens.intro.innerHTML = K.panel({ title: info.place, body:
         '<p class="k-eyebrow">' + esc(info.tag) + ' · ' + esc(info.diffName) + '</p>' +
+        '<div class="k-stage-ic' + (info.boss ? ' boss' : '') + '">' + I(info.icon) + '</div>' +
         '<p class="k-text">' + esc(info.story) + '</p>' +
         '<div class="k-chips">' + K.chip(info.catName, { icon: info.catIcon }) + K.chip(info.total + ' ' + T('common.questions'), { icon: 'target' }) + '</div>' +
-        '<div class="k-example"><span class="k-eyebrow">' + T('common.example') + '</span><span class="k-extext">' + info.exampleHtml + '</span></div>' +
-        (info.buff && info.nerf ? '<div class="k-bn">' + bn('buff', info.buff) + bn('nerf', info.nerf) + '</div>' : '') +
-        (leg ? '<div class="k-legend">' + leg + '</div>' : '') +
+        '<div class="k-example"><span class="k-eyebrow">' + T('common.example') + ' · ' + esc(T('fmt.' + info.format)) + '</span><span class="k-extext">' + info.exampleHtml + '</span><small class="k-fmt2">' + esc(T('fmt.' + info.format + '2')) + '</small></div>' +
         K.button({ act: 'go', icon: 'play', label: T('common.go'), size: 'big' }) });
-      screens.intro.querySelectorAll('[data-icon]').forEach(function (n) { n.appendChild(UI.specialIcon(n.getAttribute('data-icon'), 30)); });
       this.show('intro');
     },
 
@@ -402,21 +403,41 @@
     },
     setHudButton: function (on) { hudBtn.classList.toggle('on', !!on); },
 
-    /** Selesai satu step (bukan terakhir). r: { n, tag, stars, score, eggs, maxEggs, bonus, correct, wrong, combo, nextN } */
-    showStepDone: function (r) {
-      const K = GA.Kit;
-      screens.result.innerHTML = K.panel({ title: T('step.done', { n: r.n }), body:
-        '<p class="k-eyebrow">' + esc(r.tag) + '</p>' +
-        '<div style="text-align:center">' + K.stars(r.stars, 3).replace('class="k-stars"', 'class="k-stars big"') + '</div>' +
-        '<p class="k-big-score">' + T('common.score') + ' <b>' + r.score + '</b></p>' +
-        '<div style="text-align:center">' + K.eggs(r.eggs, r.maxEggs) + (r.bonus ? ' ' + K.badge(T('step.egg'), { tone: 'buff' }) : '') + '</div>' +
-        '<p class="k-stat">' + esc(T('res.stats', { c: r.correct, w: r.wrong, k: r.combo })) + '</p>' +
-        K.button({ act: 'next-step', icon: 'play', label: T('step.next', { n: r.nextN }), size: 'big' }) +
-        K.button({ act: 'quit', icon: 'home', label: T('common.menu'), variant: 'wood', size: 'small' }) });
+    /** Overview jawaban sebuah stage (menang maupun Game Over). r = hasil stageResult() (main.js) / Storage.lastResult.
+     * opts: { next: tombol Lanjut, from: 'steps' = dibuka dari layar Pilih Stage (tombol kembali, tanpa Ulangi) }.
+     * Grid 20 chip bernomor: benar langsung (✓, lingkaran), benar setelah salah (✓ + titik, kotak), belum terjawab (strip, garis putus). Ketuk chip = kartu soal. */
+    showOverview: function (r, opts) {
+      opts = opts || {}; const K = GA.Kit;
+      this._ov = { r: r, opts: opts, sel: -1 };
+      const kind = function (it) { return !it.solved ? 'none' : (it.wrong ? 'redo' : 'ok'); };
+      const chips = r.items.map(function (it, i) {
+        const k = kind(it);
+        return '<button type="button" class="ov-chip ov-' + k + '" data-act="ov-chip" data-i="' + i + '" aria-label="' + (i + 1) + ': ' + esc(T(k === 'ok' ? 'ov.first' : (k === 'redo' ? 'ov.wrong' : 'ov.unanswered'))) + '">' +
+          '<i class="ov-n">' + (i + 1) + '</i>' + I(k === 'ok' ? 'check' : (k === 'redo' ? 'checkdot' : 'dash')) + '</button>';
+      }).join('');
+      screens.result.innerHTML = K.panel({ title: r.win ? T('step.done', { n: r.stage + 1 }) : T('ov.lose'), cls: 'k-wide', body:
+        '<p class="k-eyebrow">' + esc(r.tag + ' · ' + r.place) + '</p>' +
+        '<div class="ov-top"><span class="ov-eggs" title="' + esc(T('ov.eggs')) + '">' + K.eggs(r.eggs, r.maxEggs) + '</span>' +
+          '<span class="ov-pct" title="' + esc(T('ov.first')) + '">' + I('check') + '<b>' + Math.round(r.pct * 100) + '%</b></span>' + (r.win ? K.stars(r.stars, 3) : '') + '</div>' +
+        '<div class="ov-grid" role="group" aria-label="' + esc(T('res.stats', { c: r.items.filter(function (i) { return i.solved; }).length, w: r.wrong, k: r.combo })) + '">' + chips + '</div>' +
+        '<div class="ov-card" id="ov-card" aria-live="polite"><span class="ov-hint">' + esc(T('ov.tap')) + '</span></div>' +
+        '<div class="ov-btns">' + (opts.from === 'steps' ? K.button({ act: 'ov-back', icon: 'back', label: T('common.back'), variant: 'wood', size: 'small' })
+          : K.button({ act: 'ov-retry', icon: 'restart', label: T('common.retry'), variant: 'secondary', size: 'small' }) +
+            (opts.next ? K.button({ act: 'ov-next', icon: 'play', label: T('common.next'), size: 'big' }) : '') +
+            K.button({ act: 'ov-menu', icon: 'home', label: T('common.menu'), variant: 'wood', size: 'small' })) + '</div>' });
       this.show('result');
     },
 
-    /** Hasil akhir. r: { win, steps:[{name,stars}], score, newBest, high, eggs, maxEggs, correct, wrong, combo } */
+    /** Kartu kecil untuk soal ke-i di overview: soal lengkap + jawaban benar, jumlah salah, dan nilai yang sempat salah ditembak. */
+    ovCard: function (i) {
+      const o = this._ov; if (!o) return; const it = o.r.items[i], card = document.getElementById('ov-card'); if (!it || !card) return;
+      o.sel = i;
+      document.querySelectorAll('#s-result .ov-chip').forEach(function (c) { c.classList.toggle('sel', +c.getAttribute('data-i') === i); });
+      card.innerHTML = '<span class="ov-q"><b>' + (i + 1) + '</b>' + MT.html(it.text) + '<i class="ov-arrow">' + I('play') + '</i><em>' + MT.html(it.answerText) + '</em></span>' +
+        '<span class="ov-w">' + I('cross') + '<b>' + it.wrong + '</b>' + (it.wrongVals.length ? '<span class="ov-wv">' + it.wrongVals.map(function (v) { return '<s>' + MT.html(v) + '</s>'; }).join(' ') + '</span>' : '') + '</span>';
+    },
+
+    /** Ringkasan petualangan setelah Stage 3. r: { win, steps:[{name,stars}], score, newBest, high, correct, wrong, combo } */
     showResult: function (r) {
       const K = GA.Kit;
       const steps = (r.steps || []).map(function (s) { return '<li><span>' + esc(s.name) + '</span>' + K.stars(s.stars, 3) + '</li>'; }).join('');
@@ -424,7 +445,6 @@
         (steps ? '<ul class="k-sum">' + steps + '</ul>' : '') +
         '<p class="k-big-score">' + T('common.score') + ' <b>' + r.score + '</b></p>' +
         '<p class="k-stat">' + T('res.hi') + ' <b>' + r.high + '</b></p>' + (r.newBest ? '<div style="text-align:center">' + K.badge(T('res.best'), { tone: 'buff', icon: 'star' }) + '</div>' : '') +
-        '<div style="text-align:center">' + K.eggs(r.eggs, r.maxEggs) + '</div>' +
         '<p class="k-stat">' + esc(T('res.stats', { c: r.correct, w: r.wrong, k: r.combo })) + '</p>' +
         K.button({ act: 'again', icon: 'restart', label: T('common.again'), size: 'big' }) +
         '<div class="k-row">' + K.button({ act: 'to-menu', icon: 'mix', label: T('menu.cat'), variant: 'secondary', size: 'small' }) + K.button({ act: 'quit', icon: 'home', label: T('common.menu'), variant: 'wood', size: 'small' }) + '</div>' });
@@ -446,20 +466,13 @@
 
   /** Bunyi UI menurut jenis tindakan: pilih (kartu/slot/kesulitan), kembali, konfirmasi (mulai/lanjut), klik biasa. */
   function uiSound(a) {
-    if (a === 'back' || a === 'm-back' || a === 's-back' || a === 'c-no' || a === 'story-skip') return 'back';
+    if (a === 'back' || a === 'm-back' || a === 's-back' || a === 'c-no' || a === 'story-skip' || a === 'ov-back') return 'back';
     if (a === 's-go') return 'confirm';
     if (a === 'm-cat' || a === 'm-slot' || a === 'm-diff' || a === 'm-same' || a === 'm-random' || a === 'sound' || a === 'music' || a === 'quality' || a === 'p-sound') return 'select';
-    if (a === 'play' || a === 'm-start' || a === 'go' || a === 'next-step' || a === 'again' || a === 'c-yes' || a === 'p-resume') return 'confirm';
+    if (a === 'play' || a === 'm-start' || a === 'go' || a === 'next-step' || a === 'ov-next' || a === 'again' || a === 'c-yes' || a === 'p-resume') return 'confirm';
     return 'click';
   }
 
-  /** Deretan telur (HTML kecil) untuk layar hasil. */
-  function eggsHTML(have, max) {
-    let s = '';
-    for (let i = 0; i < max; i++) s += '<span class="egg' + (i < have ? ' on' : '') + '" aria-hidden="true"></span>';
-    return s;
-  }
-
-  UI.starsHTML = starsHTML; UI.esc = esc; UI.el = el;
+  UI.esc = esc; UI.el = el;
   GA.UI = UI;
 })(window.GA = window.GA || {});

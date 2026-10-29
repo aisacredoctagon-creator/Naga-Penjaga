@@ -116,21 +116,12 @@
     ctx.bezierCurveTo(x - w * 1.05, y + h * 0.7, x - w * 0.95, y - h * 0.95, x, y - h); ctx.closePath();
   }
 
-  /** Bola khusus: 'curse' (kutukan, jangan ditembak) | 'frost' (beku, rantai melambat) | 'egg' (telur emas, pulihkan telur) */
+  /** Bola khusus: 'frost' (beku, rantai melambat) | 'egg' (telur emas, pulihkan telur) */
   function drawSpecial(ctx, kind, x, y, r, t) {
     const lw = Math.max(1.5, r * 0.06);
     GA.Balls.layer(ctx, 'shadow', x, y, r);
     const gr = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r * 1.05);
-    if (kind === 'curse') {
-      const gl = ctx.createRadialGradient(x, y, r * 0.8, x, y, r * 1.3); gl.addColorStop(0, 'rgba(120,255,120,' + (0.35 + 0.15 * Math.sin(t * 5)).toFixed(2) + ')'); gl.addColorStop(1, 'rgba(120,255,120,0)');
-      ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x, y, r * 1.3, 0, 6.283); ctx.fill();
-      gr.addColorStop(0, '#6a4a8a'); gr.addColorStop(0.5, '#2a1646'); gr.addColorStop(1, '#0c0618');
-      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.283); ctx.fill(); ctx.lineWidth = lw; ctx.strokeStyle = 'rgba(150,255,140,0.7)'; ctx.stroke();
-      ctx.fillStyle = '#e8ffe0'; ctx.beginPath(); ctx.arc(x, y - r * 0.05, r * 0.4, 0, 6.283); ctx.fill(); ctx.fillRect(x - r * 0.22, y + r * 0.2, r * 0.44, r * 0.28);
-      ctx.fillStyle = '#2a1646'; ctx.beginPath(); ctx.arc(x - r * 0.15, y - r * 0.08, r * 0.1, 0, 6.283); ctx.arc(x + r * 0.15, y - r * 0.08, r * 0.1, 0, 6.283); ctx.fill();
-      ctx.fillRect(x - r * 0.05, y + r * 0.22, r * 0.03, r * 0.22); ctx.fillRect(x + r * 0.04, y + r * 0.22, r * 0.03, r * 0.22);
-      ctx.strokeStyle = 'rgba(150,255,140,0.55)'; ctx.lineWidth = Math.max(1, r * 0.04); ctx.beginPath(); ctx.arc(x, y, r * 0.82, t * 2, t * 2 + 2.2); ctx.stroke();
-    } else if (kind === 'frost') {
+    if (kind === 'frost') {
       gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.5, '#a8e6ff'); gr.addColorStop(1, '#3aa0d8');
       ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.283); ctx.fill(); ctx.lineWidth = lw; ctx.strokeStyle = 'rgba(20,80,130,0.6)'; ctx.stroke();
       ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(2, r * 0.09); ctx.lineCap = 'round';
@@ -214,7 +205,7 @@
       return x;
     }
 
-    /** spec: { qid, kind } — qid = indeks soal di dek (bola target), kind = 'num' | 'curse' | 'frost' | 'egg'. `out` = sudah terlihat (rantai dekoratif). */
+    /** spec: { qid, kind } — qid = indeks soal di dek (bola target), kind = 'num' | 'frost' | 'egg'. `out` = sudah terlihat (rantai dekoratif). */
     makeBall(d, spec, out) {
       const b = { ch: this, id: this.nextId++, d: d, vo: 0, lag: 0, kind: 'num', value: 0, text: '', ci: 0, x: 0, y: 0, a: 0, flipT: 0, nv: null, nt: null, wob: 0, red: 0, fog: 0, fogAge: 0,
         out: !!out, emT: out ? 1e3 : 0, rot: 0, qid: spec && spec.qid != null ? spec.qid : null, want: spec ? spec.kind || 'num' : null, reborn: !!(spec && spec.reborn) };

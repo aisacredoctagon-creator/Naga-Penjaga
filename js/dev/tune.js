@@ -1,8 +1,8 @@
 /* dev/tune.js — panel penyetelan gameplay. Hanya dimuat dengan ?debug=tune (index.html); pemain biasa tidak pernah melihatnya.
  *
- * Slider mengubah nilai GA.Gameplay (config/gameplay.js) dan berlaku LANGSUNG pada step yang sedang berjalan. "Salin nilai" menyalin JSON
+ * Slider mengubah nilai GA.Gameplay (config/gameplay.js) dan berlaku LANGSUNG pada stage yang sedang berjalan. "Salin nilai" menyalin JSON
  * (nilai efektif + yang diubah); "Reset" menghapus semua perubahan. Nilai yang diubah disimpan di localStorage (hanya saat ?debug=tune).
- * Tambahan URL: &go=3 (langsung mulai Step 3), &diff=sulit (kesulitan), contoh: ?debug=tune&unlock=1&go=1&diff=sedang
+ * Tambahan URL: &go=3 (langsung mulai Stage 3), &diff=sulit (kesulitan), contoh: ?debug=tune&unlock=1&go=1&diff=sedang
  * Angka hidup di bagian atas: fase masuk, kecepatan (diameter/dtk), bola keluar, kerapatan (rasio jarak/diameter), celah. */
 (function (GA) {
   'use strict';
@@ -22,11 +22,11 @@
   const root = document.createElement('div');
   root.id = 'tune';
   if (window.innerWidth < 700) root.className = 'min';
-  root.innerHTML = '<div id="tune-head"><span>⚙ Tune gameplay</span><span id="tune-tog" style="margin-left:auto">▾</span></div><div id="tune-body"><div id="tune-live">menunggu step…</div>' +
-    '<div><select id="tune-step"><option value="0">Step 1</option><option value="1">Step 2</option><option value="2">Step 3</option><option value="3">Step 4</option><option value="4">Step 5</option></select>' +
-    '<select id="tune-diff"><option>mudah</option><option selected>sedang</option><option>sulit</option></select><button id="tune-go">Mulai</button><button id="tune-redo">Ulangi step</button></div>' +
+  root.innerHTML = '<div id="tune-head"><span>⚙ Tune gameplay</span><span id="tune-tog" style="margin-left:auto">▾</span></div><div id="tune-body"><div id="tune-live">menunggu stage…</div>' +
+    '<div><select id="tune-step"><option value="0">Stage 1</option><option value="1">Stage 2</option><option value="2">Stage 3</option></select>' +
+    '<select id="tune-diff"><option>mudah</option><option selected>sedang</option><option>sulit</option></select><button id="tune-go">Mulai</button><button id="tune-redo">Ulangi stage</button></div>' +
     '<div><button id="tune-copy">Salin nilai</button><button id="tune-reset">Reset</button></div><hr><div id="tune-rows"></div>' +
-    '<div class="note">Kuning = diubah. Perubahan berlaku langsung; "Ulangi step" untuk melihat ulang fase masuk. Rintangan: tahap berikutnya.</div></div>';
+    '<div class="note">Kuning = diubah. Perubahan berlaku langsung; "Ulangi stage" untuk melihat ulang fase masuk. Rintangan: tahap berikutnya.</div></div>';
   document.body.appendChild(root);
   ['keydown', 'keyup', 'pointerdown', 'pointerup'].forEach(function (ev) { root.addEventListener(ev, function (e) { e.stopPropagation(); }); });
   root.querySelector('#tune-head').addEventListener('click', function () { root.classList.toggle('min'); root.querySelector('#tune-tog').textContent = root.classList.contains('min') ? '▸' : '▾'; });
@@ -62,7 +62,7 @@
   root.querySelector('#tune-redo').addEventListener('click', function () { if (G() && G().adv) G().handlers.restart(); });
   function startFromPanel() {
     const step = +root.querySelector('#tune-step').value, diff = root.querySelector('#tune-diff').value;
-    G().startAdventure({ slots: ['add', 'sub', 'mul', 'div', 'int'], same: false, random: false, diff: diff }, true, step);
+    G().startAdventure({ slots: ['add', 'sub', 'mul'], same: false, random: false, diff: diff }, true, step);
     G().handlers.introGo();
   }
   root.querySelector('#tune-go').addEventListener('click', startFromPanel);
@@ -72,14 +72,14 @@
   function pad(s, n) { s = String(s); while (s.length < n) s += ' '; return s; }
   function live() {
     const g = G(), run = g && g.run;
-    if (!run || !run.chains.length) { liveEl.textContent = 'tidak ada step berjalan\n(pilih Step/kesulitan lalu "Mulai")'; return; }
+    if (!run || !run.chain) { liveEl.textContent = 'tidak ada stage berjalan\n(pilih Stage/kesulitan lalu "Mulai")'; return; }
     if (seen !== GP.current()) { seen = GP.current(); syncRows(); }
     const out = [];
-    run.chains.forEach(function (c, i) {
+    [run.chain].forEach(function (c) {
       const unit = c.unit, e = c.entry, st = c.stats, bs = c.balls, nOut = bs.filter(function (b) { return b.out; }).length, nAll = bs.length + c.spawnQ.length;
       c.spacing(spc);
       const headPct = bs.length ? Math.round(bs[0].d / c.path.length * 100) : 0;
-      out.push((run.chains.length > 1 ? 'Rantai ' + (i + 1) + ' ' : '') + 'fase ' + pad(e.phase, 4) + '  v ' + (c.vNow / unit).toFixed(2) + ' d/dtk  (dasar ' + (c.speed / unit).toFixed(2) + ')');
+      out.push('fase ' + pad(e.phase, 4) + '  v ' + (c.vNow / unit).toFixed(2) + ' d/dtk  (dasar ' + (c.speed / unit).toFixed(2) + ')');
       out.push('  keluar ' + nOut + '/' + nAll + '  kepala ' + headPct + '%  tekanan ' + c.pressure.toFixed(2));
       out.push('  waktu isi: ' + (st.allOut >= 0 ? st.allOut.toFixed(1) + ' dtk' : c.clock.toFixed(1) + '…') + (st.fastEnd >= 0 ? '  masuk-cepat ' + st.fastEnd.toFixed(1) + ' dtk' : ''));
       out.push('  jarak/diam  min ' + (spc.n ? spc.min.toFixed(3) : '-') + '  maks ' + (spc.n ? spc.max.toFixed(3) : '-') + '  celah ' + spc.gaps);
@@ -93,7 +93,7 @@
   /* ---------- &go=N&diff=... : mulai otomatis ---------- */
   if (q.has('go')) {
     if (q.get('diff')) root.querySelector('#tune-diff').value = q.get('diff');
-    root.querySelector('#tune-step').value = String(Math.max(0, Math.min(4, (+q.get('go') || 1) - 1)));
+    root.querySelector('#tune-step').value = String(Math.max(0, Math.min(2, (+q.get('go') || 1) - 1)));
     setTimeout(function () { try { startFromPanel(); } catch (e) { console.error(e); } }, 900);
   }
 

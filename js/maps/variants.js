@@ -1,16 +1,15 @@
-/* maps/variants.js — varian peta (tahap f): TIGA peta berbeda untuk tiap step, dan peta RAWA sungguhan (kolam teratai, alang-alang, kayu apung).
- *   Step 1 Lembah Hutan Naga : forest (siang), grove (senja musim gugur), bloom (padang bunga fajar)
- *   Step 2 Rawa Berkabut     : swamp (hijau berlumut), swampDusk (senja ungu), coast (pantai berpasir, laguna toska)
- *   Step 3 Gunung Api        : volcano (basal & lahar), ashfield (dataran abu), magma (lahar membara)
- *   Step 4 Gua Kristal Beku  : crystal (biru-ungu), iceCave (es putih-biru), amethyst (kristal ungu)
- *   Step 5 Menara Penyihir   : tower (rune ungu), tower2 (observatorium), library (perpustakaan hangat)
+/* maps/variants.js — varian peta (tahap f): peta berbeda untuk tiap stage.
+ *   Stage 1 Lembah Hutan Naga : forest (siang), grove (senja musim gugur), bloom (padang bunga fajar)
+ *   Stage 2 Gunung Api          : volcano (basal & lahar), ashfield (dataran abu), magma (lahar membara)
+ *   Stage 2 Gua Kristal     : crystal (biru-ungu), iceCave (es putih-biru), amethyst (kristal ungu)
+ *   Stage 3 Menara Penyihir   : tower (rune ungu), tower2 (observatorium), library (perpustakaan hangat)
  * Data murni (palet, komposisi dekorasi `mix`, seed, opsi efek). Satu arah cahaya per peta (kiri-atas). Zona tiap peta: lihat `Levels.zoneOf`. */
 (function (GA) {
   'use strict';
   const M = GA.Maps, forest = M.forest, volcano = M.volcano, crystal = M.crystal, tower = M.tower;
   const ex = Object.assign;
 
-  /* ---------- Step 1 ---------- */
+  /* ---------- Stage 1 ---------- */
   M.bloom = ex({}, forest, {
     id: 'bloom', seed: 91,
     pal: ex({}, forest.pal, {
@@ -21,38 +20,7 @@
     mix: { grass: 0.26, flower: 0.34, mush: 0.04, rock: 0.08, fern: 0.1, leaf: 0.1 }, statues: 2, fireflies: 38
   });
 
-  /* ---------- Step 2: rawa ---------- */
-  const swampMix = { lily: 0.2, reed: 0.18, log: 0.05, mush: 0.08, fern: 0.12, leaf: 0.14, grass: 0.1, rock: 0.06 };
-  M.swamp = ex({}, forest, {
-    id: 'swamp', seed: 63,
-    pal: ex({}, forest.pal, {
-      ground: ['#4a7a58', '#233f34'], blotch: ['#5e8e62', '#3a6a54', '#6e8a4a', '#2a5448', '#7a8a52', '#2f6a5c'], soil: ['#3a3a22', '#26261a'],
-      leaf: [['#9ad8a0', '#4aa078', '#1c5a48'], ['#b0e0a0', '#5ab088', '#2a6a52'], ['#7acab0', '#2e9a82', '#145a4c']], leafFront: ['#3c9a70', '#1f6a50', '#0b3a2c'],
-      water: ['#b8f0e0', '#3fa09c', '#154a58'], flowers: ['#ffd6ea', '#fff6c8', '#e8c8ff'], grassA: '#7ac49a', grassB: '#2f7a5a', cap: [['#e0d8a0', '#a89a50'], ['#ffd6f2', '#d062b4']],
-      shaft: 'rgba(210,255,230,0.1)', warm: 'rgba(220,255,230,0.16)', cool: 'rgba(0,26,20,0.34)', vignette: 'rgba(2,22,18,0.7)', fly: '200,255,200'
-    }),
-    mix: swampMix, statues: 1, fireflies: 34, mist: true, birds: true, shafts: 2
-  });
-  M.swampDusk = ex({}, M.swamp, {
-    id: 'swampDusk', seed: 67,
-    pal: ex({}, M.swamp.pal, {
-      ground: ['#4a5a78', '#232a46'], blotch: ['#5a6e8e', '#3a4a6e', '#6a6a90', '#2a3558', '#7a6a98', '#35507a'],
-      water: ['#cfc0ff', '#6a6ad0', '#22226a'], leaf: [['#a8c8e8', '#5a8ac0', '#264a7a'], ['#c0b8f0', '#7a70c8', '#34307a'], ['#90d0d8', '#3a9ab0', '#185a70']], leafFront: ['#4a70b0', '#2a4a88', '#10224a'],
-      grassA: '#8aa0d8', grassB: '#3a4a98', shaft: 'rgba(200,190,255,0.12)', warm: 'rgba(210,200,255,0.18)', cool: 'rgba(4,4,36,0.4)', vignette: 'rgba(4,4,32,0.74)', tint: 'rgba(60,40,140,0.2)', fly: '200,190,255'
-    }),
-    mix: { lily: 0.2, reed: 0.16, log: 0.06, mush: 0.12, fern: 0.1, leaf: 0.12, grass: 0.08, rock: 0.06 }, fireflies: 46
-  });
-  M.coast = ex({}, M.swamp, {
-    id: 'coast', seed: 71,
-    pal: ex({}, M.swamp.pal, {
-      ground: ['#d8c88a', '#9a8a54'], blotch: ['#e8d89a', '#c0ae6c', '#a89a5a', '#7aa070', '#d0b878', '#8aa868'], soil: ['#8a7a4a', '#5a4e2c'],
-      water: ['#c8fff0', '#38c4c0', '#0e6a84'], leaf: [['#bde882', '#6cc055', '#2c7a3e'], ['#d8f09a', '#88d060', '#3a8a46'], ['#9ee0a0', '#44b060', '#1c6a40']], leafFront: ['#4aa83f', '#237232', '#0d3f20'],
-      grassA: '#a8c860', grassB: '#6a9a3a', shaft: 'rgba(255,248,210,0.16)', warm: 'rgba(255,244,200,0.26)', cool: 'rgba(0,30,40,0.26)', vignette: 'rgba(10,30,30,0.5)', fly: '255,250,210'
-    }),
-    mix: { lily: 0.14, reed: 0.2, log: 0.1, mush: 0.04, fern: 0.08, leaf: 0.1, grass: 0.2, rock: 0.14 }, mist: false, fireflies: 22
-  });
-
-  /* ---------- Step 3 ---------- */
+  /* ---------- Stage 2 (gunung api) ---------- */
   M.ashfield = ex({}, volcano, {
     id: 'ashfield', seed: 103,
     pal: ex({}, volcano.pal, {
@@ -71,7 +39,7 @@
     mix: { rock: 0.12, rubble: 0.14, vent: 0.22, stalag: 0.1, bones: 0.04, brazier: 0.1, crystal: 0.06 }, fireflies: 60, rise: 32, glow: { base: 0.7, amp: 0.35, speed: 1.4 }
   });
 
-  /* ---------- Step 4 ---------- */
+  /* ---------- Stage 2 (gua kristal) ---------- */
   M.iceCave = ex({}, crystal, {
     id: 'iceCave', seed: 121,
     pal: ex({}, crystal.pal, {
@@ -91,7 +59,7 @@
     mix: { crystal: 0.3, stalag: 0.12, rock: 0.1, glowshroom: 0.16, rubble: 0.1, grass: 0.04 }
   });
 
-  /* ---------- Step 5 ---------- */
+  /* ---------- Stage 3 ---------- */
   M.library = ex({}, tower, {
     id: 'library', seed: 139,
     pal: ex({}, tower.pal, {
