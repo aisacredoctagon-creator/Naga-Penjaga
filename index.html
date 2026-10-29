@@ -65,7 +65,7 @@
   <script>
     // Alat dev (hanya dimuat dengan parameter URL; pemain biasa tidak pernah melihatnya):
     //   ?test=1 js/dev/tests.js (uji otomatis)   ?debug=orbs js/dev/orbs.js (keterbacaan)   ?resp=1 js/dev/resp.js (responsif)
-    //   ?debug=tune js/dev/tune.js (panel penyetelan)   ?debug=sim js/dev/chainsim.js (simulasi kerapatan rantai)   ?debug=chain overlay celah   ?debug=question overlay + log soal aktif   ?debug=layers tanda merah bola yang tertimpa   ?debug=swap tombol pemicu penukaran   ?debug=sim juga js/dev/qsim.js (uji soal aktif)
+    //   ?debug=tune js/dev/tune.js (panel penyetelan)   ?debug=sim js/dev/chainsim.js (simulasi kerapatan rantai)   ?debug=chain overlay celah   ?debug=question overlay + log soal aktif   ?debug=layers tanda merah bola yang tertimpa   ?debug=swap tombol pemicu penukaran   ?debug=sim juga js/dev/qsim.js (uji soal aktif)   ?debug=pace js/dev/pacing.js (bot kecepatan)
     (function () {
       var q = location.search, t = /[?&]test(=|&|$)/.test(q), o = /[?&]debug=orbs/.test(q), rs = /[?&]resp(=|&|$)/.test(q);
       var dbg = (/[?&]debug=([^&#]*)/.exec(q) || [0, ""])[1].split(","), tune = dbg.indexOf("tune") >= 0, sim = dbg.indexOf("sim") >= 0, qdbg = dbg.indexOf("question") >= 0, lay = dbg.indexOf("layers") >= 0, swp = dbg.indexOf("swap") >= 0;
@@ -78,6 +78,7 @@
       if (swp || t) load("js/dev/swapdbg.js");
       if (sim || t) load("js/dev/qsim.js");
       if (dbg.indexOf("aim") >= 0 || t) load("js/dev/aimsweep.js");
+      if (dbg.indexOf("pace") >= 0) load("js/dev/pacing.js");
     })();
   </script>
 </body>
