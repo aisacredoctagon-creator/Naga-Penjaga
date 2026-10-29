@@ -38,7 +38,10 @@
       const len1 = Math.hypot(g1.x1 - g1.x0, g1.y1 - g1.y0);
       if (![g1.x0, g1.y0, g1.x1, g1.y1].every(fin) || len1 < 0 || len1 > 1000) { bad.push(tag + ' ' + what + ': garis bidik tidak terhingga/negatif (' + g1.x1 + ',' + g1.y1 + ' len ' + len1 + ')'); return; }
       G.tick(0.0005, true); const g2 = r.guide[0], len2 = Math.hypot(g2.x1 - g2.x0, g2.y1 - g2.y0);
-      if (Math.abs(len1 - len2) > 4) bad.push(tag + ' ' + what + ': garis bidik tidak stabil ' + len1.toFixed(1) + ' vs ' + len2.toFixed(1));
+      if (Math.abs(len1 - len2) > 4) {      // sinar menyerempet tepi bola: bola yang bergeser 0,02 px bisa melewati ambang sekali; tidak stabil hanya bila hasil masih berubah pada tick ketiga
+        G.tick(0.000001, true); const g3 = r.guide[0], len3 = Math.hypot(g3.x1 - g3.x0, g3.y1 - g3.y0);
+        if (Math.abs(len3 - len2) > 4) bad.push(tag + ' ' + what + ': garis bidik tidak stabil ' + len2.toFixed(1) + ' vs ' + len3.toFixed(1));
+      }
       if (r.haz.blind > 0.3) return;
       const ux = Math.cos(sh.aim), uy = Math.sin(sh.aim), mh = marchHit(r, g2.x0, g2.y0, ux, uy, 340);
       if (mh && mh.d <= 330) { if (Math.abs(mh.d - len2) > 14) bad.push(tag + ' ' + what + ': garis berhenti ' + len2.toFixed(0) + ' padahal bola kena di ' + mh.d); }

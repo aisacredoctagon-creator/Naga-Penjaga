@@ -34,7 +34,7 @@
     let ballR = Theme.ballRadiusFor(W, H, scale);
     if (run && Math.abs(ballR - run.baseR) < 3) ballR = run.baseR; // jangan bangun ulang jika jendela hanya berubah sedikit
     L = { portrait: portrait, W: W, H: H, scale: scale, dpr: dpr, cssW: cssW, cssH: cssH, ox: (cssW - W * scale) / 2, oy: (cssH - H * scale) / 2,
-      px: dpr * scale, hud: hud, ballR: ballR, pad: ballR + Theme.ball.trackMargin + 6, padTop: Math.round(2.5 * ballR * 1.12), play: { x: 0, y: hud, w: W, h: H - hud - (portrait ? 12 : 0) } };
+      px: dpr * scale, hud: hud, ballR: ballR, pad: ballR + Theme.ball.trackMargin + 6, hudGap: portrait ? 1.5 : 1.0, padTop: Math.round(((portrait ? 1.5 : 1.0) + 1) * ballR * (portrait ? 1.12 : 1.05)), play: { x: 0, y: hud, w: W, h: H - hud - (portrait ? 12 : 0) } };
     GA.view = { W: W, H: H, hud: hud };
     FX.unit = ballR / 25; Bullets.setSize(run ? run.R : ballR);
     canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
@@ -106,7 +106,7 @@
 
   /* ================= adegan menu (dekoratif) ================= */
   function buildAttract() {
-    const R = L.ballR, path = Path.forLayout('hook', L, R);
+    const R = L.ballR, path = Path.forLayout('siput1', L, R);
     const chain = new Chain.Chain(path, { r: R, speed: 34, maxBalls: 26 });
     chain.fill(Math.min(24, Math.ceil(path.length * 0.55 / chain.D) + 1), path.length * 0.55, 0);
     const sh = new Shooter.Shooter(); fitShooter(sh, path, R);

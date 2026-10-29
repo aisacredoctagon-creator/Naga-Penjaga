@@ -9,128 +9,136 @@
 (function (GA) {
   'use strict';
   const TAU = Math.PI * 2;
-  const T = function (pts) { return pts.map(function (p) { return [p[1], p[0]]; }); };          // transpose: u↔v
-  const MIR = function (pts) { return pts.map(function (p) { return [1 - p[0], p[1]]; }); };     // cermin kiri-kanan
-
-  /** Serpentin horizontal: n baris bolak-balik, baris ke-i di v = v0 + i·dv. Tikungan berbentuk setengah lingkaran (kedalaman = dv/2 piksel,
-   *  asp = tinggi/lebar area isi). wave > 0 membuat baris bergelombang. Pintu masuk di kiri atas. */
-  function serp(n, v0, dv, asp, wave) {
-    const off = Math.min(0.2, dv / 2 * asp), pts = [[-0.12, v0]];
-    for (let i = 0; i < n; i++) {
-      const v = v0 + i * dv, right = i % 2 === 0, us = wave ? [0.12, 0.31, 0.5, 0.69, 0.88] : [0.1, 0.5, 0.9];
-      const row = us.map(function (u, k) { return [off + u * (1 - 2 * off), v + (wave && k > 0 && k < us.length - 1 ? (k % 2 ? wave : -wave) : 0)]; });
-      if (!right) row.reverse();
-      row[0][0] = right ? off : 1 - off; row[row.length - 1][0] = right ? 1 - off : off;
-      row.forEach(function (p) { pts.push(p); });
-      if (i < n - 1) { const cx = right ? 1 - off : off, sg = right ? 1 : -1, cy = v + dv / 2; [-1.1, -0.55, 0, 0.55, 1.1].forEach(function (a) { pts.push([cx + sg * off * Math.cos(a), cy + dv / 2 * Math.sin(a)]); }); }
-    }
-    return pts;
-  }
-
-  /** Angka delapan (lemniscate Gerono): dua lobus bersilangan di tengah; pintu masuk di lobus kiri, sarang di lobus kiri bawah. */
-  function figure8() {
-    const pts = [[-0.12, 0.66]];
-    for (let t = Math.PI * 1.5 - 0.2; t <= Math.PI * 3 + 0.55; t += 0.2) pts.push([0.5 + 0.5 * Math.sin(t), 0.5 + 0.5 * Math.sin(2 * t)]);
-    return pts;
-  }
-
-  function legacy(name) {
-    return function (portrait) {
-      const pr = GA.Path.presets[name], tr = portrait && pr.mode === 'transpose';
-      return { pts: tr ? T(pr.pts) : pr.pts, shooter: pr.shooter, boss: pr.boss };
-    };
-  }
-
-  const BOSS_U = [[0.0, -0.2], [0.03, 0.14], [0.04, 0.6], [0.14, 0.9], [0.5, 1.0], [0.86, 0.9], [0.96, 0.6], [0.97, 0.3], [0.95, 0.08]];
-  const SERP_ZONE = [{ from: 0.36, to: 0.56, mul: 1.45 }];   // bagian jalur tempat rantai melaju lebih cepat
-
-  /** Jumlah baris & jarak baris serpentin yang MUAT untuk radius bola d.R: jarak baris >= 1,1 × (2,5R + 8) (spline melorot sedikit di tikungan) dan ruang penembak terjaga. */
-  function fitRows(d, n0, sv) {
-    const R = d.R, need = (2.5 * R + 8) * 1.1, sh = 1.45 * R * 1.5 + R + 12, span = (d.ih * sv - sh) * 0.97, n = Math.max(3, Math.min(n0, 1 + Math.floor(span / need)));
-    return { n: n, dv: Math.min(0.3, Math.max(need / d.ih, span / (n - 1) / d.ih)) };
-  }
-
   /** Jangkauan sayap naga (× radius badan): jalur tidak boleh lebih dekat ke pusat daripada wingNeed = 1,6·dr + R + 2 (tepi bola di luar ujung sayap). */
   const WING_REACH = 1.6;
   const wingNeed = function (R) { return GA.Theme.dragon.radiusRatio * R * WING_REACH + R + 2; };
 
-  /** Jalur "bintang" mengelilingi naga di tengah (kurva polar, SATU lap, sudut hanya bertambah): tiap sinar dari naga memotong jalur sekali, jadi peluru
-   *  (berhenti di bola PERTAMA yang tersentuh) selalu mengenai bola yang dibidik. Parameter o:
-   *    th0 (derajat, awal/portal; 0 = kanan, 90 = bawah), sweep (derajat, ≤ 340), dir (+1 searah jarum jam | −1), n (eksponen superelips: 2 = oval, 4 = persegi membulat),
-   *    rho0 → rho1 (faktor radius awal → akhir lap), wave [amplitudo px, jumlah gelombang, fase] (gelombang radial; wmod 'cos' meredam di atas/bawah),
-   *    desc (derajat turunan terakhir ke tepi platform naga), rx (batas semi-sumbu mendatar px, opsional). boss: { fy, fx } posisi boss di bukaan (bagian dari semi-sumbu). */
-  function polar(d, o) {
-    const R = d.R, ry = d.vc * d.ih, rx = Math.min(d.iw / 2, o.rx || 1e9, (o.ar || (d.portrait ? 1.9 : 1.6)) * ry), n = o.n || 2, e = 2 / n, dir = o.dir || 1, TD = Math.PI / 180;
-    const th0 = o.th0 * TD, sw = o.sweep * TD, ds = o.desc * TD, endR = wingNeed(R) + 3, N = Math.max(60, Math.round(o.sweep / 2.5));
-    const ring = function (th) { const c = Math.cos(th), s = Math.sin(th); return [rx * Math.sign(c) * Math.pow(Math.abs(c), e), ry * Math.sign(s) * Math.pow(Math.abs(s), e)]; };
-    const pe = ring(th0 + dir * sw), rhoEnd = endR / Math.hypot(pe[0], pe[1]), meanR = (rx + ry) / 2, pts = [];
-    for (let i = 0; i <= N; i++) {
-      const f = i / N, th = th0 + dir * f * sw, p = ring(th);
-      let rho = o.rho0 + (o.rho1 - o.rho0) * f;
-      const g = Math.max(0, Math.min(1, (f * sw - (sw - ds)) / ds)), u = g;      // turunan linear (kemiringan tetap)
-      if (o.wave) { const wm = o.wmod === 'cos' ? Math.pow(Math.abs(Math.cos(th)), 2) : 1; rho += o.wave[0] / 32 * R / meanR * Math.sin(o.wave[1] * f * 2 * Math.PI + (o.wave[2] || 0)) * Math.min(1, f * 10) * (1 - u) * wm; }
-      rho = Math.min(rho, 1) * (1 - u) + rhoEnd * u;
-      pts.push([0.5 + p[0] * rho / d.iw, d.vc + p[1] * rho / d.ih]);
+  /** INV-1 (tidak ada bola yang tertutup). Rantai penuh dan rapat: bola di arc s dan s ± k·D (D = 2R+1). Dari pivot naga C, untuk SETIAP posisi s (langkah 0,25R)
+   *  ditembakkan tiga sinar: ke pusat bola dan ke titik tepi ±0,7R ke samping. Sinar harus pertama kali mengenai bola itu sendiri.
+   *  Dua model sentuh: 'fat' = peluru nyata (peluru bergaris tengah = bola: sentuh pada jarak 0,92R + bulletR dari pusat bola; INI yang dialami pemain dan yang menjadi syarat lulus)
+   *  dan 'thin' = sinar tipis (cakram bola R) sebagai pembanding. Mengembalikan { tot, fat, thin, badPts }. */
+  function inv1(path, R, bulletR) {
+    const xs = path.xs, ys = path.ys, st = path.step, cx = path.shooter.x, cy = path.shooter.y, D = 2 * R + 1, n = xs.length, stepS = Math.max(st, 0.25 * R), rf = 0.92 * R + bulletR;
+    const at = function (s) { const f = s / st, i = Math.floor(f), t = f - i; if (i < 0 || i >= n - 1) return null; return [xs[i] + (xs[i + 1] - xs[i]) * t, ys[i] + (ys[i + 1] - ys[i]) * t]; };
+    const first = function (ux, uy, balls, rad) {
+      let best = 1e12, bi = -1;
+      for (let i = 0; i < balls.length; i++) { const qx = balls[i][0] - cx, qy = balls[i][1] - cy, t = qx * ux + qy * uy, h2 = qx * qx + qy * qy - t * t; if (t <= 0 || h2 >= rad * rad) continue; const th = t - Math.sqrt(rad * rad - h2); if (th < best) { best = th; bi = i; } }
+      return bi;
+    };
+    let tot = 0, fat = 0, thin = 0, ki = 0; const badPts = [], rays = [];
+    for (let s = 0; s <= path.length; s += stepS) {
+      const p = at(s); if (!p) continue; const balls = [p];
+      for (let k = 1; k <= 14; k++) { const a = at(s + k * D), b = at(s - k * D); if (a) balls.push(a); if (b) balls.push(b); }
+      const dx = p[0] - cx, dy = p[1] - cy, dl = Math.hypot(dx, dy) || 1, nx = -dy / dl, ny = dx / dl; let bad = false;
+      for (const off of [0, 0.7, -0.7]) {
+        const tx = dx + nx * off * R, ty = dy + ny * off * R, tl = Math.hypot(tx, ty), ux = tx / tl, uy = ty / tl; tot++;
+        const hit = first(ux, uy, balls, rf); if (hit !== 0) { fat++; bad = true; }
+        if (off === 0 && (ki++ % 6 === 0 || hit !== 0) && rays.length < 160) rays.push([cx, cy, p[0], p[1], hit === 0]);
+        if (first(ux, uy, balls, R) !== 0) thin++;
+      }
+      if (bad && badPts.length < 60) badPts.push([p[0], p[1]]);
     }
-    const out = { pts: pts, shooter: [0.5, d.vc], star: true };
-    if (o.boss) { out.boss = [0.5 + (o.boss.fx || 0) * rx / d.iw, d.vc + (o.boss.fy || 0) * ry / d.ih]; out.bossR = Math.round(1.5 * R); }
+    return { tot: tot, fat: fat, thin: thin, badPts: badPts, rays: rays };
+  }
+
+  /** INV-3: jarak minimum antar-segmen jalur (pasangan titik berjarak busur ≥ 6R); alur jalur tidak boleh saling menempel (≥ 2,5R + lebar alur). */
+  function minSegGap(path, R) {
+    const xs = path.xs, ys = path.ys, st = path.step, n = xs.length, S = 4, need = 2.5 * R + 8; let m = 1e9;
+    for (let a = 0; a < n; a += S) for (let b = a + S; b < n; b += S) {
+      if ((b - a) * st < 6 * R) continue;
+      const dx = xs[a] - xs[b], dy = ys[a] - ys[b], d = dx * dx + dy * dy;
+      if (d < m) m = d;
+    }
+    return Math.sqrt(m);
+  }
+
+  const fitCache = {};
+  /** Jalur SIPUT mengelilingi naga (titik tengah area bermain): SATU lap, sudut hanya bertambah (≤ 330°, celah portal/sarang ≥ 30°), radius mengecil geometris (spiral logaritmik) dari r0 ke
+   *  ujung di sekitar platform naga, ditambah lobus kecil (A px, k lobus) / pembulatan poligon. Peluru nyata (sebesar bola) berhenti di bola PERTAMA yang tersentuh, jadi jalur harus
+   *  hampir melingkar dari pusat naga: parameter (sapuan, pemipihan, amplitudo lobus, jari-jari ujung) DISETEL OTOMATIS dari yang paling "bergaya" ke yang paling polos
+   *  sampai INV-1 (peluru nyata), INV-3 (jarak segmen) dan portal di area bermain lulus 100%; hasil di-cache per ukuran. o: th0 (derajat, awal/portal), sweep, dir (±1), asp
+   *  (peregangan vertikal ≥ 1), A (px, × R/32), k, ph, rcap (batas r0), boss { side: 'top'|'left'|'right', k }. */
+  function snail(d, o) {
+    const R = d.R, TD = Math.PI / 180, wing = wingNeed(R) + 3, dir = o.dir || 1, PR = 2.2 * R, pl = d.pl;
+    const key = [o.id, R, d.iw, d.ih, d.vc, d.portrait].join('|');
+    let fit = fitCache[key];
+    if (!fit) {
+      const rMaxX = d.iw / 2, rMaxY = d.vc * d.ih;
+      let bossR = 0, bn = 0; if (o.boss) { bossR = Math.round((o.boss.k || 1.25) * R); bn = 1.5 * bossR + R + 2; }
+      let rcap = Math.min(rMaxX, o.rcap || 1e9); if (o.boss && o.boss.side === 'top') rcap = Math.min(rcap, d.vc * d.ih + d.padTop - (bn + 8) - bossR - 30);
+      const build = function (c) {
+        const rx = Math.min(rcap, rMaxY / c.asp), ry = rx * c.asp, N = Math.max(90, Math.round(c.sweep / 2)), sw = c.sweep * TD, th0 = o.th0 * TD, P = [], rE = c.endR;
+        const sc = Math.min(1, rE / Math.min(rx, ry));
+        for (let i = 0; i <= N; i++) {
+          const f = i / N, th = th0 + dir * f * sw, k = Math.pow(sc, f);
+          let ex = rx * Math.cos(th) * k, ey = ry * Math.sin(th) * k;
+          if (c.A) { const g = 1 + c.A * Math.sin(o.k * f * 2 * Math.PI + (o.ph || 0)) * Math.min(1, f * 6, (1 - f) * 6) / Math.hypot(rx, ry); ex *= g; ey *= g; }
+          P.push([ex, ey]);
+        }
+        return P;
+      };
+      const rE0 = Math.min(rcap, rMaxY / 1);
+      const cands = [];
+      [0, 8, 16, 24, 32, 44, 60].forEach(function (ds, si) {
+        [o.asp || 1, ((o.asp || 1) + 1) / 2, 1].forEach(function (asp, ai) {
+          if (ai && asp === (o.asp || 1)) return;
+          [1, 0.75, 0.5, 0.3, 0.15, 0].forEach(function (af, fi) {
+            if (!(o.A) && fi) return;
+            [0, 0.2, 0.4, 0.6, 0.8, 1].forEach(function (ef) {
+              const rr = Math.min(rcap, rMaxY / asp);
+              cands.push({ sweep: Math.max(240, o.sweep - ds), asp: asp, A: (o.A || 0) * af * R / 32, endR: wing + ef * Math.max(0, rr - wing), cost: si * 0.4 + ai * 1 + (1 - af) * 3 + Math.abs(ef - (o.ef0 == null ? 0.5 : o.ef0)) * 4 });
+            });
+          });
+        });
+      });
+      cands.sort(function (a, b) { return a.cost - b.cost; });
+      let best = null; const why = { portal: 0, gap: 0, inv1: 0, n: cands.length };
+      for (let i = 0; i < cands.length && !best; i++) {
+        const P = build(cands[i]), path = new GA.Path.Path(P); path.shooter = { x: 0, y: 0 };
+        const sx = d.cx + P[0][0], sy = d.cy + P[0][1];
+        if (sx < pl.x + PR || sx > pl.x + pl.w - PR || sy < pl.y + PR || sy > pl.y + pl.h - PR) { why.portal++; continue; }
+        if (minSegGap(path, R) < 2.5 * R + 8) { why.gap++; continue; }
+        if (inv1(path, R, R).fat === 0) best = { P: P, c: cands[i] }; else why.inv1++;
+      }
+      if (!best) { const c = { sweep: 250, asp: 1, A: 0, endR: Math.min(rcap, rMaxY) }; best = { P: build(c), c: c, failed: true, why: why }; }
+      best.rcap = rcap; fit = fitCache[key] = best;
+    }
+    const out = { pts: fit.P.map(function (p) { return [(d.cx + p[0] - d.ox) / d.iw, (d.cy + p[1] - d.oy) / d.ih]; }), shooter: [(d.cx - d.ox) / d.iw, (d.cy - d.oy) / d.ih], star: true, fit: fit.c, failed: !!fit.failed, why: fit.why };
+    if (o.boss) {
+      const bossR = Math.round((o.boss.k || 1.25) * R), bn = 1.5 * bossR + R + 2, rx = Math.min(fit.rcap, d.vc * d.ih / fit.c.asp), ry = rx * fit.c.asp; let bx = d.cx, by = d.cy;
+      if (o.boss.side === 'top') by = d.cy - ry - bn - 12; else bx = d.cx + (o.boss.side === 'left' ? -1 : 1) * (rx + bn + 14);
+      out.boss = [(bx - d.ox) / d.iw, (by - d.oy) / d.ih]; out.bossR = bossR;
+    }
     return out;
   }
-  const PORT = function (d) { return d.portrait; };
-  /** Dua definisi (potret | lanskap) per arketipe: potret = oval tinggi, lanskap = oval pendek (sumbu vertikal dibatasi HUD). */
-  const polarArch = function (op, ol) { return function (portrait, d) { return polar(d, portrait ? op : ol); }; };
+  /** Dua definisi (potret | lanskap) per arketipe; id ikut kunci cache penyetelan. */
+  const polarArch = function (id, op, ol) { return function (portrait, d) { return snail(d, Object.assign({ id: id + (portrait ? 'p' : 'l') }, portrait ? op : ol)); }; };
 
+  /** Arketipe (semua jalur lama dihapus). Potret: oval vertikal di bawah HUD, portal di tepi atas. Lanskap/desktop: elips mengikuti rasio area. Varian per stage ≥ 2, dipilih acak (levels.js).
+   *   Stage 1 SIPUT: lingkaran/oval yang mengecil pelan menuju sarang. Stage 2 LOBUS: cincin berlobus 4–6 (amplitudo disetel otomatis oleh INV-1). Stage 3 POLIGON: poligon bulat 5–6 sisi + boss di luar cincin. */
   const ARCH = {
-    // --- jalur baru: naga di TENGAH, jalur mengelilingi (Stage 1: ring1/spiral1/twoside, Stage 2: kuda/petal3/ring2, Stage 3: bkuda/bkuda2/bkudaW) ---
-    ring1: polarArch({ th0: -130, sweep: 305, desc: 100, n: 2, rho0: 1, rho1: 1, wave: [0.7 * 32, 5, 0] }, { th0: -75, sweep: 305, desc: 100, n: 2, rho0: 1, rho1: 1, wave: [0.35 * 32, 4, 0], wmod: 'cos' }),
-    spiral1: polarArch({ th0: -60, sweep: 305, desc: 100, dir: -1, n: 2, rho0: 1, rho1: 0.72, wave: [0.7 * 32, 4, 1] }, { th0: -105, sweep: 305, desc: 100, dir: -1, n: 2, rho0: 1, rho1: 1, wave: [0.35 * 32, 4, 1], wmod: 'cos' }),
-    twoside: polarArch({ th0: -140, sweep: 305, desc: 100, n: 4, rho0: 1, rho1: 0.92, wave: [0.7 * 32, 7, 0] }, { th0: -75, sweep: 305, desc: 100, n: 3, rho0: 1, rho1: 1, wave: [0.35 * 32, 6, 0], wmod: 'cos' }),
-    kuda: polarArch({ th0: 125, sweep: 300, desc: 100, n: 2.6, rho0: 1, rho1: 0.96, wave: [0.7 * 32, 4, 0] }, { th0: 120, sweep: 300, desc: 100, n: 2.4, rho0: 1, rho1: 1, wave: [0.35 * 32, 4, 0], wmod: 'cos' }),
-    petal3: polarArch({ th0: -120, sweep: 305, desc: 100, n: 2, rho0: 0.84, rho1: 0.84, wave: [0.7 * 32, 3, 0] }, { th0: -75, sweep: 305, desc: 100, n: 2, rho0: 1, rho1: 1, wave: [0.35 * 32, 3, 0], wmod: 'cos' }),
-    ring2: polarArch({ th0: -50, sweep: 305, desc: 100, dir: -1, n: 2.2, rho0: 1, rho1: 1, wave: [0.7 * 32, 6, 2] }, { th0: -105, sweep: 305, desc: 100, dir: -1, n: 2.2, rho0: 1, rho1: 1, wave: [0.35 * 32, 5, 2], wmod: 'cos' }),
-    // arena boss: bukaan di atas (potret) / di samping (lanskap) tempat boss berdiri
-    bkuda: polarArch({ th0: -50, sweep: 255, desc: 100, n: 2.2, rho0: 1, rho1: 1, wave: [0.6 * 32, 4, 0], boss: { fy: -0.58 } }, { th0: -75, sweep: 305, desc: 100, n: 2, rho0: 1, rho1: 1, wave: [0.35 * 32, 3, 0], wmod: 'cos', boss: { fx: 1.62 } }),
-    bkuda2: polarArch({ th0: -130, sweep: 255, desc: 100, dir: -1, n: 2.2, rho0: 1, rho1: 1, wave: [0.6 * 32, 4, 1], boss: { fy: -0.58 } }, { th0: -105, sweep: 305, desc: 100, dir: -1, n: 2, rho0: 1, rho1: 1, wave: [0.35 * 32, 3, 1], wmod: 'cos', boss: { fx: -1.62 } }),
-    bkudaW: polarArch({ th0: -45, sweep: 260, desc: 100, n: 2.8, rho0: 1, rho1: 0.95, wave: [0.7 * 32, 5, 0], boss: { fy: -0.58 } }, { th0: -75, sweep: 305, desc: 100, n: 2.4, rho0: 1, rho1: 1, wave: [0.35 * 32, 4, 0], wmod: 'cos', boss: { fx: 1.62 } }),
-    // --- arketipe lama (tidak dipakai di kolam stage; hanya cadangan menu/uji) ---
-    // --- Stage 1 (hutan) ---
-    hook: legacy('hook'),
-    serp3: function (portrait, d) {
-      return portrait ? { pts: serp(6, 0, 0.15, d.asp), shooter: [0.5, 0.97], zones: SERP_ZONE } : { pts: serp(3, 0, 0.3, d.asp), shooter: [0.5, 0.97], zones: SERP_ZONE };
-    },
-    s2: function (portrait, d) {
-      return portrait
-        ? { pts: serp(4, 0, 0.2, d.asp), shooter: [0.5, 0.95] }
-        : { pts: [[-0.12, 0.02], [0.3, 0.0], [0.7, 0.0], [0.95, 0.05], [1.02, 0.22], [0.95, 0.4], [0.7, 0.44], [0.4, 0.44], [0.12, 0.42]], shooter: [0.5, 0.92] };
-    },
-    // --- Stage 2 (gunung api / gua kristal) ---
-    zigzag: function (portrait, d) { return portrait ? { pts: serp(5, 0, 0.18, d.asp, 0.02), shooter: [0.5, 0.97] } : legacy('zigzag')(false); },
-    figure8: function (portrait) {
-      const pts = figure8(), sh = [0.75, 0.5];
-      return portrait ? { pts: T(pts), shooter: [sh[1], sh[0]], bridge: true } : { pts: pts, shooter: sh, bridge: true };
-    },
-    // --- varian padat (tahap f): lebih banyak baris = jalur lebih panjang; tikungan setengah lingkaran dilunakkan validator bila perlu ---
-    serp4: function (portrait, d) { const f = fitRows(d, portrait ? 7 : 4, portrait ? 0.98 : 0.995); return { pts: serp(f.n, 0, f.dv, d.asp), shooter: [0.5, portrait ? 0.98 : 0.995], zones: SERP_ZONE }; },
-    serp4w: function (portrait, d) { const f = fitRows(d, portrait ? 6 : 4, portrait ? 0.97 : 0.995); return { pts: serp(f.n, 0, f.dv, d.asp, portrait ? 0.012 : 0.008), shooter: [0.5, portrait ? 0.97 : 0.995] }; },
-    serp3w: function (portrait, d) { return portrait ? { pts: serp(5, 0, 0.17, d.asp, 0.025), shooter: [0.5, 0.96], zones: SERP_ZONE } : { pts: serp(3, 0, 0.3, d.asp, 0.04), shooter: [0.5, 0.97] }; },
-    horseshoe: function (portrait) {
-      const pts = [[-0.12, 0.03], [0.05, 0.05], [0.02, 0.5], [0.1, 0.92], [0.3, 1.0], [0.7, 1.0], [0.92, 0.92], [1.0, 0.5], [0.95, 0.1], [0.75, 0.0], [0.55, 0.02]];
-      return { pts: portrait ? T(pts) : pts };
-    },
-    // --- Stage 3 (menara, arena boss: penembak di bawah, boss di atas) ---
-    bossU: legacy('bossU'),
-    bossU2: function () { return { pts: MIR(BOSS_U), shooter: [0.5, 0.63], boss: [0.5, 0.2] }; },
-    bossBowl: function () {
-      return { pts: [[0.0, -0.2], [0.06, 0.12], [0.0, 0.4], [0.12, 0.75], [0.4, 0.98], [0.7, 0.98], [0.92, 0.8], [1.0, 0.5], [0.9, 0.25], [0.78, 0.05]], shooter: [0.5, 0.63], boss: [0.5, 0.2] };
-    }
+    siput1: polarArch('siput1', { th0: -125, sweep: 322, dir: 1, asp: 1.1, A: 0, k: 3, ef0: 0 }, { th0: -35, sweep: 322, dir: 1, asp: 1.05, A: 0, k: 3, ef0: 0 }),
+    siput2: polarArch('siput2', { th0: -55, sweep: 322, dir: -1, asp: 1.06, A: 0, k: 3, ef0: 0 }, { th0: -145, sweep: 322, dir: -1, asp: 1, A: 0, k: 3, ef0: 0 }),
+    siput3: polarArch('siput3', { th0: 145, sweep: 318, dir: 1, asp: 1.03, A: 0, k: 3, ef0: 0.1 }, { th0: 155, sweep: 318, dir: 1, asp: 1, A: 0, k: 3, ef0: 0.1 }),
+    lobus1: polarArch('lobus1', { th0: -120, sweep: 322, dir: 1, asp: 1.06, A: 14, k: 5 }, { th0: -40, sweep: 322, dir: 1, asp: 1.03, A: 14, k: 5 }),
+    lobus2: polarArch('lobus2', { th0: -60, sweep: 322, dir: -1, asp: 1.04, A: 14, k: 4 }, { th0: -140, sweep: 322, dir: -1, asp: 1, A: 14, k: 4 }),
+    lobus3: polarArch('lobus3', { th0: 150, sweep: 318, dir: 1, asp: 1.03, A: 14, k: 6 }, { th0: 160, sweep: 318, dir: 1, asp: 1, A: 14, k: 6 }),
+    poligon1: polarArch('poligon1', { th0: -125, sweep: 322, dir: 1, asp: 1, A: 12, k: 5, boss: { side: 'top', k: 1.25 } }, { th0: -150, sweep: 322, dir: 1, asp: 1, A: 12, k: 5, boss: { side: 'right', k: 1.5 } }),
+    poligon2: polarArch('poligon2', { th0: -55, sweep: 322, dir: -1, asp: 1, A: 12, k: 6, boss: { side: 'top', k: 1.25 } }, { th0: -30, sweep: 322, dir: -1, asp: 1, A: 12, k: 6, boss: { side: 'left', k: 1.5 } }),
+    poligon3: polarArch('poligon3', { th0: 145, sweep: 318, dir: 1, asp: 1, A: 12, k: 5, boss: { side: 'top', k: 1.25 } }, { th0: 30, sweep: 318, dir: 1, asp: 1, A: 12, k: 5, boss: { side: 'right', k: 1.5 } })
   };
 
-  const PLAY_IDS = ['ring1', 'spiral1', 'twoside', 'kuda', 'petal3', 'ring2', 'bkuda', 'bkuda2', 'bkudaW'];
+  const PLAY_IDS = ['siput1', 'siput2', 'siput3', 'lobus1', 'lobus2', 'lobus3', 'poligon1', 'poligon2', 'poligon3'];
   function has(id) { return !!ARCH[id]; }
+  /** Margin atas jalur untuk bola stage berjari-jari R (bola kategori bisa 1,12× bola layout): pusat bola >= (hudGap + 1)R di bawah panel HUD. */
+  function padTopFor(L, R) {
+    const base = L && L.padTop != null ? L.padTop : (L && L.pad) || 40;
+    return R && L && L.hudGap != null ? Math.max(base, Math.round((L.hudGap + 1) * R * (L.portrait ? 1.12 : 1.05))) : base;
+  }
   function resolve(id, portrait, L, R) {
-    const pl = L && L.play, pad = L && L.pad != null ? L.pad : 40, padTop = L && L.padTop != null ? L.padTop : pad, iw = pl ? pl.w - 2 * pad : 440, ih = pl ? pl.h - padTop - pad : 356 - (padTop - pad);
+    const pl = L && L.play, pad = L && L.pad != null ? L.pad : 40, padTop = padTopFor(L, R), iw = pl ? pl.w - 2 * pad : 440, ih = pl ? pl.h - padTop - pad : 356 - (padTop - pad);
     const vc = pl ? (pl.h / 2 - padTop) / ih : 0.5;      // pusat arena (tengah area bermain) dalam koordinat ternormalisasi area jalur
-    return ARCH[id] ? ARCH[id](!!portrait, { iw: iw, ih: ih, vc: vc, asp: ih / iw, R: R || 29, portrait: !!portrait }) : null;
+    return ARCH[id] ? ARCH[id](!!portrait, { iw: iw, ih: ih, vc: vc, asp: ih / iw, R: R || 29, portrait: !!portrait, pl: pl || { x: 0, y: 0, w: 540, h: 400 }, padTop: padTop, ox: (pl ? pl.x : 0) + pad, oy: (pl ? pl.y : 0) + padTop, cx: pl ? pl.x + pl.w / 2 : 270, cy: pl ? pl.y + pl.h / 2 : 200 }) : null;
   }
 
   /* ---------- validator ---------- */
@@ -192,44 +200,33 @@
    *  (3) ray test dari naga ke setiap posisi bola di sepanjang jalur: tidak ada bola lain yang tersentuh peluru lebih dulu (peluru berhenti di bola pertama);
    *  (4) jalur ≥ 2,5R di bawah HUD (margin bola 1,5R), sayap naga tidak menutupi (≥ wingNeed dari pusat). */
   function analyzeStar(path, R, L) {
-    const xs = path.xs, ys = path.ys, n = xs.length, cx = path.shooter.x, cy = path.shooter.y, issues = [], S = 3, pl = L.play;
-    const rb = 0.92 * R + (GA.Theme.ball.bulletHitRatio || 0.5) * R, wn = wingNeed(R);
-    // (1) sudut kumulatif dan pembalikan arah
-    let ang = 0, prev = Math.atan2(ys[0] - cy, xs[0] - cx);
+    const xs = path.xs, ys = path.ys, n = xs.length, cx = path.shooter.x, cy = path.shooter.y, issues = [], pl = L.play, wn = wingNeed(R);
+    // INV-2: pivot naga = tengah area bermain (di bawah HUD/zona informasi)
+    const pcx = pl.x + pl.w / 2, pcy = pl.y + pl.h / 2;
+    if (Math.hypot(cx - pcx, cy - pcy) > 1.5) issues.push({ kind: 'center', msg: 'naga bukan di tengah area bermain (' + Math.round(cx - pcx) + ',' + Math.round(cy - pcy) + ')' });
+    // sudut kumulatif ≤ 330° dan arah tunggal; celah sudut ≥ 30° antara ujung (platform) dan awal (portal)
+    let ang = 0, prev = Math.atan2(ys[0] - cy, xs[0] - cx), hi = 0, acc = 0, maxBack = 0; const a0 = prev;
     for (let i = 1; i < n; i++) { const a = Math.atan2(ys[i] - cy, xs[i] - cx); let da = a - prev; if (da > Math.PI) da -= 2 * Math.PI; if (da < -Math.PI) da += 2 * Math.PI; ang += da; prev = a; }
-    const sgn = ang >= 0 ? 1 : -1; let acc = 0, hi = 0, maxBack = 0; prev = Math.atan2(ys[0] - cy, xs[0] - cx);
+    const sgn = ang >= 0 ? 1 : -1; prev = a0;
     for (let i = 1; i < n; i++) { const a = Math.atan2(ys[i] - cy, xs[i] - cx); let da = a - prev; if (da > Math.PI) da -= 2 * Math.PI; if (da < -Math.PI) da += 2 * Math.PI; prev = a; acc += da * sgn; if (acc > hi) hi = acc; if (hi - acc > maxBack) maxBack = hi - acc; }
-    if (Math.abs(ang) > 2 * Math.PI * 1.005) issues.push({ kind: 'angle', msg: 'jalur mengitari ' + Math.round(Math.abs(ang) * 180 / Math.PI) + '° (> 360°)' });
-    if (maxBack > 0.04) issues.push({ kind: 'angle', msg: 'sudut berbalik ' + (maxBack * 180 / Math.PI).toFixed(1) + '° (bukan bintang)' });
-    // (2) sudut tangen-radial, jarak minimum ke pusat, margin HUD (bagian yang terlihat)
-    let first = -1; for (let i = 0; i < n; i++) if (xs[i] >= pl.x && xs[i] <= pl.x + pl.w && ys[i] >= pl.y && ys[i] <= pl.y + pl.h) { first = i; break; }
-    let minR = 1e9, minY = 1e9, minAlpha = 90;
-    for (let i = Math.max(0, first); i < n - 2; i += 2) {
-      const tx = xs[i + 2] - xs[i], ty = ys[i + 2] - ys[i], rx = xs[i] - cx, ry = ys[i] - cy, rl = Math.hypot(rx, ry) || 1;
-      const al = Math.acos(Math.min(1, Math.abs(tx * rx + ty * ry) / ((Math.hypot(tx, ty) || 1) * rl))) * 180 / Math.PI;      // 0 = searah radial, 90 = melingkar
-      if (al < minAlpha) minAlpha = al; if (rl < minR) minR = rl; if (ys[i] < minY) minY = ys[i];
-    }
-    if (minAlpha < 25) issues.push({ kind: 'tangent', msg: 'tangen ' + minAlpha.toFixed(0) + '° dari radial (< 25°)' });      // ambang lunak; ukuran sebenarnya = ray test
+    const sweepDeg = Math.abs(ang) * 180 / Math.PI;
+    if (sweepDeg > 330.5) issues.push({ kind: 'angle', msg: 'rentang sudut ' + sweepDeg.toFixed(0) + '° (> 330°; celah portal < 30°)' });
+    if (maxBack > 0.03) issues.push({ kind: 'angle', msg: 'sudut berbalik ' + (maxBack * 180 / Math.PI).toFixed(1) + '°' });
+    // INV-2: ujung jalur di tepi platform/sarang tengah; jalur tidak lebih dekat ke pusat daripada jangkauan sayap; portal penuh di area bermain
+    let first = -1; for (let i = 0; i < n; i++) if (xs[i] >= pl.x + 2 && xs[i] <= pl.x + pl.w - 2 && ys[i] >= pl.y + 2 && ys[i] <= pl.y + pl.h - 2) { first = i; break; }
+    let minR = 1e9, minY = 1e9;
+    for (let i = Math.max(0, first); i < n; i += 2) { const rl = Math.hypot(xs[i] - cx, ys[i] - cy); if (rl < minR) minR = rl; if (ys[i] < minY) minY = ys[i]; }
+    const endD = Math.hypot(xs[n - 1] - cx, ys[n - 1] - cy);
     if (minR < wn - 2) issues.push({ kind: 'wing', msg: 'jalur ' + Math.round(minR) + ' dari naga < ' + Math.round(wn) + ' (sayap menutupi bola)' });
-    if (minY < pl.y + 2.5 * R - 2) issues.push({ kind: 'hud', msg: 'jalur ' + ((minY - pl.y) / R).toFixed(2) + 'R di bawah HUD (< 2,5R)' });
-    // (3) ray test
-    const smp = []; for (let i = Math.max(0, first); i < n; i += S) smp.push(i);
-    let blocked = 0, near2 = 0; const bad = [], D4 = 4 * (2 * R + 1);
-    for (let a = 0; a < smp.length; a++) {
-      const i = smp[a], px = xs[i] - cx, py = ys[i] - cy, dist = Math.hypot(px, py); if (dist < 1) continue;
-      const ux = px / dist, uy = py / dist; let hit = false, hitNear = false;
-      for (let b = 0; b < smp.length && !hit; b++) {      // hit = dilindungi bola dari LAP/untai lain (arc >= 4D) = tumpang tindih radial; hitNear = hanya tetangga satu untai
-        if (b === a) continue; const j = smp[b], arc = Math.abs(j - i) * path.step; if (arc < 0.95 * (2 * R + 1)) continue;      // bola bersebelahan tidak mungkin sedekat itu
-        const qx = xs[j] - cx, qy = ys[j] - cy, t = qx * ux + qy * uy; if (t <= 0 || t > dist + rb) continue;
-        const h = Math.abs(qx * uy - qy * ux); if (h >= rb) continue;
-        if (t - Math.sqrt(rb * rb - h * h) < dist - rb - 1) { if (arc >= D4) hit = true; else hitNear = true; }      // bola di j tersentuh lebih dulu daripada bola di i
-      }
-      if (hit) { blocked++; if (bad.length < 40) bad.push([xs[i], ys[i]]); } else if (hitNear) near2++;
-    }
-    const frac = smp.length ? blocked / smp.length : 0, fracNear = smp.length ? near2 / smp.length : 0;
-    if (frac > 0.06) issues.push({ kind: 'ray', msg: 'ray test: ' + (frac * 100).toFixed(1) + '% posisi bola terlindung bola dari lap lain (> 6%)' });      // sisa kecil = bayangan di sambungan lap/turunan
-    if (fracNear > (L.portrait ? 0.35 : 0.45)) issues.push({ kind: 'rayNear', msg: 'ray test: ' + (fracNear * 100).toFixed(1) + '% posisi bola terlindung tetangga satu untai (> ' + (L.portrait ? 35 : 45) + '%)' });      // pembanding: jalur lama hook 39% / 71%
-    return { issues: issues, rayBlocked: frac, rayNear: fracNear, rayBad: bad, minTangent: minAlpha, minCenter: minR, endDist: Math.hypot(xs[n - 1] - cx, ys[n - 1] - cy), sweepDeg: Math.abs(ang) * 180 / Math.PI };
+    if (endD < wn - 2) issues.push({ kind: 'end', msg: 'ujung jalur ' + Math.round(endD) + ' dari pusat (di dalam platform naga)' });
+    const gapR = (L.hudGap == null ? 1.5 : L.hudGap) + 1;
+    if (minY < pl.y + gapR * R - 2) issues.push({ kind: 'hud', msg: 'jalur ' + ((minY - pl.y) / R).toFixed(2) + 'R di bawah HUD (< ' + gapR.toFixed(1) + 'R)' });
+    const PR = 2.2 * R, sx = xs[Math.max(0, first)], sy = ys[Math.max(0, first)];
+    if (sx < pl.x + PR - 1 || sx > pl.x + pl.w - PR + 1 || sy < pl.y + PR - 1 || sy > pl.y + pl.h - PR + 1) issues.push({ kind: 'portal', msg: 'portal tidak penuh di area bermain' });
+    // INV-1 dengan peluru nyata (syarat lulus) + sinar tipis (pembanding)
+    const v = inv1(path, R, R);
+    if (v.fat > 0) issues.push({ kind: 'inv1', msg: 'INV-1: ' + v.fat + '/' + v.tot + ' sinar mengenai bola lain lebih dulu (peluru nyata)' });
+    return { issues: issues, inv1: v, rayBad: v.badPts, minCenter: minR, endDist: endD, sweepDeg: sweepDeg };
   }
 
   /** Lunakkan tikungan tajam:
@@ -268,6 +265,10 @@
     const rep = path.report || {};
     ctx.save(); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(0,255,255,0.9)'; ctx.stroke(path.poly());
     (path.ctrl || []).forEach(function (p, i) { ctx.fillStyle = 'rgba(255,255,0,0.95)'; ctx.beginPath(); ctx.arc(p[0], p[1], 4, 0, TAU); ctx.fill(); ctx.fillStyle = '#fff'; ctx.font = '10px monospace'; ctx.fillText(String(i), p[0] + 5, p[1] - 5); });
+    if (rep.star) {      // INV-1: sinar uji dari naga ke tiap posisi bola (hijau = mengenai bola itu sendiri, merah = terhalang bola lain), bola tertutup diisi merah
+      ctx.lineWidth = 1; (rep.star.inv1.rays || []).forEach(function (r) { ctx.strokeStyle = r[4] ? 'rgba(120,255,140,0.2)' : 'rgba(255,60,60,0.9)'; ctx.beginPath(); ctx.moveTo(r[0], r[1]); ctx.lineTo(r[2], r[3]); ctx.stroke(); });
+      ctx.fillStyle = 'rgba(255,40,40,0.5)'; (rep.star.rayBad || []).forEach(function (p) { ctx.beginPath(); ctx.arc(p[0], p[1], R, 0, TAU); ctx.fill(); });
+    }
     ctx.strokeStyle = 'rgba(255,60,60,0.9)'; ctx.lineWidth = 2;
     (rep.violations || []).forEach(function (p) { ctx.beginPath(); ctx.arc(p[0], p[1], R * 0.7, 0, TAU); ctx.stroke(); });
     ctx.strokeStyle = 'rgba(255,160,0,0.95)'; (rep.sharp || []).forEach(function (p) { ctx.beginPath(); ctx.rect(p[0] - 8, p[1] - 8, 16, 16); ctx.stroke(); });
@@ -278,13 +279,13 @@
     ctx.setLineDash([]);
     (path.zones || []).forEach(function (z) { const a = path.at(z.from, {}), b = path.at(z.to, {}); ctx.strokeStyle = 'rgba(255,0,255,0.8)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); });
     const ed = GA.Effects && GA.Effects.entryD ? GA.Effects.entryD() : 0, ep = path.at(ed, {}); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(ep.x, ep.y, R * 2.2, 0, TAU); ctx.stroke();
-    ctx.fillStyle = 'rgba(0,0,0,0.7)'; const y0 = (path.play ? path.play.y : 100) + 8; ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(4, y0, 330, 14 + 12 * ((rep.issues || []).length + 3));
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'; const y0 = (path.play ? path.play.y : 100) + 8; ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(4, y0, 330, 14 + 12 * ((rep.issues || []).length + 4));
     ctx.fillStyle = rep.ok ? '#7dff9a' : '#ff9a7d'; ctx.font = '11px monospace'; ctx.textAlign = 'left';
-    const lines = ['jalur ' + path.presetId + '  panjang ' + Math.round(path.length) + '  R ' + R, 'gap min ' + (rep.minGap ? Math.round(rep.minGap) : '-') + ' (butuh ' + Math.round(rep.need || 0) + ')  radius min ' + (rep.minRadius ? Math.round(rep.minRadius) : '-') + '  lunak ' + (rep.softened || 0) + 'x', 'ruang penembak ' + Math.round(rep.shooterClear || 0) + '  silang ' + (rep.crossings || []).length].concat((rep.issues || []).map(function (i) { return '! ' + i.msg; }));
+    const lines = ['jalur ' + path.presetId + '  panjang ' + Math.round(path.length) + '  R ' + R, 'gap min ' + (rep.minGap ? Math.round(rep.minGap) : '-') + ' (butuh ' + Math.round(rep.need || 0) + ')  radius min ' + (rep.minRadius ? Math.round(rep.minRadius) : '-') + '  lunak ' + (rep.softened || 0) + 'x', 'ruang penembak ' + Math.round(rep.shooterClear || 0) + '  silang ' + (rep.crossings || []).length].concat(rep.star ? ['INV-1 peluru nyata ' + rep.star.inv1.fat + '/' + rep.star.inv1.tot + '  sinar tipis ' + rep.star.inv1.thin + '  sudut ' + Math.round(rep.star.sweepDeg) + '°  ujung ' + Math.round(rep.star.endDist)] : []).concat((rep.issues || []).map(function (i) { return '! ' + i.msg; }));
     lines.forEach(function (l, i) { ctx.fillText(l, 10, y0 + 16 + i * 12); });
     ctx.restore();
   }
 
-  GA.Paths = { has: has, resolve: resolve, refine: refine, analyze: analyze, analyzeStar: analyzeStar, drawDebug: drawDebug, ids: PLAY_IDS, all: Object.keys(ARCH), wingNeed: wingNeed, WING_REACH: WING_REACH };
+  GA.Paths = { has: has, resolve: resolve, refine: refine, analyze: analyze, analyzeStar: analyzeStar, inv1: inv1, padTopFor: padTopFor, drawDebug: drawDebug, ids: PLAY_IDS, all: Object.keys(ARCH), wingNeed: wingNeed, WING_REACH: WING_REACH };
   GA.debug = /[?&]debug(=1|&|$)/.test(location.search);
 })(window.GA = window.GA || {});

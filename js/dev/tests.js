@@ -128,7 +128,7 @@
     lays.forEach(function (L) { L.ballR = R; L.pad = R + 18; });
     [[26, 26], [29, 29], [32, 32], [36, 32]].forEach(function (rp) {      // [radius bola stage, radius bola layout]: kategori pecahan/desimal memakai bola 1,12x
     const R = rp[0];
-    lays.forEach(function (L) { L.ballR = rp[1]; L.pad = rp[1] + 18; L.padTop = Math.round(2.5 * rp[1] * 1.12); });
+    lays.forEach(function (L) { L.ballR = rp[1]; L.pad = rp[1] + 18; L.hudGap = L.portrait ? 1.5 : 1.0; L.padTop = Math.round((L.hudGap + 1) * rp[1] * (L.portrait ? 1.12 : 1.05)); });
     GA.Paths.ids.forEach(function (id) {
       lays.forEach(function (L) {
         const p = GA.Path.forLayout(id, L, R), reps = [p.report];
@@ -372,6 +372,31 @@
     ok('posisi bola jawaban (model nominal 7 dtk/jawaban, ' + sims + ' simulasi di semua jalur × 3 layar): bola aktif sudah keluar dan tidak di 12% terakhir; tak ada bola depan lolos ke sarang', viol === 0 && late === 0 && stolen === 0, 'melanggar 12% ' + viol + ', belum keluar ' + late + ', lolos ke sarang ' + stolen);
   }
 
+  /** Invarian jalur (revisi 7) pada TIGA ukuran layar nyata (390×844, 844×390, 1440×900) untuk semua arketipe stage 1–3:
+   *  INV-1 dari pivot naga, tiap posisi bola sepanjang jalur (langkah 0,25R, rantai penuh dan rapat), sinar ke pusat dan ke tepi ±0,7R pertama kali mengenai bola itu sendiri
+   *  (peluru nyata = sebesar bola; sinar tipis dilaporkan sebagai pembanding); INV-2 naga di tengah area bermain, jalur mengelilingi dan berujung di platform, portal penuh di area, tidak di bawah HUD;
+   *  INV-3 jarak antar-segmen >= 2,5R + lebar alur. Juga: penyetel otomatis tidak jatuh ke cadangan, dan stage punya >= 2 varian. */
+  function testInvariants() {
+    const G = GA.game, sizes = [[390, 844], [844, 390], [1440, 900]], bad1 = [], bad2 = [], bad3 = [], badFit = []; let rays = 0, fat = 0, thin = 0, builds = 0, minGap = 1e9;
+    const INV2 = { center: 1, wing: 1, end: 1, hud: 1, portal: 1, angle: 1, bounds: 1, shooter: 1 };
+    sizes.forEach(function (sz) {
+      GA.devViewport = { w: sz[0], h: sz[1] }; G.relayout();
+      const L = G.layout, R = L.ballR;
+      GA.Paths.ids.forEach(function (id) {
+        const p = GA.Path.forLayout(id, L, R), rep = p.report, st = rep.star, tag = id + '@' + sz.join('×'), def = GA.Paths.resolve(id, L.portrait, L, R);
+        builds++; rays += st.inv1.tot; fat += st.inv1.fat; thin += st.inv1.thin; if (rep.minGap != null) minGap = Math.min(minGap, rep.minGap);
+        if (def.failed) badFit.push(tag);
+        rep.issues.forEach(function (i) { if (i.kind === 'inv1') bad1.push(tag + ' ' + i.msg); else if (INV2[i.kind]) bad2.push(tag + ' ' + i.msg); else if (i.kind === 'gap') bad3.push(tag + ' ' + i.msg); else bad2.push(tag + ' ' + i.msg); });
+      });
+    });
+    GA.devViewport = null; G.relayout();
+    const stageVar = GA.Levels.STAGES.map(function (s) { return s.pool.paths.length; });
+    ok('INV-1: ' + builds + ' jalur (stage 1–3 × varian × 3 ukuran layar), ' + rays + ' sinar uji dari naga: 100% mengenai bola itu sendiri lebih dulu (peluru nyata; sinar tipis ' + thin + ' gagal)', bad1.length === 0 && fat === 0, 'gagal ' + fat + '/' + rays + (bad1.length ? '; ' + bad1.slice(0, 3).join(' | ') : ''));
+    ok('INV-2: naga di tengah area bermain, jalur mengelilingi (≤ 330°), berujung di platform, portal penuh di area dan tidak di bawah HUD', bad2.length === 0, bad2.slice(0, 3).join(' | '));
+    ok('INV-3: jarak antar-segmen jalur >= 2,5R + 8 (minimum terukur ' + minGap.toFixed(0) + ')', bad3.length === 0, bad3.slice(0, 3).join(' | '));
+    ok('penyetel jalur menemukan bentuk lolos untuk semua ukuran (tanpa cadangan); tiap stage >= 2 varian (' + stageVar.join('/') + ')', badFit.length === 0 && stageVar.every(function (n) { return n >= 2; }), badFit.slice(0, 3).join(', '));
+  }
+
   async function runAll() {
 
 
@@ -379,7 +404,7 @@
 
 
     const t0 = performance.now();
-    testDecks(); testFormats(); testHud(); testWaves(); testStorage(); testMigrate(); testStrings(); testContrast(); testPaths();
+    testDecks(); testFormats(); testHud(); testWaves(); testStorage(); testMigrate(); testStrings(); testContrast(); testPaths(); testInvariants();
     await testStages();
     await testSteal();
     await testAudio();

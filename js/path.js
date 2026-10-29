@@ -88,57 +88,17 @@
     }
   }
 
-  /* Preset jalur. Koordinat ternormalisasi (u: kiri-kanan, v: atas-bawah) terhadap area main.
-   * mode 'transpose': di portrait, u/v ditukar (jalur masuk dari atas).
-   * mode 'same'     : koordinat sama persis di kedua orientasi.
-   * shooter/boss    : posisi ternormalisasi (default tengah). */
-  const presets = {
-    // C/U lebar, pintu masuk kiri-atas, lubang kanan-atas. Paling mudah.
-    arc: {
-      mode: 'transpose',
-      pts: [[-0.12, 0.16], [0.06, 0.2], [0.03, 0.55], [0.12, 0.88], [0.36, 0.99], [0.64, 0.99], [0.88, 0.88], [0.97, 0.55], [0.95, 0.2], [0.86, 0.06]]
-    },
-    // Ular bergelombang (landai) mengelilingi penembak; lubang masuk dari sisi kiri.
-    wave: {
-      mode: 'transpose',
-      pts: [[-0.12, 0.2], [0.08, 0.04], [0.27, 0.16], [0.46, 0.02], [0.65, 0.16], [0.84, 0.04], [0.97, 0.3], [0.95, 0.66], [0.8, 0.96], [0.62, 0.84], [0.44, 0.98], [0.28, 0.84], [0.12, 0.97], [0.04, 0.72], [0.07, 0.52], [0.17, 0.44]]
-    },
-    // Satu cincin penuh lalu kait ke dalam; lubang di sebelah kiri penembak.
-    hook: {
-      mode: 'transpose',
-      pts: [[-0.12, 0.06], [0.2, 0.0], [0.6, 0.0], [0.93, 0.05], [1.0, 0.5], [0.94, 0.95], [0.6, 1.0], [0.2, 0.99], [0.04, 0.9], [0.0, 0.68], [0.08, 0.56], [0.22, 0.52]]
-    },
-    // Zig-zag (S) lebar: turun di sisi kiri, naik, menyeberang di atas penembak, lalu turun-naik di sisi kanan. Tidak berpotongan.
-    zigzag: {
-      mode: 'transpose',
-      pts: [[-0.12, 0.08], [0.04, 0.1], [0.06, 0.5], [0.07, 0.86], [0.13, 0.98], [0.2, 0.86], [0.2, 0.5], [0.2, 0.16], [0.27, 0.04], [0.4, 0.02], [0.6, 0.02], [0.73, 0.04], [0.8, 0.16], [0.8, 0.5], [0.8, 0.84], [0.87, 0.98], [0.94, 0.86], [0.95, 0.5], [0.92, 0.22]]
-    },
-    // Cincin hampir penuh: masuk dari atas, mengelilingi, lubang di dekat pintu masuk.
-    ring: {
-      mode: 'transpose',
-      pts: [[0.28, -0.24], [0.2, 0.06], [0.05, 0.3], [0.02, 0.72], [0.16, 0.96], [0.5, 1.0], [0.84, 0.96], [0.98, 0.72], [0.96, 0.3], [0.86, 0.06], [0.64, 0.02], [0.42, 0.1]]
-    },
-    // Huruf U terbuka di atas, dipakai arena boss (penembak di bawah, boss di atas).
-    bossU: {
-      mode: 'same',
-      shooter: [0.5, 0.63], boss: [0.5, 0.2],
-      pts: [[0.0, -0.2], [0.03, 0.14], [0.04, 0.6], [0.14, 0.9], [0.5, 1.0], [0.86, 0.9], [0.96, 0.6], [0.97, 0.3], [0.95, 0.08]]
-    }
-  };
-
   /** Bangun jalur untuk layout tertentu. layout.play = {x,y,w,h}, layout.portrait */
   function forLayout(presetId, layout, R) {
     R = R || layout.ballR || 32;
-    const def = GA.Paths && GA.Paths.resolve(presetId, layout.portrait, layout, R);   // arketipe jalur (maps/paths.js): sudah dipilah landscape/portrait
-    const pr = def || presets[presetId] || presets.arc;
+    const def = GA.Paths.resolve(presetId, layout.portrait, layout, R) || GA.Paths.resolve('siput1', layout.portrait, layout, R);   // arketipe jalur (maps/paths.js): sudah dipilah potret/lanskap
+    const pr = def;
     const pl = layout.play;
-    const tr = !def && layout.portrait && pr.mode === 'transpose';
     const pad = layout.pad == null ? 40 : layout.pad; // jarak jalur dari tepi area main
-    const padTop = layout.padTop == null ? pad : layout.padTop;      // margin atas lebih besar: jalur, portal, dan bola >= 1,5R di bawah zona HUD
+    const padTop = GA.Paths.padTopFor(layout, R);      // margin atas lebih besar: jalur, portal, dan bola >= 1,5R di bawah zona HUD
     const iw = pl.w - pad * 2, ih = pl.h - padTop - pad;
     const map = function (p) {
-      const u = tr ? p[1] : p[0], v = tr ? p[0] : p[1];
-      return [pl.x + pad + u * iw, pl.y + padTop + v * ih];
+      return [pl.x + pad + p[0] * iw, pl.y + padTop + p[1] * ih];
     };
     const path = new Path(pr.pts.map(map));
     const sh = pr.shooter ? map(pr.shooter) : [pl.x + pl.w / 2, pl.y + pl.h / 2];
@@ -146,7 +106,7 @@
     path.boss = pr.boss ? (function () { const b = map(pr.boss); return { x: b[0], y: b[1], R: pr.bossR || 0 }; })() : null;      // R boss (0 = ukuran standar)
     path.presetId = presetId; path.play = pl; path.star = !!pr.star;
     path.ctrl = pr.pts.map(map);
-    return GA.Paths && def ? GA.Paths.refine(path, R, layout, def) : path;
+    return GA.Paths.refine(path, R, layout, def);
   }
 
   /* ---------- gambar alur, lubang, START & FINISH ---------- */
@@ -238,5 +198,5 @@
     pill(ctx, '🥚 SARANG', f[0], f[1], '#e0932a', '#fff', size);
   }
 
-  GA.Path = { Path: Path, presets: presets, forLayout: forLayout, STEP: STEP, drawTrack: drawTrack, drawHole: drawHole, drawNest: drawNest, drawMarkers: drawMarkers, roundRect: roundRect, pill: pill, holeXY: holeXY };
+  GA.Path = { Path: Path, forLayout: forLayout, STEP: STEP, drawTrack: drawTrack, drawHole: drawHole, drawNest: drawNest, drawMarkers: drawMarkers, roundRect: roundRect, pill: pill, holeXY: holeXY };
 })(window.GA = window.GA || {});

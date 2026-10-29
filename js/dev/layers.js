@@ -9,7 +9,7 @@
   function causes(b, sc, L) {
     const R = sc.R, out = [], ch = b.ch;
     if (!ch.visible(b) || b.sw) return out;      // bola yang sedang bertukar (gerak melengkung ±1,5 diameter) dikecualikan
-    if (b.y - R < L.hud + 1.5 * R - 0.5) out.push('HUD');
+    if (b.y - R < L.hud + (L.hudGap == null ? 1.5 : L.hudGap) * R - 0.5) out.push('HUD');
     if (GA.Background && GA.Background.frontCover(b.x, b.y, R) > 0.12) out.push('DEPAN');
     const pp = GA.Effects && GA.Effects.portalPos ? GA.Effects.portalPos() : null;
     const hole = GA.Path.holeXY(sc.path);
@@ -33,7 +33,7 @@
       });
     });
     // zona cadangan HUD (garis hijau putus-putus) + ringkasan
-    const y = L.hud + 1.5 * sc.R; ctx.strokeStyle = 'rgba(80,255,120,0.8)'; ctx.setLineDash([8, 6]); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(L.W, y); ctx.stroke(); ctx.setLineDash([]);
+    const y = L.hud + (L.hudGap == null ? 1.5 : L.hudGap) * sc.R; ctx.strokeStyle = 'rgba(80,255,120,0.8)'; ctx.setLineDash([8, 6]); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(L.W, y); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = n ? '#ff6a6a' : '#7dff9a'; ctx.strokeStyle = '#000'; ctx.lineWidth = 3; const msg = '?debug=layers  bola tumpang tindih: ' + n; ctx.strokeText(msg, 30, y + 12); ctx.fillText(msg, 30, y + 12);
     ctx.restore();
     GA.LayersDebug.last = n;
