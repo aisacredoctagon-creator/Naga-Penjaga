@@ -8,7 +8,7 @@
   /** Daftar penyebab tumpang tindih untuk satu bola (dipakai juga oleh uji). */
   function causes(b, sc, L) {
     const R = sc.R, out = [], ch = b.ch;
-    if (!ch.visible(b)) return out;
+    if (!ch.visible(b) || b.sw) return out;      // bola yang sedang bertukar (gerak melengkung ±1,5 diameter) dikecualikan
     if (b.y - R < L.hud + 1.5 * R - 0.5) out.push('HUD');
     if (GA.Background && GA.Background.frontCover(b.x, b.y, R) > 0.12) out.push('DEPAN');
     const pp = GA.Effects && GA.Effects.portalPos ? GA.Effects.portalPos() : null;

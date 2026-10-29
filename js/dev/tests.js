@@ -285,7 +285,41 @@
     ok('lapisan: tidak ada bola tertimpa portal/sarang/boss/naga/rintangan/objek depan (?debug=layers)', dyn.length === 0, dyn.join('; '));
   }
 
+  /** Indikator penukaran terlihat di 3 ukuran layar: lencana ⇄ tiap bola berada penuh di dalam area bermain (di bawah HUD, di dalam tepi), cincin tidak tertimpa
+   *  (indikator digambar di lapisan 7, di atas bola/naga/efek), dan jarak pasangan bervariasi. */
+  async function testSwapVisible() {
+    const G = GA.game, sizes = [[390, 844], [844, 390], [1440, 900]], bad = [], gaps = {}; let n = 0, pairs = 0;
+    for (const sz of sizes) {
+      GA.devViewport = { w: sz[0], h: sz[1] }; G.relayout();
+      for (const stage of [1, 2]) {
+        G.startAdventure({ slots: ['add', 'add', 'add', 'add', 'add'], same: true, random: false, diff: 'sedang' }, true, stage); G.startStep(stage, false); G.handlers.introGo();
+        for (let i = 0; i < 80 && G.state !== 'playing'; i++) await sleep(100);
+        const r = G.run, V = GA.view;
+        for (let i = 0; i < 700; i++) { r.lives = 3; G.tick(1 / 30, true); }
+        for (let k = 0; k < 6; k++) {
+          r.swap.pend = null; r.swap.last = {}; if (!GA.SwapDebug.fire()) { for (let i = 0; i < 90; i++) { r.lives = 3; G.tick(1 / 30, true); } continue; }
+          for (let i = 0; i < 20; i++) { r.lives = 3; G.tick(1 / 30, true); }
+          if (!r.swap.pend) continue;
+          r.swap.pend.pairs.forEach(function (pr) {
+            pairs++; const g = Math.abs(r.chain.balls.indexOf(pr[0]) - r.chain.balls.indexOf(pr[1])); gaps[g] = (gaps[g] || 0) + 1;
+            [pr[0], pr[1]].forEach(function (q) {
+              const p = GA.Swap.SwapManager.badgePos(q, r.R, 1.3, { x: 0, y: 0, r: 0 }); n++;
+              if (p.y - p.r < V.hud || p.x - p.r < 0 || p.x + p.r > V.W || p.y + p.r > V.H || q.y - r.R < V.hud - 1) bad.push(sz.join('×') + ' st' + (stage + 1) + ' badge(' + Math.round(p.x) + ',' + Math.round(p.y) + ') hud ' + V.hud);
+            });
+          });
+          for (let i = 0; i < 90; i++) { r.lives = 3; G.tick(1 / 30, true); }
+        }
+        G.handlers.quit();
+      }
+    }
+    GA.devViewport = null; G.relayout();
+    const ks = Object.keys(gaps), near = (gaps[1] || 0) / Math.max(1, pairs);
+    ok('indikator penukaran: lencana ⇄ tiap bola terlihat penuh (di bawah HUD, di dalam layar) di 390×844, 844×390, 1440×900', n > 20 && bad.length === 0, n + ' lencana' + (bad.length ? ' | ' + bad.slice(0, 3).join('; ') : ''));
+    ok('penukaran manual (?debug=swap): jarak pasangan bervariasi, bukan hanya bertetangga', ks.length >= 3 && near < 0.4, 'jarak: ' + ks.map(function (k) { return k + '×' + gaps[k]; }).join(' '));
+  }
+
   async function runAll() {
+
 
 
 
@@ -295,6 +329,7 @@
     await testSteal();
     await testAudio();
     await testLayers();
+    await testSwapVisible();
     for (let i = 0; i < 40 && !GA.Sim; i++) await sleep(50);
     for (let i = 0; i < 40 && !GA.AimSweep; i++) await sleep(50);
     if (GA.AimSweep) {      // sapu sudut bidik termasuk ke portal (js/dev/aimsweep.js; juga ?debug=aim)

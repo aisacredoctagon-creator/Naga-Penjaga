@@ -35,7 +35,7 @@
     if (run && Math.abs(ballR - run.baseR) < 3) ballR = run.baseR; // jangan bangun ulang jika jendela hanya berubah sedikit
     L = { portrait: portrait, W: W, H: H, scale: scale, dpr: dpr, cssW: cssW, cssH: cssH, ox: (cssW - W * scale) / 2, oy: (cssH - H * scale) / 2,
       px: dpr * scale, hud: hud, ballR: ballR, pad: ballR + Theme.ball.trackMargin + 6, padTop: Math.round(2.5 * ballR * 1.12), play: { x: 0, y: hud, w: W, h: H - hud - (portrait ? 12 : 0) } };
-    GA.view = { W: W, H: H };
+    GA.view = { W: W, H: H, hud: hud };
     FX.unit = ballR / 25; Bullets.setSize(run ? run.R : ballR);
     canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
     UI.placeHudButton(L);
@@ -277,7 +277,7 @@
         warn: function (pairs) {      // indikator ~1,8 dtk: SFX naik nada; pelaku mulai beraksi (penyihir mengangkat tongkat, kelelawar mendekat)
           Audio.play('swapWarn', pairs.length);
           if (run.boss) { run.boss.castT = run.gp.SWAP_TELEGRAPH; run.boss.say(run.boss.def.lines.spell.swap, 1.6); }
-          if (!Storage.swapSeen) { Storage.swapSeen = true; setInfo({ tone: 'coach', icon: 'swap', text: T('coach.swap'), dur: 2.6 }); }      // coachmark ⇄ sekali, tersimpan
+          if (!Storage.swapSeen) { Storage.swapSeen = true; setInfo({ tone: 'coach', icon: 'swap', text: T('coach.swap'), dur: 2.6 }); } else setInfo({ tone: 'info', icon: 'swap', text: T('coach.swap'), dur: run.gp.SWAP_TELEGRAPH });      // coachmark ⇄ sekali, tersimpan; ikon ⇄ juga muncul di zona informasi HUD setiap penukaran
         },
         go: function (pairs) {
           Audio.play('swapGo', pairs.length);

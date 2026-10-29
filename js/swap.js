@@ -24,19 +24,33 @@
     return true;
   }
 
-  /** Pilih sampai `n` pasangan acak (saling lepas). Mengembalikan [[a, b], ...]. last = {kunci: 1} pasangan penukaran sebelumnya ("idA|idB" terurut) agar tidak berulang. */
+  /** Selama indikator: pasangan batal hanya bila bola hancur / terjawab / hilang dari layar / masuk 10% terakhir (celah yang menutup di tempat lain tidak membatalkan). */
+  function stillOk(chain, b, gp, qm) {
+    if (!b || b.kind !== 'num' || chain.balls.indexOf(b) < 0 || !chain.visible(b)) return false;
+    if (b.d > chain.path.length * (1 - gp.SWAP_END_GUARD)) return false;
+    return !(qm && b.qid != null && qm.isSolved(b.qid));
+  }
+
+  /** Pilih sampai `n` pasangan acak (saling lepas). Mengembalikan [[a, b], ...]. last = {kunci: 1} pasangan penukaran sebelumnya ("idA|idB" terurut) agar tidak berulang.
+   *  Jarak pasangan di rantai DIVARIASIKAN: jarak target acak 2..maks (maks = min(9, bola layak − 1)); bola kedua dipilih yang jaraknya paling dekat dengan target,
+   *  jadi bukan hanya bertetangga. */
   function pickPairs(chain, rng, n, gp, qm, last) {
     const pool = chain.balls.filter(function (b) { return eligible(chain, b, gp, qm); }), out = [], used = {};
+    const idx = function (b) { return chain.balls.indexOf(b); };
     for (let k = 0; k < n; k++) {
       const free = pool.filter(function (b) { return !used[b.id]; });
       if (free.length < 2) break;
       let pair = null;
-      for (let tries = 0; tries < 24 && !pair; tries++) {
-        const a = free[Math.floor(rng() * free.length)], b = free[Math.floor(rng() * free.length)];
-        if (a === b || a.text === b.text) continue;
-        const key = Math.min(a.id, b.id) + '|' + Math.max(a.id, b.id);
-        if (last[key]) continue;      // tidak pernah pasangan yang sama dengan penukaran sebelumnya (bila hanya itu pilihannya, tunda)
-        pair = [a, b];
+      for (let tries = 0; tries < 30 && !pair; tries++) {
+        const a = free[Math.floor(rng() * free.length)], ia = idx(a), maxGap = Math.max(2, Math.min(9, free.length - 1)), want = 2 + Math.floor(rng() * (maxGap - 1));
+        let best = null, bd = 1e9;
+        free.forEach(function (b) {
+          if (b === a || a.text === b.text) return;
+          const key = Math.min(a.id, b.id) + '|' + Math.max(a.id, b.id); if (last[key]) return;      // tidak pernah pasangan yang sama dengan penukaran sebelumnya
+          const gap = Math.abs(idx(b) - ia), d = Math.abs(gap - want) + (gap < 2 ? 4 : 0) + rng() * 0.5;      // tetangga hanya bila terpaksa
+          if (d < bd) { bd = d; best = b; }
+        });
+        if (best) pair = [a, best];
       }
       if (!pair) break;
       used[pair[0].id] = used[pair[1].id] = 1; out.push(pair);
@@ -61,7 +75,7 @@
       if (this.pend) {
         const p = this.pend; p.t += dt;
         p.pairs = p.pairs.filter(function (pr) {      // salah satu bola hancur / jadi terlarang selama indikator: batal dengan efek kecil
-          const bad = !eligible(ch, pr[0], gp, o.qm) || !eligible(ch, pr[1], gp, o.qm);
+          const bad = !stillOk(ch, pr[0], gp, o.qm) || !stillOk(ch, pr[1], gp, o.qm);
           if (bad) { this.stats.fizzled++; if (o.hooks && o.hooks.fizzle) o.hooks.fizzle(pr); }
           return !bad;
         }, this);
@@ -78,12 +92,18 @@
       if (!this.every) return;
       this.timer -= dt;
       if (this.timer > 0) return;
-      const pairs = pickPairs(ch, this.rng, Math.max(1, o.pairs ? o.pairs() : 1), gp, o.qm, this.last);
-      if (!pairs.length) { this.timer = 1.0; return; }       // belum ada dua bola yang layak: coba lagi sebentar lagi
+      if (!this.start()) this.timer = 1.0;       // belum ada dua bola yang layak: coba lagi sebentar lagi
+    }
+    /** Mulai indikator sekarang (timer diabaikan). false bila tidak ada pasangan layak atau indikator sedang berjalan. */
+    start() {
+      if (this.pend) return false;
+      const gp = this.gp, ch = this.chain, o = this.o, pairs = pickPairs(ch, this.rng, Math.max(1, o.pairs ? o.pairs() : 1), gp, o.qm, this.last);
+      if (!pairs.length) return false;
       this.pend = { pairs: pairs, t: 0, dur: gp.SWAP_TELEGRAPH }; this.stats.telegraphs++;
       pairs.forEach(function (pr) { this.stats.picked.push([pr[0].id, pr[1].id]); }, this);
       if (o.actor) this.actor = { kind: o.actor, t: 0, phase: 'in', a: pairs[0][0], sx: 0, sy: 0 };
       if (o.hooks && o.hooks.warn) o.hooks.warn(pairs);
+      return true;
     }
     finish(executed) {
       this.pend = null; this.timer = this.next();
@@ -100,30 +120,52 @@
       if (this.actor && this.actor.kind === 'bat') this.drawBat(ctx, t, R);
     }
 
+    /** Posisi lencana ⇄ di atas bola q (melayang); bila terlalu dekat HUD/tepi, dipindah ke bawah/samping. Dipakai gambar dan uji keterlihatan. */
+    static badgePos(q, R, t, out) {
+      const V = GA.view || { W: 960, hud: 90 }, r = R * 0.62, bob = Math.sin(t * 5 + q.id) * R * 0.1;
+      let y = q.y - R * 1.7 + bob; if (y - r < (V.hud || 0) + 4) y = q.y + R * 1.7 - bob;
+      const x = Math.max(r + 4, Math.min(V.W - r - 4, q.x));
+      out.x = x; out.y = y; out.r = r; return out;
+    }
+
     drawPair(ctx, a, b, t, R) {
-      const k = this.progress(), pulse = 0.5 + 0.5 * Math.sin(t * (9 + 10 * k)), warn = '#c9a0ff', hot = '#ffe27a';
-      // cincin berdenyut di kedua bola (makin cepat mendekati penukaran)
+      const k = this.progress(), pulse = 0.5 + 0.5 * Math.sin(t * (9 + 11 * k)), late = k > 0.6, col = late ? '#ffd23f' : '#4de8ff', hot = '#ffd23f', dark = 'rgba(12,4,34,0.9)';
+      const bp = [{ x: 0, y: 0, r: 0 }, { x: 0, y: 0, r: 0 }];
+      [a, b].forEach(function (q, i) { SwapManager.badgePos(q, R, t, bp[i]); });
+      // busur energi putus-putus yang menghubungkan kedua bola (menonjol ke sisi atas; cukup besar walau bertetangga)
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1; let nx = -dy / len, ny = dx / len; if (ny > 0) { nx = -nx; ny = -ny; }
+      const bulge = Math.max(R * 1.9, Math.min(len * 0.3, R * 3)) + R * 0.4, cx = mx + nx * bulge * 2, cy = my + ny * bulge * 2;
+      const edge = function (p, ex, ey) { const ux = ex - p.x, uy = ey - p.y, l = Math.hypot(ux, uy) || 1; return [p.x + ux / l * R * 1.22, p.y + uy / l * R * 1.22]; }, sa = edge(a, cx, cy), sb = edge(b, cx, cy);      // busur mulai dari tepi cincin: tidak menutupi angka bola
+      ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.strokeStyle = dark; ctx.lineWidth = Math.max(5, R * 0.26); ctx.beginPath(); ctx.moveTo(sa[0], sa[1]); ctx.quadraticCurveTo(cx, cy, sb[0], sb[1]); ctx.stroke();
+      ctx.strokeStyle = col; ctx.globalAlpha = 0.9; ctx.lineWidth = Math.max(2.5, R * 0.13); ctx.setLineDash([R * 0.42, R * 0.3]); ctx.lineDashOffset = -t * R * 2.4; ctx.beginPath(); ctx.moveTo(sa[0], sa[1]); ctx.quadraticCurveTo(cx, cy, sb[0], sb[1]); ctx.stroke();
+      ctx.setLineDash([]); ctx.globalAlpha = 1;
+      // cincin emas/cyan bergelombang di kedua bola: garis luar gelap agar kontras di bola gelap maupun terang
       [a, b].forEach(function (q) {
-        ctx.save(); ctx.lineWidth = Math.max(2.5, R * 0.12); ctx.strokeStyle = k > 0.75 ? hot : warn; ctx.globalAlpha = 0.65 + 0.35 * pulse;
-        ctx.beginPath(); ctx.arc(q.x, q.y, R * (1.12 + 0.12 * pulse), 0, TAU); ctx.stroke();
-        ctx.globalAlpha = 0.35 * (1 - pulse); ctx.beginPath(); ctx.arc(q.x, q.y, R * (1.35 + 0.35 * pulse), 0, TAU); ctx.stroke(); ctx.restore();
+        const w = Math.max(3, R * 0.14);
+        ctx.strokeStyle = dark; ctx.lineWidth = w + 3.5; ctx.beginPath(); ctx.arc(q.x, q.y, R * (1.16 + 0.08 * pulse), 0, TAU); ctx.stroke();
+        ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.arc(q.x, q.y, R * (1.16 + 0.08 * pulse), 0, TAU); ctx.stroke();
+        for (let i = 0; i < 2; i++) { const u = (t * (1.1 + 1.4 * k) + i * 0.5) % 1; ctx.globalAlpha = (1 - u) * 0.85; ctx.strokeStyle = hot; ctx.lineWidth = Math.max(2, R * 0.09); ctx.beginPath(); ctx.arc(q.x, q.y, R * (1.2 + 0.9 * u), 0, TAU); ctx.stroke(); }
+        ctx.globalAlpha = 1;
       });
-      // busur energi melengkung (menonjol tegak lurus), dua lapis + garis putus mengalir
-      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len;
-      const bulge = Math.min(len * 0.35, R * 3) + R * 0.8, cx = mx + nx * bulge, cy = my + ny * bulge, bx = (a.x + 2 * cx + b.x) / 4, by = (a.y + 2 * cy + b.y) / 4;
-      ctx.save(); ctx.lineCap = 'round';
-      ctx.strokeStyle = 'rgba(201,160,255,0.35)'; ctx.lineWidth = R * 0.5; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.quadraticCurveTo(cx, cy, b.x, b.y); ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = Math.max(2, R * 0.12); ctx.setLineDash([R * 0.5, R * 0.35]); ctx.lineDashOffset = -t * R * 2.2; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.quadraticCurveTo(cx, cy, b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
-      // lencana ⇄ dengan cincin hitung mundur (arc yang menyusut)
-      const r = R * 0.62;
-      ctx.fillStyle = 'rgba(30,14,60,0.92)'; ctx.beginPath(); ctx.arc(bx, by, r, 0, TAU); ctx.fill();
-      ctx.lineWidth = Math.max(2.5, R * 0.13); ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.beginPath(); ctx.arc(bx, by, r, 0, TAU); ctx.stroke();
-      ctx.strokeStyle = k > 0.75 ? hot : warn; ctx.beginPath(); ctx.arc(bx, by, r, -Math.PI / 2, -Math.PI / 2 + TAU * (1 - k)); ctx.stroke();
-      ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(2, R * 0.1); ctx.lineJoin = 'round';
-      const s = r * 0.5; ctx.beginPath();                      // ikon panah-tukar ⇄
-      ctx.moveTo(bx - s, by - s * 0.34); ctx.lineTo(bx + s, by - s * 0.34); ctx.moveTo(bx + s * 0.45, by - s * 0.8); ctx.lineTo(bx + s, by - s * 0.34); ctx.lineTo(bx + s * 0.45, by + s * 0.12);
-      ctx.moveTo(bx + s, by + s * 0.4); ctx.lineTo(bx - s, by + s * 0.4); ctx.moveTo(bx - s * 0.45, by - s * 0.06); ctx.lineTo(bx - s, by + s * 0.4); ctx.lineTo(bx - s * 0.45, by + s * 0.86); ctx.stroke();
+      // lencana ⇄ melayang di atas tiap bola + cincin hitung mundur yang mengisi
+      [a, b].forEach(function (q, i) {
+        const p = bp[i], r = p.r;
+        ctx.strokeStyle = dark; ctx.lineWidth = Math.max(3, R * 0.12); ctx.beginPath(); ctx.moveTo(q.x, q.y + (p.y < q.y ? -R * 1.05 : R * 1.05)); ctx.lineTo(p.x, p.y + (p.y < q.y ? r : -r)); ctx.stroke();      // tangkai ke bola
+        ctx.fillStyle = dark; ctx.beginPath(); ctx.arc(p.x, p.y, r + 2, 0, TAU); ctx.fill();
+        ctx.fillStyle = 'rgba(54,26,110,0.96)'; ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, TAU); ctx.fill();
+        ctx.lineWidth = Math.max(3, R * 0.16); ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.beginPath(); ctx.arc(p.x, p.y, r * 0.86, 0, TAU); ctx.stroke();
+        ctx.strokeStyle = col; ctx.beginPath(); ctx.arc(p.x, p.y, r * 0.86, -Math.PI / 2, -Math.PI / 2 + TAU * k); ctx.stroke();      // terisi seiring waktu
+        SwapManager.drawArrows(ctx, p.x, p.y, r * 0.5);
+      });
       ctx.restore();
+    }
+
+    /** Ikon panah-tukar ⇄ (bentuk wajib ada: tidak mengandalkan warna). */
+    static drawArrows(ctx, x, y, s) {
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(2.2, s * 0.34); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath();
+      ctx.moveTo(x - s, y - s * 0.4); ctx.lineTo(x + s, y - s * 0.4); ctx.moveTo(x + s * 0.4, y - s * 0.95); ctx.lineTo(x + s, y - s * 0.4); ctx.lineTo(x + s * 0.4, y + s * 0.15);
+      ctx.moveTo(x + s, y + s * 0.45); ctx.lineTo(x - s, y + s * 0.45); ctx.moveTo(x - s * 0.4, y - s * 0.1); ctx.lineTo(x - s, y + s * 0.45); ctx.lineTo(x - s * 0.4, y + s * 1.0); ctx.stroke();
     }
 
     /** Kelelawar: terbang dari tepi layar mendekati bola pertama pasangan selama indikator, lalu pergi setelah menukar. */

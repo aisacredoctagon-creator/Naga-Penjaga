@@ -232,7 +232,7 @@
     }
     const dk = Object.keys(dists).map(Number), spread = dk.length;
     ok('penukaran: hanya bola layak (terlihat, bukan keluar portal/hancur, bukan 10% terakhir, nilai berbeda), tidak pernah pasangan sama berturut-turut', violations.length === 0 && repeatBad === 0, nTele + ' indikator, ' + scen + ' skenario' + (violations.length ? '; ' + violations.slice(0, 3).join(' | ') : ''));
-    ok('penukaran: jarak pasangan di rantai bervariasi (tidak hanya bertetangga)', spread >= 5 && dists[1] < (nExec * 0.6), 'jarak indeks: ' + dk.sort(function (a, b) { return a - b; }).map(function (k) { return k + '×' + dists[k]; }).slice(0, 10).join(' '));
+    ok('penukaran: jarak pasangan di rantai bervariasi (tidak hanya bertetangga)', spread >= 4 && dists[1] < (nExec * 0.4), 'jarak indeks: ' + dk.sort(function (a, b) { return a - b; }).map(function (k) { return k + '×' + dists[k]; }).slice(0, 10).join(' '));
     ok('penukaran: hanya posisi yang bertukar (teks, warna, soal tetap; slot saling menggantikan)', identBad === 0 && nExec > 50, nExec + ' penukaran');
     ok('penukaran: tidak ada celah di rantai (rapat kembali, celah < 400 ms, di luar animasi < 0,5 dtk)', gapBad === 0, 'celah terlama ' + (worst * 1000).toFixed(0) + ' ms');
   }
