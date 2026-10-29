@@ -272,7 +272,7 @@
     stopStoryAnim: function () { cancelAnimationFrame(this._storyRaf); this._storyRaf = 0; },
 
     /** Layar pembuka stage: nama + ikon stage, CONTOH SOAL bergambar sesuai format stage (kotak kosong berkedip), lalu tombol mulai → hitung mundur 3-2-1.
-     * info: { stageNo, tag, place, icon, story, boss, format, catName, catIcon, exampleHtml, diffName, total } */
+     * info: { stageNo, tag, place, icon, story, boss, format, catName, catIcon, examplesHtml[], diffName, total } */
     showIntro: function (info) {
       const K = GA.Kit;
       screens.intro.innerHTML = K.panel({ title: info.place, body:
@@ -280,7 +280,7 @@
         '<div class="k-stage-ic' + (info.boss ? ' boss' : '') + '">' + I(info.icon) + '</div>' +
         '<p class="k-text">' + esc(info.story) + '</p>' +
         '<div class="k-chips">' + K.chip(info.catName, { icon: info.catIcon }) + K.chip(info.total + ' ' + T('common.questions'), { icon: 'target' }) + '</div>' +
-        '<div class="k-example"><span class="k-eyebrow">' + T('common.example') + ' · ' + esc(T('fmt.' + info.format)) + '</span><span class="k-extext">' + info.exampleHtml + '</span><small class="k-fmt2">' + esc(T('fmt.' + info.format + '2')) + '</small></div>' +
+        '<div class="k-example"><span class="k-eyebrow">' + T('common.example') + ' · ' + esc(T('fmt.' + info.format)) + '</span>' + info.examplesHtml.map(function (h) { return '<span class="k-extext">' + h + '</span>'; }).join('') + '<small class="k-fmt2">' + esc(T('fmt.' + info.format + '2')) + '</small></div>' +
         K.button({ act: 'go', icon: 'play', label: T('common.go'), size: 'big' }) });
       this.show('intro');
     },

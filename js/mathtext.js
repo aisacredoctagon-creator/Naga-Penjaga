@@ -1,13 +1,15 @@
 /* mathtext.js — teks matematika dengan pecahan BERSUSUN (pembilang di atas penyebut).
  * Konvensi: token dipisah spasi; token "n/d" (boleh berawalan "−" atau "(") dianggap pecahan.
- *   contoh: "1/2 + 3/4 = ?"   "−5/6"   "(−3)"   "12,5"
+ *   contoh: "1/2 + 3/4 = ▢"   "−5/6"   "(−3)"   "12,5"   (▢ = kotak kosong bergaris yang berkedip)
  * Dipakai di HUD soal, bola (rantai & bola api), dan overlay (HTML). */
 (function (GA) {
   'use strict';
   const FRAC = /^([(−-]*)(\d+)\/(\d+)([)]*)$/;
+  const BLANK = '▢';      // kotak kosong = bagian yang dicari: digambar sebagai kotak bergaris putus yang berkedip halus
 
   function parse(text) {
     return String(text).split(' ').filter(Boolean).map(function (tok) {
+      if (tok === BLANK) return { blank: true, raw: tok };
       const m = FRAC.exec(tok);
       return m ? { frac: true, pre: m[1], n: m[2], d: m[3], post: m[4], raw: tok } : { frac: false, raw: tok };
     });
@@ -16,6 +18,7 @@
   function setFont(ctx, size, fam) { ctx.font = '800 ' + size.toFixed(1) + 'px ' + (fam || GA.Theme.fonts.ui); }
 
   function tokenWidth(ctx, t, size) {
+    if (t.blank) return size * 0.95;
     if (!t.frac) { setFont(ctx, size); return ctx.measureText(t.raw).width; }
     setFont(ctx, size); const pw = ctx.measureText(t.pre + t.post).width;
     setFont(ctx, size * 0.66); const w = Math.max(ctx.measureText(t.n).width, ctx.measureText(t.d).width) + size * 0.24;
@@ -36,6 +39,15 @@
     return s;
   }
 
+  /** Kotak kosong bergaris putus (sisi `w`) berpusat di (x + w/2, cy); berkedip halus (alpha 0,5–1). */
+  function blankBox(ctx, x, cy, w, size, fill, stroke) {
+    const k = 0.5 + 0.5 * (0.5 + 0.5 * Math.sin(performance.now() / 1000 * 4.4)), r = w * 0.22, y = cy - w / 2 + size * 0.04;
+    ctx.save(); ctx.globalAlpha *= k; ctx.setLineDash([size * 0.2, size * 0.13]); ctx.lineCap = 'butt';
+    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + w, r); ctx.arcTo(x + w, y + w, x, y + w, r); ctx.arcTo(x, y + w, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+    if (stroke) { ctx.lineWidth = Math.max(3, size * 0.09) + 3; ctx.strokeStyle = stroke; ctx.stroke(); }
+    ctx.lineWidth = Math.max(2, size * 0.09); ctx.strokeStyle = fill; ctx.stroke(); ctx.restore();
+  }
+
   /** Gambar teks rata tengah di (cx, cy). Garis pecahan berada di cy. stroke: warna kontur (atau null). */
   function draw(ctx, text, cx, cy, size, fill, stroke, strokeW) {
     const toks = parse(text), m = measure(ctx, text, size);
@@ -48,6 +60,7 @@
     }
     toks.forEach(function (t, i) {
       if (i) x += size * 0.3;
+      if (t.blank) { blankBox(ctx, x + size * 0.07, cy, size * 0.81, size, fill, stroke); x += size * 0.95; return; }
       if (!t.frac) { txt(t.raw, x, cy + size * 0.04, size); setFont(ctx, size); x += ctx.measureText(t.raw).width; return; }
       setFont(ctx, size);
       const pw = t.pre ? ctx.measureText(t.pre).width : 0;
@@ -71,9 +84,10 @@
   /** HTML untuk overlay: pecahan menjadi <span class="mfrac"><i>n</i><i>d</i></span>. */
   function html(text) {
     return parse(text).map(function (t) {
+      if (t.blank) return '<span class="mblank" role="img" aria-label="kotak kosong"></span>';
       return t.frac ? esc(t.pre) + '<span class="mfrac"><i>' + t.n + '</i><i>' + t.d + '</i></span>' + esc(t.post) : esc(t.raw);
     }).join(' ');
   }
 
-  GA.MathText = { parse: parse, measure: measure, fit: fit, draw: draw, html: html, isFrac: function (s) { return FRAC.test(s); } };
+  GA.MathText = { BLANK: BLANK, parse: parse, measure: measure, fit: fit, draw: draw, html: html, isFrac: function (s) { return FRAC.test(s); } };
 })(window.GA = window.GA || {});

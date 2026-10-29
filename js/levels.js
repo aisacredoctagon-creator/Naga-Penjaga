@@ -93,11 +93,8 @@
     return cfg;
   }
 
-  /** Ringkasan untuk layar pembuka stage. */
-  function describe(cfg) {
-    const d = GA.Questions.describe(cfg.topics);
-    return { example: d.example, exampleText: d.exampleText, rangeText: d.rangeText };
-  }
+  /** Ringkasan untuk layar pembuka stage: contoh soal sesuai format stage (Stage 3 = dua contoh). */
+  function describe(cfg) { return { examples: GA.Questions.examples(cfg.topics, cfg.format) }; }
 
   const Levels = {
     DIFFS: DIFFS, DIFF_NAMES: DIFF_NAMES, DIFF_NOTES: DIFF_NOTES, STAGES: STAGES, TUNE: TUNE, TOTAL_Q: TOTAL_Q,

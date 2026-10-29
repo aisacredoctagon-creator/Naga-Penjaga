@@ -324,7 +324,7 @@
     return {
       stageNo: cfg.step + 1, tag: cfg.tag, place: cfg.place, icon: cfg.icon, story: Story.fmt(cfg.story), boss: cfg.isBoss, format: cfg.format,
       catName: cfg.isBoss ? cat.name + ' + campuran' : cat.name, catIcon: GA.Icons.cat[cat.id],
-      exampleHtml: GA.MathText.html(d.exampleText), diffName: Levels.DIFF_NAMES[cfg.diff], total: cfg.total
+      examplesHtml: d.examples.map(function (x) { return GA.MathText.html(x); }), diffName: Levels.DIFF_NAMES[cfg.diff], total: cfg.total
     };
   }
 

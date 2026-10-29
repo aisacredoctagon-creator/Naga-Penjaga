@@ -25,19 +25,35 @@
   function shuffle(a, rng) { const o = a.slice(); for (let i = o.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); const t = o[i]; o[i] = o[j]; o[j] = t; } return o; }
   function deepFreeze(o) { Object.keys(o).forEach(function (k) { const v = o[k]; if (v && typeof v === 'object' && !Object.isFrozen(v)) deepFreeze(v); }); return Object.freeze(o); }
 
+  /** Pola format urutan MAIN untuk Stage 3 (gabungan): setengah 'result' setengah 'missing', diacak ber-seed, tidak lebih dari 3 berturut-turut sama. */
+  function mixedPattern(n, rng) {
+    const base = []; for (let i = 0; i < n; i++) base.push(i < Math.ceil(n / 2) ? 'result' : 'missing');
+    for (let tries = 0; tries < 400; tries++) {
+      const p = shuffle(base, rng); let run = 1, ok = true;
+      for (let i = 1; i < n && ok; i++) { run = p[i] === p[i - 1] ? run + 1 : 1; if (run > 3) ok = false; }
+      if (ok) return p;
+    }
+    return base.map(function (_, i) { return i % 2 ? 'missing' : 'result'; });      // cadangan pasti valid: selang-seling
+  }
+
   class QuestionManager {
-    /** opts: { topics, total, seed, format, onChange(ev) }. Pembangkit dek dari GA.Questions.deck(topics, total, rng, format) (format: result | missing | mixed). */
+    /** opts: { topics, total, seed, format, onChange(ev) }. format: 'result' | 'missing' | 'mixed' (Stage 3). Urutan main ditentukan lebih dulu, lalu format
+     * tiap soal menurut posisinya (jadi pola campuran berlaku pada URUTAN soal yang dilihat pemain), lalu GA.Questions.deck membangkitkan 20 soal sekali. */
     constructor(opts) {
       this.seed = opts.seed >>> 0; this.onChange = opts.onChange || null;
       this._rng = prng(this.seed);
-      const raw = GA.Questions.deck(opts.topics, opts.total, this._rng, opts.format);
+      const n = opts.total, ids = []; for (let i = 0; i < n; i++) ids.push(i);
+      this.order = Object.freeze(shuffle(ids, this._rng));
+      let fmts = opts.format || 'result';
+      if (fmts === 'mixed') { const pat = mixedPattern(n, this._rng); fmts = []; this.order.forEach(function (id, pos) { fmts[id] = pat[pos]; }); }
+      this.format = opts.format || 'result';
+      const raw = GA.Questions.deck(opts.topics, n, this._rng, fmts);
       const answers = raw.map(function (q) { return q.answerText; });
       this.questions = Object.freeze(raw.map(function (q, i) {
         const o = {}; Object.keys(q).forEach(function (k) { if (k !== 'done') o[k] = q[k]; });
         o.id = i; o.distractors = answers.filter(function (_, j) { return j !== i; });
         return deepFreeze(o);
       }));
-      this.order = Object.freeze(shuffle(this.questions.map(function (q) { return q.id; }), this._rng));
       this._state = this.questions.map(function () { return STATE.PENDING; });
       this._stats = this.questions.map(function () { return { wrong: 0, vals: [] }; });
       this._queue = [];            // id yang belum selesai; elemen pertama = soal aktif

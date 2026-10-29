@@ -30,6 +30,61 @@
     ok('dek 20 soal berjawaban unik (semua kategori x kesulitan)', bad === 0, total + ' dek diuji');
   }
 
+  /** Format soal: Stage 1 hitung hasil (a op b = ▢), Stage 2 angka hilang (solusi valid: tanpa pembagian nol, nilai pas, pecahan sederhana, desimal <= 2 angka),
+   * Stage 3 gabungan (≈ separuh-separuh, tidak > 3 berturut-turut sama pada URUTAN main). Semua kategori x kesulitan x format. */
+  function testFormats() {
+    const Q = GA.Questions, QM = GA.QM, L = GA.Levels, prng = QM.prng, gcdf = function (a, b) { return b ? gcdf(b, a % b) : a; };
+    const OPS = { '+': function (a, b) { return a + b; }, '−': function (a, b) { return a - b; }, '×': function (a, b) { return a * b; }, '÷': function (a, b) { return a / b; } };
+    let bad = [], total = 0, miss = 0, blankMis = 0;
+    Q.CATEGORIES.forEach(function (c) {
+      L.DIFFS.forEach(function (d) {
+        ['result', 'missing'].forEach(function (fm) {
+          for (let k = 0; k < 8; k++) {
+            const deck = Q.deck(Q.topicsFor(c.id, d), 20, prng(1000 + k * 37), fm); total++;
+            const A = {}, E = {};
+            deck.forEach(function (q) {
+              const tag = c.id + '/' + d + '/' + fm + ': ' + q.text;
+              if (A[q.answerText] || E[q.text]) bad.push('duplikat ' + tag); A[q.answerText] = 1; E[q.text] = 1;
+              if (/NaN|Infinity|undefined|\?/.test(q.text + q.answerText)) bad.push('teks rusak ' + tag);
+              const nb = (q.text.match(/▢/g) || []).length;
+              if (fm === 'result') { if (!/ = ▢$/.test(q.text) || nb !== 1) bad.push('format hasil salah ' + tag); return; }
+              miss++; if (nb !== 1 || / = ▢$/.test(q.text)) { blankMis++; bad.push('format hilang salah ' + tag); }
+              const e = q.eq; if (!e) { bad.push('tanpa eq ' + tag); return; }
+              const f = OPS[e.op]; if (!f) { bad.push('operator ' + e.op + ' ' + tag); return; }
+              if (e.op === '÷' && (Math.abs(e.b.v) < 1e-9 || Math.abs(e.c.v) < 1e-9)) bad.push('pembagian nol ' + tag);
+              const lhs = f(e.a.v, e.b.v);
+              if (!isFinite(lhs) || Math.abs(lhs - e.c.v) > 1e-6) bad.push('persamaan tidak cocok ' + tag + ' (' + lhs + ' vs ' + e.c.v + ')');
+              const hidden = q.text.indexOf('▢') < q.text.indexOf(e.op) ? e.a : e.b;
+              if (Math.abs(hidden.v - q.answer) > 1e-3 || hidden.t !== q.answerText) bad.push('jawaban != bagian hilang ' + tag + ' ' + q.answerText);
+              if (e.frac) { const m = /^(\d+)(?:\/(\d+))?$/.exec(q.answerText); if (!m || (m[2] && gcdf(+m[1], +m[2]) !== 1)) bad.push('pecahan tidak sederhana ' + tag + ' ' + q.answerText); }
+              const dec = /,(\d+)/g; let mm; while ((mm = dec.exec(q.text + ' ' + q.answerText))) if (mm[1].length > 2) bad.push('desimal > 2 angka ' + tag);
+              if (q.choices.some(function (ch) { return ch.text === q.answerText; })) bad.push('pengecoh = jawaban ' + tag);
+            });
+          }
+        });
+      });
+    });
+    ok('format soal: hasil (a op b = ▢) dan angka hilang valid untuk semua kategori x kesulitan', bad.length === 0, total + ' dek, ' + miss + ' soal hilang' + (bad.length ? '; gagal: ' + bad.slice(0, 3).join(' | ') : ''));
+    // contoh dari soal nyata: ▢ + 3 = 18 memuat pengecoh 21 (menambah, bukan mengurangi)
+    let sawWrongOp = false;
+    for (let k = 0; k < 60 && !sawWrongOp; k++) {
+      const q = Q.generate({ type: 'add', min: 5, max: 20 }, 'missing'), e = q.eq, other = /^▢/.test(q.text) ? e.b.v : e.a.v;
+      if (q.choices.some(function (ch) { return ch.value === e.c.v + other; })) sawWrongOp = true;
+    }
+    ok('pengecoh "operasi salah" (▢ + 3 = 18 → 21) muncul pada soal angka hilang', sawWrongOp);
+    // Stage 3: gabungan, pola pada urutan main
+    let patOk = true, halves = [], runs = 0;
+    for (let s = 0; s < 40; s++) {
+      const cfg = L.build(2, { slots: ['add', 'sub', 'mul'], same: false, random: false, diff: 'sedang' }, ['add', 'sub', 'mul']);
+      const qm = new QM.Manager({ topics: cfg.topics, total: 20, seed: 500 + s * 13, format: 'mixed' });
+      const seq = qm.order.map(function (id) { return /▢$/.test(qm.questions[id].text) ? 'R' : 'M'; }), nR = seq.filter(function (x) { return x === 'R'; }).length;
+      halves.push(nR);
+      let run = 1; for (let i = 1; i < seq.length; i++) { run = seq[i] === seq[i - 1] ? run + 1 : 1; runs = Math.max(runs, run); }
+      if (nR < 8 || nR > 12 || runs > 3) patOk = false;
+    }
+    ok('Stage 3 gabungan: ≈ separuh-separuh dan tidak > 3 soal berturut-turut berformat sama (urutan main)', patOk, 'hasil ' + Math.min.apply(null, halves) + '–' + Math.max.apply(null, halves) + ' dari 20, rangkaian terpanjang ' + runs);
+  }
+
   function testWaves() {
     const LV = GA.Levels, sel = { slots: ['add', 'add', 'add', 'add', 'add'], same: true, random: false, diff: 'sedang' };
     let allOk = true;
@@ -197,7 +252,7 @@
 
 
     const t0 = performance.now();
-    testDecks(); testWaves(); testStorage(); testMigrate(); testStrings(); testContrast(); testPaths();
+    testDecks(); testFormats(); testWaves(); testStorage(); testMigrate(); testStrings(); testContrast(); testPaths();
     await testStages();
     await testSteal();
     await testAudio();

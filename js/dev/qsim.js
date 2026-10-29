@@ -231,7 +231,7 @@
   /** Keterbacaan plakat soal di 3 ukuran: pecahan bersusun, negatif, desimal — utuh (muat), tidak mengecil di bawah ukuran terbaca. */
   async function scReadable() {
     const G2 = GA.game, MT = GA.MathText, c = document.createElement('canvas').getContext('2d');
-    const texts = ['−3/4 + 5/6 − 1/2 = ?', '12,75 × 4,8 = ?', '−125 ÷ (−5) + 17 − (−46) = ?', '(−7) × (−12) − 38 + 99 = ?', '7/12 + 3/8 = ?', '123,456 + 78,9 = ?', '3 3/4 ÷ 1 1/2 = ?'];
+    const texts = ['−3/4 + 5/6 − 1/2 = ▢', '12,75 × 4,8 = ▢', '−125 ÷ (−5) + 17 − (−46) = ▢', '(−7) × (−12) − 38 + 99 = ▢', '▢ + 3/8 = 7/12', '123,456 + 78,9 = ▢', '(−12) × ▢ = 108', '▢ ÷ (−4,5) = 1,25'];
     G2.startAdventure(FRACSEL, true, 2); G2.handlers.introGo(); for (let i = 0; i < 80 && G2.state !== 'playing'; i++) await sleep(120);
     const r = G2.run; const q0 = r.q, out = []; let allFit = true, minPx = 1e9;
     for (const sz of [[390, 844], [844, 390], [1440, 900]]) {
