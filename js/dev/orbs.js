@@ -32,11 +32,7 @@
         g.clearRect(0, 0, 200, 200); g.fillStyle = '#6a8a4a'; g.fillRect(0, 0, 200, 200);          // latar peta sembarang
         GA.Balls.drawOrb(g, 100, 100, R, ci, 0, 1, true, 0, 0); orb.push(worst(g, 100, 100, R, 0.55));
       }
-      for (let f = 0; f < 8; f++) for (let m = 1; m <= 3; m++) {
-        g.clearRect(0, 0, 200, 200); g.fillStyle = '#6a8a4a'; g.fillRect(0, 0, 200, 200);
-        GA.Fire.drawBall(g, 100, 100, R, { mult: m, ci: -1 }, 1, f / 14, null, true); fire.push(worst(g, 100, 100, R, 0.55));
-      }
-      return { orb: orb, fire: fire, min: Math.min.apply(null, orb.concat(fire)) };
+      return { orb: orb, fire: fire, min: Math.min.apply(null, orb) };      // bola api tidak lagi memuat label angka (tidak diukur)
     },
 
     show: function () {
@@ -60,7 +56,7 @@
         }
         const fy = rows * 92 + 110;
         for (let m = 1; m <= 3; m++) { GA.Fire.drawBall(g, 70 + (m - 1) * 120, fy, 34, { mult: m, ci: -1 }, dpr, t, null); GA.Fire.drawBall(g, 70 + (m - 1) * 120 + 56, fy + 14, 30, { mult: m, ci: -1 }, dpr, t, null); }
-        g.fillStyle = '#fff'; g.fillText('bola api ×1 ×2 ×3: siap tembak (34) dan preview (30 = 0,9 ×)  —  kontras api terburuk ' + Math.min.apply(null, C.fire).toFixed(1) + ':1', 12, fy + 62);
+        g.fillStyle = '#fff'; g.fillText('bola api (3 tingkat panas), tanpa label: siap tembak (34) dan preview (30 = 0,9 ×)', 12, fy + 62);
         if (document.getElementById('debug-orbs') || wrap.parentNode) requestAnimationFrame(draw);
       };
       draw();

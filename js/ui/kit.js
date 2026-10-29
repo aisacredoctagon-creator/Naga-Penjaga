@@ -12,7 +12,7 @@
  *   Kit.card({ kind:'cat'|'step', ... })                 kartu kategori (warna per kategori) & kartu stage
  *   Kit.stars(n, total)   Kit.eggs(have, max)   Kit.resbar({ eggs, stars, score })
  *   Kit.tip(html, text)                                  tooltip (hover/fokus; di sentuh lewat fokus)
- * DOM (satu instans): Kit.toast(text, ms)   Kit.confirm({ title, text, yes, onYes })   Kit.coach(text, ms) */
+ * DOM (satu instans): Kit.toast(text, ms)   Kit.confirm({ title, text, yes, onYes}) */
 (function (GA) {
   'use strict';
   const T = GA.T, I = function (n, c) { return GA.Icons.html(n, c); };
@@ -112,12 +112,12 @@
 
     tip: function (html, text) { return '<span class="k-tip" tabindex="0" data-tip="' + esc(text) + '">' + html + '</span>'; },
 
-    /* ---------- DOM: toast, konfirmasi, coachmark ---------- */
-    _toastT: 0, _coachT: 0,
+    /* ---------- DOM: toast, konfirmasi (coachmark pindah ke zona informasi HUD) ---------- */
+    _toastT: 0,
     mount: function (root) {
       this.root = root;
       root.insertAdjacentHTML('beforeend',
-        '<div class="k-toast" id="k-toast" role="status" aria-live="polite"></div><div class="k-coach" id="k-coach" role="status" aria-live="polite"></div>' +
+        '<div class="k-toast" id="k-toast" role="status" aria-live="polite"></div>' +
         '<div class="k-modal" id="k-modal" role="alertdialog" aria-modal="true" aria-labelledby="k-mt"><div class="k-panel k-small"><span class="k-peek">' + PEEK + '</span><div class="k-body">' +
         '<h2 class="k-title" id="k-mt"></h2><p class="k-mx" id="k-mx"></p><div class="k-row">' + Kit.button({ id: 'k-mno', act: 'k-no', variant: 'secondary', label: T('common.no') }) + Kit.button({ id: 'k-myes', act: 'k-yes', variant: 'danger', label: T('common.yes') }) + '</div></div></div></div>');
       const self = this, m = document.getElementById('k-modal');
@@ -135,12 +135,6 @@
       const t = document.getElementById('k-toast'); if (!t) return;
       t.textContent = text; t.classList.add('show'); clearTimeout(this._toastT);
       this._toastT = setTimeout(function () { t.classList.remove('show'); }, ms || 1800);
-    },
-    /** Coachmark pendek (≤ 6 kata) di atas arena; muncul hanya pertama kali. */
-    coach: function (text, ms) {
-      const t = document.getElementById('k-coach'); if (!t) return;
-      t.textContent = text; t.classList.add('show'); clearTimeout(this._coachT);
-      this._coachT = setTimeout(function () { t.classList.remove('show'); }, ms || 2600);
     },
     confirm: function (o) {
       document.getElementById('k-mt').textContent = o.title; document.getElementById('k-mx').textContent = o.text || '';

@@ -47,13 +47,13 @@
     'res.win': 'Menang!', 'res.lose': 'Telur Dicuri', 'res.best': 'Rekor Baru!', 'res.stats': '✓ {c}   ✗ {w}   ×{k}',
     'res.hi': 'Rekor',
 
-    // kejadian di arena (popup melayang)
-    'fx.wrong': 'Salah!', 'fx.slow': 'Lambat!', 'fx.egg': '+1 telur',
-    'fx.stolen': 'Telur dicuri!', 'fx.changed': 'Soal berganti', 'fx.warn': 'Awas!', 'fx.frozen': 'Beku!', 'fx.c1': 'Hebat!', 'fx.c2': 'Mantap!', 'fx.c3': 'Luar biasa!', 'fx.boss': 'BOSS KALAH!', 'fx.stepdone': 'STAGE SELESAI!',
-    'fb.obst': 'Kena rintangan!', 'fb.obst2': 'Tunggu celah.', 'fb.hole': 'Bola sampai di sarang!', 'fb.hole2': 'Soal muncul lagi.', 'fb.time': 'Waktu habis!',
+    // pesan singkat di ZONA INFORMASI HUD
+    'fx.egg': '+1 telur',
+    'fx.boss': 'BOSS KALAH!', 'fx.stepdone': 'STAGE SELESAI!',
+    'fb.obst': 'Kena rintangan!', 'fb.hole': 'Bola sampai sarang!', 'fb.time': 'Waktu habis!',
 
     // coachmark (muncul pertama kali saja)
-    'cine.skip': 'Ketuk untuk lewati', 'coach.1': 'Geser untuk membidik', 'coach.2': 'Lepas untuk menembak', 'coach.3': 'Bidik bola jawaban',
+    'cine.skip': 'Ketuk untuk lewati', 'coach.1': 'Geser untuk membidik', 'coach.2': 'Lepas untuk menembak', 'coach.3': 'Bidik bola jawaban', 'coach.swap': 'Dua bola akan bertukar',
 
     // cerita (dikecualikan dari lint): maksimal 5 panel, satu kalimat pendek
     'story.1.t': 'Penjaga Telur', 'story.1': '{dragonName} menjaga telur-telur naga.',

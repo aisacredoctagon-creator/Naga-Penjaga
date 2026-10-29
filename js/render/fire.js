@@ -1,7 +1,7 @@
 /* fire.js — bola api naga: inti putih-kuning panas, badan oranye-merah bergolak (turbulensi), lidah api, ekor api, cahaya aditif.
  *
  * Badan api dirender sebagai 8 frame sprite (per radius terkuantisasi) lalu diputar-putar urutannya + diputar menurut arah gerak,
- * jadi per frame hanya drawImage. Plakat gelap kecil di tengah memuat pengali "×N" agar selalu terbaca.
+ * jadi per frame hanya drawImage. Inti gelap di tengah polos (tanpa label angka); tingkat pengali skor (1-3) hanya terlihat dari panas cahaya api.
  * Ukuran bola api = BALL_RADIUS (sama dengan bola rantai); lidah api tidak mengubah ukuran dasar bola. */
 (function (GA) {
   'use strict';
@@ -52,8 +52,8 @@
     return store.map[key] || (store.n++, store.map[key] = { c: frame(qr, f, px), pad: qr * 0.95 });
   }
 
-  /** Gambar bola api di (x,y). dir = arah gerak (radian) atau null (diam: lidah api ke atas). Pengali ammo.mult mengatur besar nyala. */
-  function drawBall(ctx, x, y, r, ammo, px, t, dir, noLabel) {
+  /** Gambar bola api di (x,y). dir = arah gerak (radian) atau null (diam: lidah api ke atas). ammo.mult hanya mengatur panas cahaya (tanpa label angka). */
+  function drawBall(ctx, x, y, r, ammo, px, t, dir) {
     const qr = Math.max(4, Math.round(r / 2) * 2), f = ((t * 14) | 0) % FR, s = get(qr, f, px), k = r / qr, m = MULT[ammo.mult] || 1;
     const d = (qr * 2 + s.pad * 2) * k, o = (qr + s.pad) * k;
     ctx.save(); ctx.translate(x, y); ctx.rotate(dir == null ? 0 : dir + Math.PI * 1.5);
@@ -63,7 +63,6 @@
     ctx.save(); ctx.globalCompositeOperation = 'lighter';      // percikan bara yang mengorbit
     for (let i = 0; i < 3; i++) { const a = t * 3.2 + i * 2.09, d = r * (1.12 + 0.1 * Math.sin(t * 5 + i)); ctx.fillStyle = 'rgba(255,' + (170 + i * 25) + ',80,0.9)'; ctx.beginPath(); ctx.arc(x + Math.cos(a) * d, y + Math.sin(a) * d, r * 0.06, 0, TAU); ctx.fill(); }
     ctx.restore();
-    if (!noLabel) GA.Chain.drawLabel(ctx, '×' + ammo.mult, x, y, r * 0.95);
   }
 
   /** Ekor api + cahaya dinamis untuk peluru yang melesat (additive, memanjang ke belakang). */

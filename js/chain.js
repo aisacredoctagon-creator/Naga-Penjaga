@@ -207,7 +207,7 @@
 
     /** spec: { qid, kind } — qid = indeks soal di dek (bola target), kind = 'num' | 'frost' | 'egg'. `out` = sudah terlihat (rantai dekoratif). */
     makeBall(d, spec, out) {
-      const b = { ch: this, id: this.nextId++, d: d, vo: 0, lag: 0, kind: 'num', value: 0, text: '', ci: 0, x: 0, y: 0, a: 0, flipT: 0, nv: null, nt: null, wob: 0, red: 0, fog: 0, fogAge: 0,
+      const b = { ch: this, id: this.nextId++, d: d, vo: 0, lag: 0, sw: null, kind: 'num', value: 0, text: '', ci: 0, x: 0, y: 0, a: 0, flipT: 0, nv: null, nt: null, wob: 0, red: 0, fog: 0, fogAge: 0,
         out: !!out, emT: out ? 1e3 : 0, rot: 0, qid: spec && spec.qid != null ? spec.qid : null, want: spec ? spec.kind || 'num' : null, reborn: !!(spec && spec.reborn) };
       this.lastCi = b.ci = (this.lastCi + 1 + Math.floor(Math.random() * 7)) % 8;
       this.labeler(b);
@@ -334,6 +334,12 @@
         if (b.emT < em) b.emT += dt;
         this.path.at(b.d + b.vo, tmp);
         b.x = tmp.x; b.y = tmp.y; b.a = tmp.a;
+        if (b.sw) {      // bertukar tempat: lintasan melengkung antara slot lama dan slot baru (satu di atas, satu di bawah jalur); hitbox mengikuti tampilan
+          const sw = b.sw; sw.t += dt; const u = Math.min(1, sw.t / sw.dur), e = u * u * (3 - 2 * u);
+          this.path.at(sw.fromD + (b.d - sw.fromD) * e + b.vo, tmp); const arc = Math.sin(Math.PI * e) * this.r * 1.7 * sw.side;
+          b.x = tmp.x - Math.sin(tmp.a) * arc; b.y = tmp.y + Math.cos(tmp.a) * arc; b.a = tmp.a;
+          if (u >= 1) b.sw = null;
+        }
         if (!b.out && b.d >= this.entryD) {      // keluar dari portal
           b.out = true; b.emT = 0;
           if (this.stats.firstOut < 0) this.stats.firstOut = this.clock;
@@ -367,6 +373,17 @@
       return nb;
     }
 
+    /** Tukar TEMPAT dua bola (hanya posisi; teks, warna, dan qid tetap): slot saling bertukar sehingga jarak antar-bola tetap rapat, lalu bergerak melengkung
+     * selama `dur` detik (a di atas jalur, b di bawah). Dipakai semua sumber penukaran (js/swap.js). */
+    swapPositions(a, b, dur) {
+      const bs = this.balls, i = bs.indexOf(a), j = bs.indexOf(b);
+      if (i < 0 || j < 0 || i === j || a.sw || b.sw) return false;
+      const da = a.d, db = b.d, D = Math.max(0.05, dur || this.gp.SWAP_ANIM);
+      bs[i] = b; bs[j] = a; a.d = db; b.d = da; a.vo = b.vo = 0;
+      a.sw = { fromD: da, t: 0, dur: D, side: 1 }; b.sw = { fromD: db, t: 0, dur: D, side: -1 };
+      return true;
+    }
+
     frontD() { return this.balls.length ? this.balls[0].d : 0; }
 
     /** true bila ada bola yang masih bergeser cepat menutup celah (tembakan saat itu bisa meleset ke bola tetangga). */
@@ -379,7 +396,7 @@
     /** true selama animasi sisip / bola baru keluar / celah menutup (pengecualian tes kerapatan). */
     animating() {
       const bs = this.balls, em = this.gp.EMERGE_ANIM_TIME;
-      for (let i = 0; i < bs.length; i++) if (bs[i].vo !== 0 || bs[i].lag > SNAP || bs[i].emT < em) return true;
+      for (let i = 0; i < bs.length; i++) if (bs[i].vo !== 0 || bs[i].lag > SNAP || bs[i].emT < em || bs[i].sw) return true;
       return this.pending !== 0;
     }
 
@@ -392,7 +409,7 @@
         const a = bs[i - 1], b = bs[i];
         if (!(a.d >= this.entryD && b.d >= this.entryD && a.d <= this.path.length)) continue;
         const q = Math.hypot(a.x - b.x, a.y - b.y) / dia;
-        if (b.vo !== 0 || a.vo !== 0 || b.lag > SNAP || b.emT < em) { if (q > 1.05) out.gaps++; continue; }
+        if (b.vo !== 0 || a.vo !== 0 || b.lag > SNAP || b.emT < em || a.sw || b.sw) { if (q > 1.05 && !a.sw && !b.sw) out.gaps++; continue; }
         out.n++; if (q < out.min) out.min = q; if (q > out.max) out.max = q; if (q > 1.05) out.gaps++;
       }
       return out;
@@ -417,25 +434,6 @@
       const i = this.balls.indexOf(ball);
       if (i >= 0) this.balls.splice(i, 1);      // bagian belakang menyusul dengan GAP_CLOSE_SPEED (solver di update), bagian depan tetap berjalan
       return i;
-    }
-
-    /** Tukar isi dua bola angka (kelelawar penyihir / mantra): label bertukar dengan animasi balik. */
-    swapLabels(a, b) {
-      const av = a.nv !== null ? a.nv : a.value, at = a.nv !== null ? a.nt : a.text;
-      const bv = b.nv !== null ? b.nv : b.value, bt = b.nv !== null ? b.nt : b.text;
-      a.nv = bv; a.nt = bt; a.flipT = 0.36; b.nv = av; b.nt = at; b.flipT = 0.36;
-      const q = a.qid; a.qid = b.qid; b.qid = q;       // pasangan soal ikut berpindah bersama angkanya
-    }
-
-    /** Beri label ulang semua bola angka (soal baru). fn(ball) mengisi value & text. */
-    relabel(fn) {
-      for (const b of this.balls) {
-        if (b.kind !== 'num') continue;
-        const vis = this.visible(b);
-        const old = b.value, oldT = b.text;
-        fn(b);
-        if (vis && (b.value !== old || b.text !== oldT)) { b.nv = b.value; b.nt = b.text; b.value = old; b.text = oldT; b.flipT = 0.36; }
-      }
     }
 
     /** pass: 0 = semua kecuali bola di atas jembatan, 1 = hanya bola di atas jembatan (digambar setelah penutup depan). */
@@ -466,19 +464,20 @@
         }
       }
       const aura = this.slowT > 0 ? 'rgba(120,210,255,0.55)' : (this.fastT > 0 ? 'rgba(255,150,50,0.55)' : null);
-      for (let i = bs.length - 1; i >= 0; i--) {
-        const b = bs[i];
-        if (this.overWindows && this.overWindows.length && this.isOver(b) !== (pass === 1)) continue;
-        if (b.d + b.vo < this.entryD - r * 0.6 || b.d > len + r * 2) continue;
+      const one = function (b) {
         let x = b.x, y = b.y, rr = r, alpha = 1;
-        const em = Math.max(0, Math.min(1, b.emT / emA));   // animasi keluar portal (berbasis waktu, singkat): agak kecil & bercahaya -> ukuran penuh
-        if (em < 1) { const k = em * em * (3 - 2 * em); rr = r * (0.6 + 0.4 * k); alpha = Math.min(1, em * 3 + 0.2); }
+        const em = Math.max(0, Math.min(1, b.emT / emA));   // animasi keluar portal (berbasis waktu, singkat; HANYA visual: hitbox selalu penuh): sedikit lebih kecil & bercahaya -> ukuran penuh
+        if (em < 1) { const k = em * em * (3 - 2 * em); rr = r * (0.84 + 0.16 * k); alpha = Math.min(1, 0.55 + em * 0.9); }      // tidak pernah mengecil/pudar jauh dari hitbox: garis bidik dan tumbukan tetap sesuai tampilan
         if (b.d > len - r * 0.2) rr = Math.max(0.2, r * (1 - (b.d - (len - r * 0.2)) / (r * 2))); // jatuh ke lubang
         if (b.wob > 0) x += Math.sin(t * 70) * 4 * (b.wob / 0.5);
         if (aura) { ctx.fillStyle = aura; ctx.beginPath(); ctx.arc(x, y, rr + 5, 0, 6.283); ctx.fill(); }
         if (em < 1) {
           const gl = ctx.createRadialGradient(x, y, 0, x, y, rr * 2.1); gl.addColorStop(0, 'rgba(255,235,255,' + (0.85 * (1 - em)).toFixed(2) + ')'); gl.addColorStop(1, 'rgba(180,120,255,0)');
           ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x, y, rr * 2.1, 0, 6.283); ctx.fill(); ctx.globalCompositeOperation = 'source-over';
+        }
+        if (b.sw) {      // sedang bertukar tempat: cahaya ungu + percikan di sepanjang lintasan
+          const gl = ctx.createRadialGradient(x, y, 0, x, y, rr * 1.9); gl.addColorStop(0, 'rgba(230,200,255,0.55)'); gl.addColorStop(1, 'rgba(160,100,255,0)');
+          ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x, y, rr * 1.9, 0, 6.283); ctx.fill(); ctx.globalCompositeOperation = 'source-over';
         }
         if (alpha < 1) ctx.globalAlpha = alpha;
         if (b.kind === 'num') {
@@ -491,7 +490,15 @@
           drawSpecial(ctx, b.kind, x, y, rr, t);
         }
         if (alpha < 1) ctx.globalAlpha = 1;
+      }, late = [];
+      for (let i = bs.length - 1; i >= 0; i--) {
+        const b = bs[i];
+        if (this.overWindows && this.overWindows.length && this.isOver(b) !== (pass === 1)) continue;
+        if (b.d + b.vo < this.entryD - r * 0.6 || b.d > len + r * 2) continue;
+        if (b.sw) { late.push(b); continue; }      // yang sedang bertukar digambar terakhir (satu di atas, satu di bawah)
+        one(b);
       }
+      late.sort(function (p, q) { return p.sw.side - q.sw.side; }).forEach(one);
     }
   }
 

@@ -54,6 +54,7 @@
   <script src="js/levels.js"></script>
   <script src="js/render/wizard.js"></script>
   <script src="js/boss.js"></script>
+  <script src="js/swap.js"></script>
   <script src="js/story.js"></script>
   <script src="js/ui/skin.js"></script>
   <script src="js/ui/kit.js"></script>
@@ -74,6 +75,7 @@
       if (sim || t) load("js/dev/chainsim.js");
       if (qdbg) load("js/dev/qdebug.js");
       if (sim || t) load("js/dev/qsim.js");
+      if (dbg.indexOf("aim") >= 0 || t) load("js/dev/aimsweep.js");
     })();
   </script>
 </body>

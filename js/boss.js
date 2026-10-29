@@ -29,9 +29,9 @@
     phases: [
       { name: 'Fase 1 – Sihir Lambat', speedMul: 0.7, movers: false, mixed: false, questionTime: null, spells: [], spellEvery: 0,
         say: 'Hahaha! Telur-telur ini milikku sekarang! Jawab soalku kalau kau berani, naga kecil!' },
-      { name: 'Fase 2 – Mantra Gelap', speedMul: 1.0, movers: true, mixed: false, questionTime: null, spells: ['fog', 'frost', 'swap'], spellEvery: 10,
+      { name: 'Fase 2 – Mantra Gelap', speedMul: 1.0, movers: true, mixed: false, questionTime: null, spells: ['fog', 'frost'], spellEvery: 10,
         say: 'Lumayan! Rasakan mantra kabut, es, dan tukar angkaku!' },
-      { name: 'Fase 3 – Sihir Campuran', speedMul: 1.1, movers: true, mixed: true, questionTime: 15, spells: ['fog', 'frost', 'swap'], spellEvery: 7.5,
+      { name: 'Fase 3 – Sihir Campuran', speedMul: 1.1, movers: true, mixed: true, questionTime: 15, spells: ['fog', 'frost'], spellEvery: 7.5,
         say: 'Ini sihir terkuatku! Soal campuran, dan waktumu terbatas!' }
     ],
     lines: {

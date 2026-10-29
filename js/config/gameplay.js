@@ -58,7 +58,8 @@
     BOSS_HP_BARS: 2,                // 1 atau 2 bar darah boss (2: bar 1 habis di soal ke-10 = fase 2)
     SWAP_TELEGRAPH: 1.8,            // detik indikator sebelum dua bola bertukar tempat
     SWAP_ANIM: 0.45,                // detik gerak tukar (melengkung)
-    SWAP_END_GUARD: 0.1             // bola di 10% terakhir jalur menuju sarang tidak boleh ditukar
+    SWAP_END_GUARD: 0.1,            // bola di 10% terakhir jalur menuju sarang tidak boleh ditukar
+    SWAP_PAIRS_PHASE2: 2            // Stage 3, fase 2 boss: jumlah pasangan yang bertukar sekaligus
   };
 
   /** Jeda antar-penukaran bola [min, maks] detik per stage (acak di dalam rentang); null = tanpa penukaran. Stage 3 fase 2 boss: dua pasangan sekaligus. */
@@ -104,8 +105,8 @@
   /** Parameter yang muncul sebagai slider (urutan = urutan di panel). */
   const TUNABLE = Object.keys(META);
 
-  /* ---------- flag debug: ?debug=tune,chain,sim,obstacles (boleh digabung dengan koma) ---------- */
-  const debug = { tune: false, chain: false, sim: false, obstacles: false };
+  /* ---------- flag debug: ?debug=tune,chain,sim,obstacles,aim (boleh digabung dengan koma) ---------- */
+  const debug = { tune: false, chain: false, sim: false, obstacles: false, aim: false };
   (function () {
     const m = /[?&]debug=([^&#]*)/.exec(location.search);
     if (m) decodeURIComponent(m[1]).split(',').forEach(function (k) { if (k in debug) debug[k] = true; });

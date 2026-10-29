@@ -54,7 +54,7 @@
     // --- Stage 1 (hutan) ---
     hook: legacy('hook'),
     serp3: function (portrait, d) {
-      return portrait ? { pts: serp(6, 0, 0.15, d.asp), shooter: [0.5, 0.97], zones: SERP_ZONE } : { pts: serp(3, 0, 0.27, d.asp), shooter: [0.5, 0.92], zones: SERP_ZONE };
+      return portrait ? { pts: serp(6, 0, 0.15, d.asp), shooter: [0.5, 0.97], zones: SERP_ZONE } : { pts: serp(3, 0, 0.3, d.asp), shooter: [0.5, 0.97], zones: SERP_ZONE };
     },
     s2: function (portrait, d) {
       return portrait
@@ -70,16 +70,16 @@
     // --- varian padat (tahap f): lebih banyak baris = jalur lebih panjang; tikungan setengah lingkaran dilunakkan validator bila perlu ---
     serp4: function (portrait, d) { const f = fitRows(d, portrait ? 7 : 4, portrait ? 0.98 : 0.995); return { pts: serp(f.n, 0, f.dv, d.asp), shooter: [0.5, portrait ? 0.98 : 0.995], zones: SERP_ZONE }; },
     serp4w: function (portrait, d) { const f = fitRows(d, portrait ? 6 : 4, portrait ? 0.97 : 0.995); return { pts: serp(f.n, 0, f.dv, d.asp, portrait ? 0.012 : 0.008), shooter: [0.5, portrait ? 0.97 : 0.995] }; },
-    serp3w: function (portrait, d) { return portrait ? { pts: serp(5, 0, 0.17, d.asp, 0.025), shooter: [0.5, 0.96], zones: SERP_ZONE } : { pts: serp(3, 0, 0.27, d.asp, 0.05), shooter: [0.5, 0.93] }; },
+    serp3w: function (portrait, d) { return portrait ? { pts: serp(5, 0, 0.17, d.asp, 0.025), shooter: [0.5, 0.96], zones: SERP_ZONE } : { pts: serp(3, 0, 0.3, d.asp, 0.04), shooter: [0.5, 0.97] }; },
     horseshoe: function (portrait) {
       const pts = [[-0.12, 0.03], [0.05, 0.05], [0.02, 0.5], [0.1, 0.92], [0.3, 1.0], [0.7, 1.0], [0.92, 0.92], [1.0, 0.5], [0.95, 0.1], [0.75, 0.0], [0.55, 0.02]];
       return { pts: portrait ? T(pts) : pts };
     },
     // --- Stage 3 (menara, arena boss: penembak di bawah, boss di atas) ---
     bossU: legacy('bossU'),
-    bossU2: function () { return { pts: MIR(BOSS_U), shooter: [0.5, 0.66], boss: [0.5, 0.2] }; },
+    bossU2: function () { return { pts: MIR(BOSS_U), shooter: [0.5, 0.63], boss: [0.5, 0.2] }; },
     bossBowl: function () {
-      return { pts: [[0.0, -0.2], [0.06, 0.12], [0.0, 0.4], [0.12, 0.75], [0.4, 0.98], [0.7, 0.98], [0.92, 0.8], [1.0, 0.5], [0.9, 0.25], [0.78, 0.05]], shooter: [0.5, 0.66], boss: [0.5, 0.2] };
+      return { pts: [[0.0, -0.2], [0.06, 0.12], [0.0, 0.4], [0.12, 0.75], [0.4, 0.98], [0.7, 0.98], [0.92, 0.8], [1.0, 0.5], [0.9, 0.25], [0.78, 0.05]], shooter: [0.5, 0.63], boss: [0.5, 0.2] };
     }
   };
 

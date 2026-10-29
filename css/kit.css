@@ -161,10 +161,10 @@
 @keyframes kStarIn { to { opacity: 1; transform: none; } }
 
 /* ---------- toast, coachmark, tooltip, modal ---------- */
-.k-toast, .k-coach { position: absolute; left: 50%; transform: translate(-50%, 12px); max-width: 90vw; padding: 10px 20px; border-radius: 999px; pointer-events: none; opacity: 0; transition: opacity .2s, transform .2s; z-index: 30;
+.k-toast { position: absolute; left: 50%; transform: translate(-50%, 12px); max-width: 90vw; padding: 10px 20px; border-radius: 999px; pointer-events: none; opacity: 0; transition: opacity .2s, transform .2s; z-index: 30;
   font: 800 17px var(--font-ui); color: #fff3d0; text-align: center; background: var(--tex-wood-dark) center / cover, #3a2010; border: 3px solid var(--gold-2); box-shadow: 0 6px 16px rgba(0, 0, 0, .5); }
-.k-toast { bottom: max(24px, env(safe-area-inset-bottom)); } .k-coach { bottom: 18%; }
-.k-toast.show, .k-coach.show { opacity: 1; transform: translate(-50%, 0); }
+.k-toast { bottom: max(24px, env(safe-area-inset-bottom)); }
+.k-toast.show { opacity: 1; transform: translate(-50%, 0); }
 .k-tip { position: relative; display: inline-flex; }
 .k-tip::after { content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); width: max-content; max-width: 180px; padding: 4px 10px; border-radius: 10px; background: #1c0e05; color: #fff3d0; font: 700 13px var(--font-ui); opacity: 0; pointer-events: none; transition: opacity .15s; z-index: 5; }
 .k-tip:hover::after, .k-tip:focus-visible::after { opacity: 1; }

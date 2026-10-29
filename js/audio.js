@@ -90,6 +90,12 @@
     go: function () { tone(1175, 1175, 0.28, 'square', 0.16); tone(1568, 1568, 0.3, 'square', 0.14, 0.05); },
     /* ---- naga & tembakan ---- */
     swap: function () { tone(500, 760, 0.08, 'triangle', 0.2); },
+    swapWarn: function () {      // peringatan penukaran: denyut makin cepat dan naik nada selama ±1,8 dtk
+      for (let i = 0; i < 7; i++) tone(520 + i * 85, 540 + i * 92, 0.11, 'triangle', 0.1 + i * 0.015, i * (0.34 - i * 0.03), { wet: 0.3 });
+      tone(1500, 2100, 0.3, 'sine', 0.08, 1.6, { wet: 0.4 });
+    },
+    swapGo: function () { noise(0.4, 0.2, 0, 3200, { type: 'bandpass', q: 1.5, f1: 700, att: 0.06, wet: 0.3 }); tone(420, 880, 0.3, 'sine', 0.16, 0, { wet: 0.3 }); [1200, 1700, 2300].forEach(function (f, i) { tone(f, f, 0.1, 'sine', 0.07, 0.12 + i * 0.07, { wet: 0.5 }); }); },
+    fizzle: function () { noise(0.25, 0.13, 0, 1800, { type: 'lowpass', f1: 600 }); tone(500, 150, 0.25, 'triangle', 0.12, 0, { wet: 0.2 }); },
     shoot: function () { tone(520, 180, 0.13, 'square', 0.12); noise(0.05, 0.08, 0, 3000); },
     fire: function () {      // semburan: desis menyapu naik + gemuruh rendah
       noise(0.45, 0.26, 0, 700, { type: 'bandpass', q: 0.9, f1: 3400, att: 0.03, wet: 0.12 }); noise(0.25, 0.14, 0, 3200, { type: 'highpass' });

@@ -121,7 +121,7 @@
     // Huruf U terbuka di atas, dipakai arena boss (penembak di bawah, boss di atas).
     bossU: {
       mode: 'same',
-      shooter: [0.5, 0.66], boss: [0.5, 0.2],
+      shooter: [0.5, 0.63], boss: [0.5, 0.2],
       pts: [[0.0, -0.2], [0.03, 0.14], [0.04, 0.6], [0.14, 0.9], [0.5, 1.0], [0.86, 0.9], [0.96, 0.6], [0.97, 0.3], [0.95, 0.08]]
     }
   };

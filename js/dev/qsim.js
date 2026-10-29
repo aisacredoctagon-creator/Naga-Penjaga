@@ -20,7 +20,7 @@
   Bot.prototype.act = function (G, dt) {
     const r = G.run, sh = r.shooter; if (this.mode === 'none' || !r.q || G.state !== 'playing') return;
     if (r.qid !== this.lastQ) { this.lastQ = r.qid; this.think = this.thinkSec; }
-    this.think -= dt; if (this.think > 0 || !sh.canFire() || G.anySettling()) return;
+    this.think -= dt; if (this.think > 0 || !sh.canFire() || G.anySettling() || r.chain.balls.some(function (b) { return b.sw; })) return;      // tunggu bola selesai bertukar tempat
     let tgt = null;
     if (this.mode === 'wrong') { const vis = G.pendingVisible().filter(function (b) { return b.qid !== r.qid && G.openLine(b); }); tgt = vis[0] || null; }
     else tgt = G.allBalls().find(function (b) { return b.kind === 'num' && b.qid === r.qid && b.ch.visible(b); });
@@ -93,9 +93,17 @@
   const G = function () { return GA.game; };
 
   async function scWrong() {
-    const o = await drive({ step: 1, mode: 'wrong', secs: 70, immortal: true, think: 1 });
-    clean(o, ['STEP_START', 'ANSWERED_CORRECT'], 'peluru salah (step 2)');
+    let infoOk = 0, infoBad = [], prevWrong = 0;
+    const o = await drive({ step: 1, mode: 'wrong', secs: 70, immortal: true, think: 1,
+      after: function (t, r) {
+        if (r.wrong > prevWrong) {      // umpan balik salah: di ZONA INFORMASI, soal dengan nilai yang salah ("21 + 3 ≠ 18"), tanpa membocorkan jawaban
+          prevWrong = r.wrong; const f = r.info, q = r.q;
+          if (f && f.tone === 'bad' && f.math && f.math.indexOf(' ≠ ') > 0 && q && f.math.replace(' ≠ ', ' = ') !== q.text.replace('▢', q.answerText) && f.math.indexOf('▢') < 0 && r.qFlash > 0) infoOk++; else infoBad.push(f ? f.math : 'tanpa info');
+        }
+      } });
+    clean(o, ['STEP_START', 'ANSWERED_CORRECT'], 'peluru salah (stage 2)');
     ok('peluru salah: dihitung salah (telur berkurang) tetapi soal tetap; soal hanya pindah bila tembakan kebetulan mengenai jawaban benar', o.r.wrong >= 10 && o.qm.solvedCount() === o.r.correct && o.qm.log.length === 1 + o.r.correct, 'salah ' + o.r.wrong + ', benar ' + o.r.correct + ', perubahan ' + (o.qm.log.length - 1));
+    ok('umpan balik salah: pesan di zona informasi ("a + b ≠ nilai salah", tanpa jawaban benar), plakat berkedip', infoOk >= 10 && infoBad.length === 0, infoOk + ' pesan' + (infoBad.length ? ', cacat: ' + infoBad.slice(0, 2).join(' | ') : ''));
     G().handlers.quit();
   }
 
@@ -132,6 +140,58 @@
       ok('stage ' + (step + 1) + ': setiap perubahan soal teramati = satu jawaban benar / TIMEOUT', o.changes.length === (o.reasons.ANSWERED_CORRECT || 0) + (o.reasons.TIMEOUT || 0), o.changes.length + ' perubahan teramati');
       G().handlers.quit();
     }
+  }
+
+  /** Penukaran bola di game sungguhan (jeda dipercepat 3–5 dtk): soal aktif TIDAK berubah, pasangan sah, rantai tetap rapat, semua tahap 2 dan 3. */
+  async function scSwap() {
+    const E = GA.Gameplay.SWAP_EVERY, save = E.slice(); E[1] = [3, 5]; E[2] = [3, 5];
+    try {
+      for (const step of [1, 2]) {
+        let mgr = null, badRun = 0, maxBad = 0, minR = 9, maxR = 0, qBefore = null, qChanged = 0;
+        const o = await drive({ step: step, mode: 'bot', secs: 170, immortal: true, think: 4,
+          before: function (t, r) { mgr = r.swap || mgr; },
+          after: function (t, r) {
+            const c = r.chain; if (!c || c.animating()) { badRun = 0; return; }
+            const s = c.spacing(); if (!s.n) return; minR = Math.min(minR, s.min); maxR = Math.max(maxR, s.max);
+            if (s.min < 0.96 || s.max > 1.05) { badRun++; maxBad = Math.max(maxBad, badRun); } else badRun = 0;
+          },
+          stop: function (t, r) { return !!mgr && mgr.stats.executed >= 8 && t > 40; } });
+        clean(o, ['STEP_START', 'ANSWERED_CORRECT', 'TIMEOUT'], 'penukaran bola stage ' + (step + 1));
+        ok('stage ' + (step + 1) + ': penukaran terjadi berulang (≥ 8) dan jarak bola tetap rapat sesudahnya', !!mgr && mgr.stats.executed >= 8 && maxBad < 30, 'indikator ' + (mgr ? mgr.stats.telegraphs : 0) + ', tukar ' + (mgr ? mgr.stats.executed : 0) + ', batal ' + (mgr ? mgr.stats.fizzled : 0) + ', rasio ' + minR.toFixed(3) + '–' + maxR.toFixed(3));
+        G().handlers.quit();
+      }
+    } finally { E[1] = save[1]; E[2] = save[2]; }
+  }
+
+  /** Overview jawaban: grid 20 chip (✓ / ✓ + titik / strip), kartu soal saat chip diketuk, hasil tersimpan dan bisa dibuka lagi; menang dan Game Over. */
+  async function scOverview() {
+    const U = GA.UI, S = GA.Storage;
+    const mk = function (win, k) {
+      const items = []; for (let i = 0; i < 20; i++) items.push({ id: i, text: (i + 1) + ' + 3 = ▢', answerText: String(i + 4), wrong: i % 4 === 1 ? 2 : 0, wrongVals: i % 4 === 1 ? ['99', '7'] : [], solved: win || i < k, first: (win || i < k) && i % 4 !== 1 });
+      const first = items.filter(function (x) { return x.first; }).length;
+      return { win: win, stage: 0, diff: 'sedang', eggs: win ? 2 : 0, maxEggs: 3, pct: first / 20, stars: win ? 2 : 0, items: items, score: 1234, wrong: 10, combo: 5, place: 'Lembah Hutan Naga', tag: 'Stage 1' };
+    };
+    U.showOverview(mk(true, 20), { next: true });
+    const chips = document.querySelectorAll('#s-result .ov-chip'), ok1 = document.querySelectorAll('#s-result .ov-ok').length, redo = document.querySelectorAll('#s-result .ov-redo').length, none = document.querySelectorAll('#s-result .ov-none').length;
+    ok('overview menang: 20 chip bernomor; benar langsung (✓), benar setelah salah (✓ + titik), tanpa "belum terjawab"', chips.length === 20 && ok1 === 15 && redo === 5 && none === 0, ok1 + ' / ' + redo + ' / ' + none);
+    const hasIcons = [].every.call(chips, function (c) { return !!c.querySelector('svg') && !!c.getAttribute('aria-label'); });
+    ok('overview: status dibedakan lewat ikon dan bentuk (bukan hanya warna), tiap chip punya label aksesibilitas', hasIcons && document.querySelector('#s-result .ov-ok .ic-check') && document.querySelector('#s-result .ov-redo .ic-checkdot'));
+    chips[1].click();
+    const card = document.getElementById('ov-card').textContent;
+    ok('overview: ketuk chip → kartu soal lengkap + jawaban benar + jumlah salah + nilai yang sempat salah', /2/.test(card) && /5/.test(card) && /99/.test(card) && document.querySelector('#ov-card .ov-arrow'), card.replace(/\s+/g, ' ').slice(0, 60));
+    ok('overview: target sentuh chip >= 44px', [].every.call(chips, function (c) { const b = c.getBoundingClientRect(); return b.width >= 43.5 && b.height >= 43.5; }), Math.round(chips[0].getBoundingClientRect().width) + 'px');
+    const btns = [].map.call(document.querySelectorAll('#s-result .ov-btns [data-act]'), function (b) { return b.getAttribute('data-act'); }).join();
+    ok('overview menang: tombol Ulangi, Lanjut, Menu', btns === 'ov-retry,ov-next,ov-menu', btns);
+    U.showOverview(mk(false, 6), { next: false });
+    const none2 = document.querySelectorAll('#s-result .ov-none').length, btns2 = [].map.call(document.querySelectorAll('#s-result .ov-btns [data-act]'), function (b) { return b.getAttribute('data-act'); }).join();
+    ok('overview Game Over: soal belum terjawab bertanda strip; tanpa tombol Lanjut', none2 === 14 && btns2 === 'ov-retry,ov-menu', none2 + ' strip; ' + btns2);
+    // simpanan: hasil terakhir tersimpan dan bisa dibuka dari Pilih Stage
+    const saved = JSON.stringify(S.data.last), keep = S.data.prog;
+    S.saveLast('sedang', 0, mk(true, 20));
+    const lr = S.lastResult('sedang', 0);
+    ok('hasil terakhir tersimpan di localStorage dan bisa dibuka lagi (kartu stage)', !!lr && lr.items.length === 20 && lr.items[1].wrong === 2 && lr.items[1].wrongVals.join() === '99,7' && lr.stars === 2, lr ? lr.items.length + ' soal' : 'null');
+    S.data.last = JSON.parse(saved); S.data.prog = keep; S.save();
+    G().handlers.quit();
   }
 
   async function scLayout() {
@@ -252,10 +312,13 @@
   }
 
   async function run() {
-    const t0 = performance.now();
-    for (const f of [scRestore, scIdle, scWrong, scStolen, scLayout, scPause, scQuality, scReadable, scFull, scTimeout]) {
+    const t0 = performance.now(), texts = [], oText = GA.FX.text, oPop = GA.FX.pop;
+    GA.FX.text = function (x, y, s) { texts.push(String(s)); return oText.apply(GA.FX, arguments); }; GA.FX.pop = function (x, y, s) { texts.push(String(s)); return oPop.apply(GA.FX, arguments); };      // pantau teks yang melayang di peta
+    for (const f of [scRestore, scIdle, scWrong, scStolen, scSwap, scOverview, scLayout, scPause, scQuality, scReadable, scFull, scTimeout]) {
       try { await f(); } catch (e) { ok(f.name, false, 'error: ' + e.message + ' @ ' + (e.stack || '').split('\n')[1]); try { GA.devViewport = null; GA.game.handlers.quit(); } catch (e2) { /* abaikan */ } }
     }
+    GA.FX.text = oText; GA.FX.pop = oPop;
+    ok('tidak ada teks melayang di atas peta (hanya angka skor/-1 boss)', texts.every(function (s) { return /^[+−-]?\d+$/.test(s); }), texts.length + ' popup' + (texts.some(function (s) { return !/^[+−-]?\d+$/.test(s); }) ? ', teks: ' + texts.filter(function (s) { return !/^[+−-]?\d+$/.test(s); }).slice(0, 3).join(' | ') : ''));
     results.push('--- soal aktif: ' + (fails ? fails + ' GAGAL' : 'SEMUA LULUS') + ' (' + ((performance.now() - t0) / 1000).toFixed(1) + ' dtk)');
     GA.QSim.done = true; GA.QSim.fails = fails;
   }

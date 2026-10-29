@@ -4,7 +4,6 @@
   'use strict';
   const Theme = GA.Theme;
 
-  const MULT_FLAME = { 1: 0.8, 2: 1.0, 3: 1.25 };  // makin besar pengali, makin besar nyala api
 
   function makeAmmo() {
     const r = Math.random();

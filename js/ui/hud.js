@@ -9,21 +9,24 @@
 
   function rr(ctx, x, y, w, h, r) { GA.Path.roundRect(ctx, x, y, w, h, r); }
 
+  /** Tinggi HUD termasuk ZONA INFORMASI (strip tetap di bawah plakat soal; ruang cadangan, bukan di atas peta, jadi tidak ada loncatan tata letak). */
+  const HUD_H = { portrait: 192, landscape: 114 };
   function metrics(L) {
     const btn = Math.min(76, Math.max(56, 48 / L.scale));
-    if (L.portrait) return { h: 150, btn: btn, pause: { x: L.W - 12 - btn, y: 8, w: btn, h: btn } };
-    return { h: 84, btn: btn, pause: { x: L.W - 12 - btn, y: (84 - btn) / 2, w: btn, h: btn } };
+    if (L.portrait) return { h: HUD_H.portrait, btn: btn, pause: { x: L.W - 12 - btn, y: 8, w: btn, h: btn } };
+    return { h: HUD_H.landscape, btn: btn, pause: { x: L.W - 12 - btn, y: (84 - btn) / 2, w: btn, h: btn } };
   }
 
-  /** Susunan plakat (koordinat logis) untuk potret / lanskap. */
+  /** Susunan plakat (koordinat logis) untuk potret / lanskap. `info` = zona informasi: kiri kombo, tengah pesan, kanan status. */
   function geo(L) {
     const m = metrics(L), W = L.W, p = m.pause;
     if (L.portrait) {
       const ex = 300; return { m: m, score: { x: 10, y: 8, w: 184, h: 58 }, step: { x: 200, y: 8, w: 92, h: 58 }, eggs: { x: ex, y: 8, w: p.x - 8 - ex, h: 58 },
-        q: { x: 10, y: 74, w: W - 20, h: 58 }, prog: { x: 24, y: 137, w: W - 48, h: 8 } };
+        q: { x: 10, y: 74, w: W - 20, h: 58 }, prog: { x: 24, y: 137, w: W - 48, h: 8 }, info: { x: 10, y: 152, w: W - 20, h: 30 } };
     }
-    const q = { x: 272, y: 6, w: W - 272 - 252, h: 62 }, ex = W - 244;
-    return { m: m, score: { x: 10, y: 10, w: 178, h: 64 }, step: { x: 194, y: 10, w: 72, h: 64 }, eggs: { x: ex, y: 10, w: p.x - 8 - ex, h: 64 }, q: q, prog: { x: q.x + 16, y: q.y + q.h + 5, w: q.w - 32, h: 8 } };
+    const q = { x: 272, y: 6, w: W - 272 - 252, h: 56 }, ex = W - 244;
+    return { m: m, score: { x: 10, y: 10, w: 178, h: 64 }, step: { x: 194, y: 10, w: 72, h: 64 }, eggs: { x: ex, y: 10, w: p.x - 8 - ex, h: 64 }, q: q, prog: { x: q.x + 16, y: q.y + q.h + 5, w: q.w - 32, h: 8 },
+      info: { x: 10, y: 80, w: W - 20, h: 26 } };
   }
 
   /* ---------- bingkai statis ---------- */
@@ -53,10 +56,8 @@
     const tg = g.createLinearGradient(0, h - 7, 0, h); tg.addColorStop(0, U.gold[0]); tg.addColorStop(0.5, U.gold[1]); tg.addColorStop(1, U.gold[2]);
     g.fillStyle = '#1a0d05'; g.fillRect(0, h - 8, W, 8); g.fillStyle = tg; g.fillRect(0, h - 7, W, 3); g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(0, h - 7, W, 1);
     g.fillStyle = 'rgba(255,230,170,0.5)'; g.fillRect(0, 0, W, 2);
-    // paku keling
-    for (let x = 30; x < W; x += 96) if (!(x > G.q.x - 18 && x < G.q.x + G.q.w + 18 && L.portrait === false) ) stud(g, x, h - 13, 3);
     // cekungan: skor, step, telur
-    [G.score, G.step, G.eggs].forEach(function (r) { inset(g, r, 12); });
+    [G.score, G.step, G.eggs, G.info].forEach(function (r, i) { inset(g, r, i === 3 ? 10 : 12); });
     // plakat soal: bingkai emas + perkamen
     const q = G.q, gd = g.createLinearGradient(0, q.y, 0, q.y + q.h); gd.addColorStop(0, U.gold[0]); gd.addColorStop(0.45, U.gold[1]); gd.addColorStop(1, U.gold[2]);
     g.fillStyle = 'rgba(0,0,0,0.45)'; rr(g, q.x + 2, q.y + 4, q.w, q.h, 16); g.fill();
@@ -192,6 +193,7 @@
       if (tr.reason !== 'STEP_START' && tr.reason !== 'STEP_RESTART' && tr.t < hold) reasonIcon(ctx, tr.reason, q.x + q.w - 30, q.y + q.h / 2, Math.min(14, q.h * 0.28), Math.min(1, (hold - tr.t) / 0.25));
     }
     if (run.qExpire > 0) { ctx.save(); rr(ctx, q.x + 6, q.y + 6, q.w - 12, q.h - 12, 11); ctx.clip(); ctx.fillStyle = 'rgba(255,60,70,' + (0.2 + 0.2 * Math.sin(t * 30)).toFixed(2) + ')'; ctx.fillRect(q.x, q.y, q.w, q.h); ctx.restore(); }
+    if (run.qFlash > 0) { ctx.save(); rr(ctx, q.x + 6, q.y + 6, q.w - 12, q.h - 12, 11); ctx.clip(); ctx.fillStyle = 'rgba(255,50,64,' + (0.4 * Math.min(1, run.qFlash / 0.5)).toFixed(2) + ')'; ctx.fillRect(q.x, q.y, q.w, q.h); ctx.restore(); }      // soal salah: plakat berkedip merah halus
     if (!qt && !(tr && tr.from && tr.t < 0.38)) {   // belum ada soal aktif: tiga titik berdenyut
 
       for (let i = 0; i < 3; i++) { ctx.fillStyle = 'rgba(90,50,20,' + (0.25 + 0.55 * Math.max(0, Math.sin(t * 4 - i * 0.9))).toFixed(2) + ')'; ctx.beginPath(); ctx.arc(q.x + q.w / 2 + (i - 1) * 18, q.y + q.h / 2, 5, 0, TAU); ctx.fill(); }
@@ -213,29 +215,51 @@
     // progres (api)
     fireBar(ctx, G.prog, Math.min(1, run.progress), t, !!run.boss);
 
-    // di bawah HUD: kombo, status, umpan balik
-    const by = m.h + 12;
+    drawInfo(ctx, run, G.info, t);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  }
+
+  /** Ikon kecil di zona informasi (digambar dengan path, mengikuti warna `col`). */
+  function infoIcon(ctx, kind, x, y, r, col) {
+    ctx.save(); ctx.translate(x, y); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = Math.max(2.5, r * 0.28);
+    if (kind === 'cross') { ctx.beginPath(); ctx.moveTo(-r * 0.6, -r * 0.6); ctx.lineTo(r * 0.6, r * 0.6); ctx.moveTo(r * 0.6, -r * 0.6); ctx.lineTo(-r * 0.6, r * 0.6); ctx.stroke(); }
+    else if (kind === 'check') { ctx.beginPath(); ctx.moveTo(-r * 0.65, 0); ctx.lineTo(-r * 0.15, r * 0.5); ctx.lineTo(r * 0.7, -r * 0.5); ctx.stroke(); }
+    else if (kind === 'warn') { ctx.beginPath(); ctx.moveTo(0, -r * 0.8); ctx.lineTo(r * 0.85, r * 0.65); ctx.lineTo(-r * 0.85, r * 0.65); ctx.closePath(); ctx.stroke(); ctx.fillRect(-r * 0.07, -r * 0.3, r * 0.14, r * 0.5); ctx.fillRect(-r * 0.08, r * 0.3, r * 0.16, r * 0.16); }
+    else if (kind === 'egg') { GA.Chain.eggPath(ctx, 0, 0, r * 0.55, r * 0.75); ctx.stroke(); }
+    else if (kind === 'clock') { ctx.beginPath(); ctx.arc(0, 0, r * 0.8, 0, TAU); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, -r * 0.45); ctx.lineTo(0, 0); ctx.lineTo(r * 0.35, r * 0.2); ctx.stroke(); }
+    else if (kind === 'swap') { ctx.beginPath(); ctx.moveTo(-r * 0.8, -r * 0.3); ctx.lineTo(r * 0.7, -r * 0.3); ctx.moveTo(r * 0.3, -r * 0.7); ctx.lineTo(r * 0.75, -r * 0.3); ctx.lineTo(r * 0.3, 0.1 * r); ctx.moveTo(r * 0.8, r * 0.4); ctx.lineTo(-r * 0.7, r * 0.4); ctx.moveTo(-r * 0.3, 0.05 * r); ctx.lineTo(-r * 0.75, r * 0.4); ctx.lineTo(-r * 0.3, r * 0.8); ctx.stroke(); }
+    else { ctx.beginPath(); ctx.arc(0, 0, r * 0.75, 0, TAU); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, r * 0.2, 0, TAU); ctx.fill(); }      // target (bidik)
+    ctx.restore();
+  }
+
+  const TONE = { bad: ['rgba(120,20,34,0.55)', '#ff7a86', '#ffe9e9'], good: ['rgba(20,100,50,0.55)', '#6af0a0', '#eafff2'], info: ['rgba(110,80,20,0.5)', '#ffd27a', '#fff6dc'], coach: ['rgba(60,40,110,0.55)', '#c9b6ff', '#f4eeff'] };
+
+  /** ZONA INFORMASI (strip tetap di HUD, tidak menimpa peta): kiri = kombo, tengah = pesan singkat (salah: "20 + 3 ≠ 18", rintangan, coachmark, penukaran), kanan = status (lambat, naga beku). */
+  function drawInfo(ctx, run, z, t) {
+    const Fo = T.fonts, cy = z.y + z.h / 2 + 1;
+    ctx.textBaseline = 'middle';
+    // kombo (kiri)
     if (run.combo >= 2) {
-      const k = 1 + (run.comboPulse > 0 ? run.comboPulse * 0.6 : 0);
-      ctx.save(); ctx.translate(16, by + 18); ctx.scale(k, k); ctx.font = '800 22px ' + Fo.ui; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(30,12,4,0.92)'; ctx.lineJoin = 'round';
-      const ct = 'KOMBO ×' + run.combo; ctx.strokeText(ct, 0, 0); const cg = ctx.createLinearGradient(0, -12, 0, 12); cg.addColorStop(0, '#fff3a0'); cg.addColorStop(1, '#ff8a2a'); ctx.fillStyle = cg; ctx.fillText(ct, 0, 0); ctx.restore();
+      const k = 1 + (run.comboPulse > 0 ? run.comboPulse * 0.5 : 0);
+      ctx.save(); ctx.translate(z.x + 12, cy); ctx.scale(k, k); ctx.font = '800 ' + Math.round(z.h * 0.6) + 'px ' + Fo.ui; ctx.textAlign = 'left'; ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(30,12,4,0.92)'; ctx.lineJoin = 'round';
+      const ct = '×' + run.combo; ctx.strokeText(ct, 12 + z.h * 0.3, 0); const cg = ctx.createLinearGradient(0, -10, 0, 10); cg.addColorStop(0, '#fff3a0'); cg.addColorStop(1, '#ff8a2a'); ctx.fillStyle = cg; ctx.fillText(ct, 12 + z.h * 0.3, 0);
+      ctx.beginPath(); ctx.moveTo(0, z.h * 0.3); ctx.quadraticCurveTo(-z.h * 0.28, 0, 0, -z.h * 0.34); ctx.quadraticCurveTo(z.h * 0.04, -z.h * 0.12, z.h * 0.2, 0.06 * z.h); ctx.quadraticCurveTo(z.h * 0.28, z.h * 0.3, 0, z.h * 0.3); ctx.fill(); ctx.restore();   // lidah api kecil
     }
-    let sy = by + 18; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-    const chip = function (txt, col) {
-      ctx.font = '800 15px ' + Fo.ui; const w = ctx.measureText(txt).width + 24, x1 = por ? W / 2 + w / 2 : W - 14;
-      plank(ctx, x1 - w, sy - 14, w, 28, col); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(txt, x1 - w / 2, sy + 1); sy += 36; ctx.textAlign = 'right';
-    };
+    // status (kanan)
+    let sx = z.x + z.w - 10; ctx.textAlign = 'right';
+    const chip = function (txt, col) { ctx.font = '800 ' + Math.round(z.h * 0.5) + 'px ' + Fo.ui; const w = ctx.measureText(txt).width + 18; plank(ctx, sx - w, z.y + 3, w, z.h - 6, col); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(txt, sx - w / 2, cy); sx -= w + 6; ctx.textAlign = 'right'; };
     if (run.slowT > 0) chip('Lambat ' + Math.ceil(run.slowT) + 'd', '#3aa0e0');
     if (run.shooter && run.shooter.frozen) chip('Naga beku', '#5a80e0');
-
-    if (run.feedback && run.feedback.t > 0) {
-      const f = run.feedback, a = Math.min(1, f.t * 3); ctx.globalAlpha = a;
-      let w = MT.measure(ctx, f.text, 26).w; ctx.font = '700 16px ' + Fo.ui; if (f.hint) w = Math.max(w, ctx.measureText(f.hint).width);
-      w = Math.min(W - 24, w + 44); const h = f.hint ? 70 : 48, fy = por ? m.h + 56 : m.h + 12, fx = W / 2 - w / 2;
-      plank(ctx, fx, fy, w, h, f.good ? '#2faa5a' : '#c83048');
-      const fs = MT.fit(ctx, f.text, w - 28, f.hint ? 34 : h - 14, 26); MT.draw(ctx, f.text, W / 2, fy + (f.hint ? 22 : h / 2), fs, '#fff', 'rgba(30,10,4,0.9)', 4);
-      if (f.hint) { ctx.font = '700 15px ' + Fo.ui; ctx.fillStyle = '#ffe9d0'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(f.hint, W / 2, fy + 50, w - 20); }
-      ctx.globalAlpha = 1;
+    // pesan (tengah)
+    const f = run.info;
+    if (f && f.t > 0) {
+      const a = Math.min(1, f.t * 5, (f.dur - f.t) * 10 + 0.2), c = TONE[f.tone] || TONE.info, mx = z.x + z.w * 0.2, mw = z.w * 0.6, my = z.y + 2, mh = z.h - 4;
+      ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, a));
+      ctx.fillStyle = c[0]; rr(ctx, mx, my, mw, mh, mh / 2.4); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = c[1]; rr(ctx, mx, my, mw, mh, mh / 2.4); ctx.stroke();
+      const ir = mh * 0.3, ix = mx + mh * 0.62; infoIcon(ctx, f.icon, ix, my + mh / 2, ir, c[1]);
+      if (f.math) { const fs = MT.fit(ctx, f.math, mw - mh * 1.4, mh - 4, mh * 0.78); MT.draw(ctx, f.math, mx + mh * 1.1 + (mw - mh * 1.4) / 2, my + mh / 2, fs, c[2], 'rgba(20,6,10,0.85)', 4); }
+      else { let fs = mh * 0.62; ctx.font = '800 ' + fs + 'px ' + Fo.ui; const tw = mw - mh * 1.5; while (ctx.measureText(f.text).width > tw && fs > 9) { fs *= 0.92; ctx.font = '800 ' + fs.toFixed(1) + 'px ' + Fo.ui; } ctx.textAlign = 'center'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(20,6,10,0.85)'; ctx.lineJoin = 'round'; const tx = mx + mh * 1.1 + tw / 2; ctx.strokeText(f.text, tx, my + mh / 2 + 1); ctx.fillStyle = c[2]; ctx.fillText(f.text, tx, my + mh / 2 + 1); }
+      ctx.restore();
     }
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   }

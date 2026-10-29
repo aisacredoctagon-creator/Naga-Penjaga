@@ -85,6 +85,17 @@
     ok('Stage 3 gabungan: ≈ separuh-separuh dan tidak > 3 soal berturut-turut berformat sama (urutan main)', patOk, 'hasil ' + Math.min.apply(null, halves) + '–' + Math.max.apply(null, halves) + ' dari 20, rangkaian terpanjang ' + runs);
   }
 
+  /** Zona informasi: bagian HUD (di bawah plakat soal, di atas area main), tinggi tetap, tidak menimpa plakat/peta di portrait, landscape, desktop. */
+  function testHud() {
+    const bad = [];
+    [[390, 844], [844, 390], [1440, 900]].forEach(function (sz) {
+      const portrait = sz[1] > sz[0], W = portrait ? 540 : 960, H = portrait ? 960 : 540, sc = Math.min(sz[0] / W, sz[1] / H), L = { portrait: portrait, W: W, H: H, scale: sc }, G = GA.HUD.geo(L), m = G.m, z = G.info;
+      if (z.y < G.q.y + G.q.h || z.y + z.h > m.h - 6 || z.x < 0 || z.x + z.w > W || m.h >= H * 0.4) bad.push(sz.join('×') + ': zona info ' + Math.round(z.y) + '–' + Math.round(z.y + z.h) + ' vs HUD ' + m.h);
+      if (z.h < 24) bad.push(sz.join('×') + ': zona info terlalu pendek ' + z.h);
+    });
+    ok('zona informasi: di dalam HUD (bawah plakat soal), tinggi tetap, tidak menimpa peta (390×844, 844×390, 1440×900)', bad.length === 0, bad.join(' | '));
+  }
+
   function testWaves() {
     const LV = GA.Levels, sel = { slots: ['add', 'add', 'add', 'add', 'add'], same: true, random: false, diff: 'sedang' };
     let allOk = true;
@@ -107,12 +118,13 @@
 
   function testContrast() {
     const c = GA.Dev.contrast();
-    ok('kontras angka >= 4,5:1 (8 warna bola sihir + bola api)', c.min >= 4.5, 'terburuk ' + c.min.toFixed(1) + ':1');
+    ok('kontras angka >= 4,5:1 (8 warna bola sihir)', c.min >= 4.5, 'terburuk ' + c.min.toFixed(1) + ':1');
   }
 
   /** Pustaka arketipe jalur: semua valid (jarak antar-segmen, radius tikungan, batas layar, ruang penembak/boss; dua jalur: jarak antar-jalur) di landscape DAN portrait. */
   function testPaths() {
-    const R = 29, lays = [{ portrait: false, W: 960, H: 540, play: { x: 0, y: 84, w: 960, h: 456 } }, { portrait: true, W: 540, H: 960, play: { x: 0, y: 150, w: 540, h: 798 } }], bad = [], ratio = [];
+    const mk = function (portrait) { const W = portrait ? 540 : 960, H = portrait ? 960 : 540, h = GA.HUD.metrics({ portrait: portrait, W: W, scale: 1 }).h; return { portrait: portrait, W: W, H: H, play: { x: 0, y: h, w: W, h: H - h - (portrait ? 12 : 0) } }; };
+    const R = 29, lays = [mk(false), mk(true)], bad = [], ratio = [];
     lays.forEach(function (L) { L.ballR = R; L.pad = R + 18; });
     [26, 29, 32].forEach(function (R) {      // radius bola bervariasi (kategori pecahan/desimal memakai bola lebih besar)
     lays.forEach(function (L) { L.ballR = R; L.pad = R + 18; });
@@ -155,6 +167,7 @@
     const segDist = function (px, py, ax, ay, bx, by) { const vx = bx - ax, vy = by - ay, l2 = vx * vx + vy * vy || 1, u = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / l2)); return Math.hypot(px - (ax + u * vx), py - (ay + u * vy)); };
     while ((G.state === 'playing' || G.state === 'cine') && st.t < maxT) {
       const r = G.run, sh = r.shooter;
+      r.lives = 3; r.wrongTally = 0;      // bot sempurna tidak boleh "mati" oleh rintangan zona acak (hanya 3 telur): yang diuji = tidak macet, bukan kelangsungan hidup
       G.tick(dt, true); st.t += dt; st.frames++;
       if (G.state === 'cine') continue;      // sinematik pindah fase boss: waktu berjalan, tidak ada tembakan
       if (G.state !== 'playing') break;
@@ -172,7 +185,7 @@
       let clear = open;
       if (clear && r.haz.blocksLine(m.x, m.y, ab.x, ab.y, Math.hypot(ab.x - m.x, ab.y - m.y) / GA.Shooter.Bullets.speed + 0.15)) clear = false;   // tunggu rintangan zona selesai (ray test prediktif)
       if (clear) for (let k = 0; k < r.haz.list.length; k++) { const e = r.haz.list[k]; if (e.mech === 'deflect' && segDist(e.x, e.y, m.x, m.y, ab.x, ab.y) < e.r + 24) { clear = false; break; } }   // ombak membelokkan api: bot sempurna menunggu (rantai rapat: peluru yang melenceng mengenai bola tetangga)
-      if (clear && think <= 0 && sh.canFire() && !G.anySettling()) {
+      if (clear && think <= 0 && sh.canFire() && !G.anySettling() && !r.chain.balls.some(function (b) { return b.sw; })) {
         { const B = GA.Shooter.Bullets, m2 = sh.muzzle({ x: 0, y: 0 }), ux = Math.cos(sh.aim), uy = Math.sin(sh.aim); let px = m2.x, py = m2.y, pred = null;   // diagnostik: bola pertama yang akan kena
           for (let s = 0; s < 120 && !pred; s++) { px += ux * 9; py += uy * 9; pred = r.chain.hit(px, py, B.r); }
           lastFire = { t: st.t.toFixed(0), path: r.cfg.pathId, tgt: ab.ch.balls.indexOf(ab), hit: pred ? pred.ch.balls.indexOf(pred) : -1, aim: ((Math.atan2(ab.y - m2.y, ab.x - m2.x) - sh.aim) * Math.hypot(ab.x - m2.x, ab.y - m2.y)).toFixed(0) + 'px', haz: r.haz.list.map(function (e) { return e.kind + ':' + e.mech; }).join(',') }; }
@@ -252,11 +265,17 @@
 
 
     const t0 = performance.now();
-    testDecks(); testFormats(); testWaves(); testStorage(); testMigrate(); testStrings(); testContrast(); testPaths();
+    testDecks(); testFormats(); testHud(); testWaves(); testStorage(); testMigrate(); testStrings(); testContrast(); testPaths();
     await testStages();
     await testSteal();
     await testAudio();
     for (let i = 0; i < 40 && !GA.Sim; i++) await sleep(50);
+    for (let i = 0; i < 40 && !GA.AimSweep; i++) await sleep(50);
+    if (GA.AimSweep) {      // sapu sudut bidik termasuk ke portal (js/dev/aimsweep.js; juga ?debug=aim)
+      await GA.AimSweep.run();
+      GA.AimSweep.results.forEach(function (line) { if (line.indexOf('---') !== 0) results.push(line); });
+      fails += GA.AimSweep.fails;
+    }
     if (GA.Sim) {      // simulasi kerapatan rantai (js/dev/chainsim.js; juga ?debug=sim)
       await GA.Sim.run();
       GA.Sim.results.forEach(function (line) { if (line.indexOf('---') !== 0) results.push(line); });

@@ -169,7 +169,7 @@
       if (removed || c.kind === 'num') return;
       removed = true;
       c.ch.remove(c); FX.burst(c.x, c.y, ['#fff', '#c9a0ff', '#ffd27a'], 16); FX.ring(c.x, c.y, '#c9a0ff', 40);
-      if (c.kind === 'egg') { healEgg(); FX.text(c.x, c.y - 20, T('fx.egg'), '#ffe27a', 28); Audio.play('egg'); } else Audio.play('swap');
+      if (c.kind === 'egg') { healEgg(); setInfo({ tone: 'good', icon: 'egg', text: T('fx.egg') }); Audio.play('egg'); } else Audio.play('swap');
     });
   }
 
@@ -224,10 +224,10 @@
     if (!lineBlocker(ab)) { run.blockedT = 0; return; }
     run.blockedT += 0.3;
     if (run.blockedT > 1.0) clearBlockers([ab]);                        // rintangan menyingkir, bola khusus pecah
-    if (run.blockedT > 2.4) {                                           // masih terhalang bola angka lain: tukar angkanya (soal tetap, bola jawaban pindah ke depan)
+    if (run.blockedT > 2.4) {                                           // masih terhalang bola angka lain: tukar TEMPATNYA (soal tetap, bola jawaban pindah ke depan)
       const blk = lineBlocker(ab);
       if (blk && blk.ball && blk.ball.kind === 'num') {
-        const o = blk.ball; ab.ch.swapLabels(ab, o);
+        const o = blk.ball; ab.ch.swapPositions(ab, o, run.gp.SWAP_ANIM);      // soal tetap; bola jawaban tukar tempat dengan penghalang (sumber penukaran yang sama dengan kelelawar/penyihir)
         FX.ring(ab.x, ab.y, '#c9a0ff', 44); FX.ring(o.x, o.y, '#c9a0ff', 44); Audio.play('swap');
       }
       run.blockedT = 0;
@@ -264,6 +264,31 @@
     Audio.intensity(b.phaseIdx);      // musik makin padat tiap pola
   }
 
+  /* ================= penukaran bola (js/swap.js) ================= */
+  /** Stage 3, fase 2 boss (bar 2 / pola paling berat): dua pasangan sekaligus. */
+  function swapPhase2() { const b = run.boss; return !!b && (b.bars === 2 ? b.tier === 1 : b.tier === 2); }
+
+  function makeSwap(c) {
+    const cfg = run.cfg;
+    return new GA.Swap.SwapManager({
+      chain: c, rng: GA.QM.prng((run.qm.seed ^ 0x5A17C0DE) >>> 0), every: Gameplay.SWAP_EVERY[cfg.step] || null, gp: run.gp, qm: run.qm, actor: cfg.isBoss ? 'wizard' : 'bat',
+      pairs: function () { return swapPhase2() ? run.gp.SWAP_PAIRS_PHASE2 : 1; },
+      hooks: {
+        warn: function (pairs) {      // indikator ~1,8 dtk: SFX naik nada; pelaku mulai beraksi (penyihir mengangkat tongkat, kelelawar mendekat)
+          Audio.play('swapWarn', pairs.length);
+          if (run.boss) { run.boss.castT = run.gp.SWAP_TELEGRAPH; run.boss.say(run.boss.def.lines.spell.swap, 1.6); }
+          if (!Storage.swapSeen) { Storage.swapSeen = true; setInfo({ tone: 'coach', icon: 'swap', text: T('coach.swap'), dur: 2.6 }); }      // coachmark ⇄ sekali, tersimpan
+        },
+        go: function (pairs) {
+          Audio.play('swapGo', pairs.length);
+          pairs.forEach(function (pr) { FX.burst(pr[0].x, pr[0].y, ['#e6d0ff', '#c9a0ff', '#fff'], 14); FX.burst(pr[1].x, pr[1].y, ['#e6d0ff', '#c9a0ff', '#fff'], 14); });
+          run.later.push({ t: run.gp.SWAP_ANIM, fn: function () { pairs.forEach(function (pr) { FX.burst(pr[0].x, pr[0].y, ['#e6d0ff', '#c9a0ff', '#fff'], 12); FX.burst(pr[1].x, pr[1].y, ['#e6d0ff', '#c9a0ff', '#fff'], 12); }); validateActive(); } });
+        },
+        fizzle: function (pr) { Audio.play('fizzle'); [pr[0], pr[1]].forEach(function (b) { FX.burst(b.x, b.y, ['#8a7aa8', '#c9c0d8'], 8); FX.ring(b.x, b.y, '#8a7aa8', run.R * 1.4); }); }
+      }
+    });
+  }
+
   /* ================= mantra boss ================= */
   /** Kabut sihir: sembunyikan angka `count` bola yang terlihat selama `dur` detik (tetap ada minimal satu jawaban benar yang terbaca). */
   function fogBalls(count, dur) {
@@ -278,7 +303,7 @@
   function castSpell(name) {
     Audio.play('spell'); FX.flash(0.25, '170,110,255');
     if (name === 'fog') fogBalls(3 + (run.boss.phaseIdx >= 1 ? 1 : 0), 6);
-    else if (name === 'frost') { run.shooter.freeze(1.4); Audio.play('frost'); FX.text(run.shooter.x, run.shooter.y - run.shooter.r - 16, T('fx.frozen'), '#9fe0ff', 30); }
+    else if (name === 'frost') { run.shooter.freeze(1.4); Audio.play('frost'); }
     FX.ring(run.boss.x, run.boss.y, '#c9a0ff', run.boss.R * 1.6);
   }
 
@@ -299,7 +324,7 @@
       haz: null, lives: gp.EGGS_MAX, maxLives: gp.EGGS_MAX, wrongTally: 0, stepNo: cfg.step + 1,
       score: adv.score, scoreAtStart: adv.score, scoreShown: adv.score, combo: 0, maxCombo: 0, comboPulse: 0,
       correct: 0, wrong: 0, shots: 0, progress: 0, total: cfg.total, qm: qm, deck: qm.questions, attempt: attempt, beacons: [], qTrans: null, qExpire: 0, blockedT: 0, qPop: 0, qTime: 0, qTimeMax: 0,
-      feedback: null, lifeLostT: 0, ensureT: 0,
+      info: null, qFlash: 0, coach: [], coachT: 0, swap: null, later: [], lifeLostT: 0, ensureT: 0,
       playing: false, clearT: 0, clearQ: null, dyingT: 0, reason: '', time: 0, bossDone: false, guide: []
     };
     run.haz = makeHaz(run);
@@ -367,7 +392,7 @@
     c.zones = chainZones(run.path); c.overWindows = run.path.overWindows;
     c.onEmerge = function (b) { if (b && b.reborn && b.qid === run.qid) run.beacons.push({ b: b, t: 2.6, n: 0 }); GA.Effects.pulse(b && b.reborn ? 1.0 : 0.55); const pp = GA.Effects.portalPos(); if (pp) Audio.play('emerge', undefined, (pp.x / L.W * 2 - 1) * 0.6); if (pp) FX.embers(pp.x, pp.y, Math.cos(pp.a) * 90, Math.sin(pp.a) * 90, 4, run.R * 0.5, '#d9b8ff'); };
     c.setQueue(buildStream(cfg, ids));      // bola target + bola khusus: satu aliran kontinu dari portal (portal sudah terbuka sejak hitung mundur)
-    run.chain = c;
+    run.chain = c; run.swap = makeSwap(c);
     if (run.boss) {
       applyPhase();
       run.boss.say(run.boss.phase.say, 3.4); run.boss.resetSpellTimer();
@@ -376,10 +401,7 @@
     run.qm.advance(run.attempt > 1 ? 'STEP_RESTART' : 'STEP_START');      // soal pertama aktif sejak portal terbuka
     run.shooter.reset();
     state = 'playing';
-    if (!Storage.coachSeen) {      // coachmark pendek, hanya pertama kali
-      Storage.coachSeen = true;
-      GA.Kit.coach(T('coach.1'), 2400); setTimeout(function () { GA.Kit.coach(T('coach.2'), 2400); }, 2600); setTimeout(function () { GA.Kit.coach(T('coach.3'), 2400); }, 5200);
-    }
+    if (!Storage.coachSeen) { Storage.coachSeen = true; run.coach = [['target', 'coach.1'], ['flame', 'coach.2'], ['target', 'coach.3']]; run.coachT = 0.6; }      // coachmark pendek di zona informasi, hanya pertama kali
   }
 
   /* ================= telur (nyawa) & akibat tembakan ================= */
@@ -401,7 +423,7 @@
   }
 
   function gameOver() {
-    state = 'dying'; run.dyingT = 0; Bullets.clear(); run.shooter.react('sad');
+    state = 'dying'; run.dyingT = 0; run.swap = null; Bullets.clear(); run.shooter.react('sad');
     Audio.play('lose');
     syncAdv();
     Storage.noteScore(run.score);
@@ -438,9 +460,8 @@
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   }
 
-  function setFeedback(text, hint, good) {
-    run.feedback = { text: text, hint: hint || '', good: good, t: good ? 1.4 : 4.2 };
-  }
+  /** Pesan singkat di ZONA INFORMASI HUD (strip tetap di bawah plakat soal, tidak menimpa peta). o: { tone: bad|good|info|coach, icon, text | math, dur }. */
+  function setInfo(o) { run.info = { tone: o.tone || 'info', icon: o.icon || 'target', text: o.text || '', math: o.math || '', dur: o.dur || 1.4, t: o.dur || 1.4 }; }
 
   function ballColors(b) { return Theme.ballColors[b.ci % 8]; }
 
@@ -453,13 +474,11 @@
     FX.shatter(ball.x, ball.y, ballColors(ball), run.R);
     FX.fireImpact(bullet.x, bullet.y, true, run.R);
     FX.pop(ball.x, ball.y - 24, '+' + pts, 'score', 30);
-    if (run.combo >= 3) FX.pop(ball.x, ball.y - 62, [T('fx.c1'), T('fx.c2'), T('fx.c3')][run.combo % 3] + ' ×' + run.combo, 'combo', 24);
     Audio.play('correct', run.combo); Audio.play('shatter', undefined, (ball.x / L.W * 2 - 1) * 0.6);
     { const gp = run.gp, ch = ball.ch;      // rantai mundur sedikit; jawaban beruntun juga meredakan tekanan bertahap
       ch.retreat((gp.RETREAT_SEC * ch.speed + Math.min(run.combo, 5) * gp.COMBO_RETREAT_DIAMS * ch.unit) * (1 + 0.4 * (run.R / 25 - 1)));
       if (run.combo >= 2) ch.relieve(gp.PRESSURE_DROP); }
     run.shooter.react('happy');
-    run.feedback = null;
     run.progress = run.correct / run.total;
 
     if (run.boss) {
@@ -476,9 +495,10 @@
     run.wrong++;
     run.qm.noteWrong(run.q.id, ballText(ball));      // catatan untuk overview jawaban (tidak mengubah soal atau antrean)
     FX.fireImpact(bullet.x, bullet.y, false, run.R);
-    if (ball) { ball.wob = 0.5; ball.red = 0.5; FX.pop(ball.x, ball.y - 24, T('fx.wrong'), 'bad', 30); FX.ring(ball.x, ball.y, '#ff4d5e', 50); }
+    if (ball) { ball.wob = 0.5; ball.red = 0.5; FX.ring(ball.x, ball.y, '#ff4d5e', 50); }
     Audio.play('wrong');
-    if (run.q) setFeedback((why || T('fx.wrong')) + ' ' + run.q.explain, run.q.hint, false); else setFeedback(why || T('fx.wrong'), '', false);
+    // umpan balik salah: soal dengan nilai yang baru ditembak, mis. "20 + 3 ≠ 18" (tanpa membocorkan jawaban); plakat berkedip merah
+    setInfo({ tone: 'bad', icon: 'cross', math: run.q.text.replace(GA.MathText.BLANK, ballText(ball)).replace(' = ', ' ≠ '), dur: 1.4 }); run.qFlash = 0.5;
     if (run.boss) { run.boss.attack(); Audio.play('bossAttack'); Audio.play('laugh'); FX.shake(10); }
     run.wrongTally++;
     if (run.wrongTally >= run.gp.WRONG_ANSWERS_PER_EGG) { run.wrongTally = 0; loseEgg('Jawaban salah'); }
@@ -489,14 +509,14 @@
       case 'num':
         if (isCorrectText(ballText(ball))) onCorrect(bullet, ball);
         else if (!run.q || bullet.serial !== run.qSerial) {      // peluru ditembakkan untuk soal sebelumnya (soal berganti saat peluru melayang): tidak dihukum
-          FX.fireImpact(bullet.x, bullet.y, false, run.R); FX.pop(ball.x, ball.y - 24, T('fx.changed'), 'bad', 22);
+          FX.fireImpact(bullet.x, bullet.y, false, run.R); FX.ring(ball.x, ball.y, '#ffd27a', 40);
         } else onWrong(bullet, ball);
         break;
       case 'frost':
-        ball.ch.remove(ball); ball.ch.slowT = run.gp.FROST_BALL_TIME; FX.burst(ball.x, ball.y, ['#d4f1ff', '#7fd0ff', '#fff'], 20); FX.text(ball.x, ball.y - 20, T('fx.slow'), '#7fd0ff', 28); Audio.play('frost');
+        ball.ch.remove(ball); ball.ch.slowT = run.gp.FROST_BALL_TIME; FX.burst(ball.x, ball.y, ['#d4f1ff', '#7fd0ff', '#fff'], 20); Audio.play('frost');
         break;
       case 'egg':
-        ball.ch.remove(ball); healEgg(); FX.burst(ball.x, ball.y, ['#ffe27a', '#fff', '#ffb02e'], 24); FX.text(ball.x, ball.y - 20, T('fx.egg'), '#ffe27a', 30); Audio.play('egg');
+        ball.ch.remove(ball); healEgg(); FX.burst(ball.x, ball.y, ['#ffe27a', '#fff', '#ffb02e'], 24); setInfo({ tone: 'good', icon: 'egg', text: T('fx.egg') }); Audio.play('egg');
         break;
     }
     if (state === 'playing') validateActive();
@@ -506,8 +526,8 @@
   function onBulletStep(b, sd) {
     const hz = run.haz.bullet(b, sd || 0.01);      // rintangan zona (js/hazards.js)
     if (hz === 'kill') {
-      FX.burst(b.x, b.y, ['#ffb02e', '#ff5a1a', '#fff'], 14); FX.text(b.x, b.y - 22, T('fx.warn'), '#ff9a9a', 26); Audio.play('rock');
-      setFeedback(T('fb.obst'), T('fb.obst2'), false); loseEgg('Peluru mengenai rintangan'); return true;
+      FX.burst(b.x, b.y, ['#ffb02e', '#ff5a1a', '#fff'], 14); Audio.play('rock');
+      setInfo({ tone: 'bad', icon: 'warn', text: T('fb.obst') }); loseEgg('Peluru mengenai rintangan'); return true;
     }
     if (hz === 'absorb') { FX.burst(b.x, b.y, ['#7fe3ff', '#fff'], 10); return true; }
     if (hz === 'bounce') { Audio.play('crystal'); FX.burst(b.x, b.y, ['#7fe3ff', '#fff'], 10); return false; }
@@ -532,10 +552,10 @@
   /* ================= selesai stage ================= */
   function startClearing(boss) {
     state = 'clearing'; run.clearT = 0; run.bossDone = !!boss; GA.Effects.closePortal();
-    run.chain.paused = true; run.chain.ff = false; run.chain.spawnQ.length = 0; Bullets.clear(); run.haz.clearAll(); run.shooter.react('cheer');
+    run.swap = null; run.chain.paused = true; run.chain.ff = false; run.chain.spawnQ.length = 0; Bullets.clear(); run.haz.clearAll(); run.shooter.react('cheer');
     run.clearQ = allBalls().filter(function (b) { return b.ch.visible(b); });
     run.score += run.lives * 100; // bonus telur tersisa
-    FX.text(L.W / 2, L.play.y + 60, boss ? T('fx.boss') : T('fx.stepdone'), '#ffd23f', 40);
+    setInfo({ tone: 'good', icon: 'check', text: boss ? T('fx.boss') : T('fx.stepdone'), dur: 3 });
     FX.confetti(L.W / 2, L.H * 0.55, 40);
     Audio.play('win'); if (boss) Audio.play('dissolve');
   }
@@ -597,12 +617,16 @@
   }
 
   /* ================= update ================= */
+  /** Jarak dari (px,py) searah (dx,dy) sampai menyentuh lingkaran (cx,cy,rad): Infinity bila tidak kena; 0 bila titik awal sudah di dalam lingkaran
+   * (tidak pernah negatif atau NaN, supaya garis bidik tetap stabil). Portal BUKAN penghalang: hanya bola yang sudah keluar (visible) yang diuji. */
   function rayCircle(px, py, dx, dy, cx, cy, rad) {
     const fx = cx - px, fy = cy - py, proj = fx * dx + fy * dy;
-    if (proj < 0) return Infinity;
+    if (!(rad > 0) || !isFinite(proj)) return Infinity;
     const d2 = fx * fx + fy * fy - proj * proj;
     if (d2 > rad * rad) return Infinity;
-    return proj - Math.sqrt(rad * rad - d2);
+    if (fx * fx + fy * fy <= rad * rad) return 0;
+    if (proj < 0) return Infinity;
+    return Math.max(0, proj - Math.sqrt(rad * rad - d2));
   }
 
   /** Garis bidik: satu ruas lurus, berhenti di bola pertama (atau panjang maksimum). */
@@ -637,12 +661,15 @@
     if (r.qPop > 0) r.qPop -= dt;
     if (r.qTrans) { r.qTrans.t += dt; if (r.qTrans.t > 1.4) r.qTrans = null; }
     if (r.lifeLostT > 0) r.lifeLostT -= dt;
-    if (r.feedback) { r.feedback.t -= dt; if (r.feedback.t <= 0) r.feedback = null; }
+    if (r.info) { r.info.t -= dt; if (r.info.t <= 0) r.info = null; }
+    if (r.qFlash > 0) r.qFlash -= dt;
+    if (r.coach.length && state === 'playing') { r.coachT -= dt; if (r.coachT <= 0) { const c = r.coach.shift(); setInfo({ tone: 'coach', icon: c[0], text: T(c[1]), dur: 2.4 }); r.coachT = 2.6; } }
     r.slowT = r.chain ? Math.max(0, r.chain.slowT) : 0;
 
     if (state === 'playing') {
       const c = r.chain;
-      c.update(dt); r.haz.update(dt);
+      c.update(dt); r.haz.update(dt); if (r.swap) r.swap.update(dt);
+      for (let i = r.later.length - 1; i >= 0; i--) { const q = r.later[i]; q.t -= dt; if (q.t <= 0) { r.later.splice(i, 1); q.fn(); } }
       Bullets.update(dt, L.W, L.H, onBulletStep);
       if (state !== 'playing') return;
 
@@ -656,11 +683,11 @@
         FX.burst(hp.x, hp.y, ['#7a5cff', '#c9b6ff', '#fff'], 22);
         if (f.kind === 'num') {
           // bola target lolos: satu telur hilang, rantai mundur, tetapi progres soal TIDAK hilang — soalnya keluar lagi dari portal
-          FX.text(hp.x, hp.y - 50, T('fx.stolen'), '#ff9a9a', 28); Audio.play('steal');
+          Audio.play('steal');
           c.requeue({ qid: f.qid, kind: 'num', reborn: true });      // bola yang sama muncul lagi dari portal; soal TIDAK berganti
           GA.Effects.pulse(1.0);
           c.retreat(r.gp.NEST_RETREAT_DIAMS * c.unit, r.gp.NEST_RETREAT_SPEED * c.unit); c.hold = r.gp.NEST_HOLD; c.hcd = 1.8;
-          setFeedback(T('fb.hole'), T('fb.hole2'), false);
+          setInfo({ tone: 'bad', icon: 'egg', text: T('fb.hole') });
           loseEgg('Bola sihir sampai di sarang');
           if (state !== 'playing') return;
         } else c.hcd = 0.4;      // bola khusus yang lolos lenyap tanpa hukuman
@@ -679,7 +706,7 @@
           r.qTime -= dt;
           if (r.qTime <= 0) {
             r.qTime = 0; r.wrong++; Audio.play('wrong');
-            setFeedback(T('fb.time') + ' ' + r.q.explain, r.q.hint, false);
+            setInfo({ tone: 'bad', icon: 'clock', text: T('fb.time') });
             if (r.boss) { r.boss.attack(); Audio.play('bossAttack'); Audio.play('laugh'); FX.shake(10); }
             loseEgg('Waktu habis');
             if (state === 'playing') r.qExpire = 0.55;
@@ -721,6 +748,23 @@
     ctx.beginPath(); ctx.arc(e.x1, e.y1, 9, 0, 6.283); ctx.stroke();
   }
 
+  /** ?debug=aim: garis bidik mentah (kuning), garis bidik hasil ray test (cyan), hitbox bola (merah, radius tumbukan peluru), titik portal (putih), dan angka. */
+  function drawAimDebug(sc) {
+    const sh = sc.shooter, c = sc.chain, rad = sc.R * 0.92 + Bullets.r; sh.muzzle(tmpM);
+    ctx.save(); ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(255,230,0,0.9)'; ctx.beginPath(); ctx.moveTo(tmpM.x, tmpM.y); ctx.lineTo(tmpM.x + Math.cos(sh.aim) * 900, tmpM.y + Math.sin(sh.aim) * 900); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,60,60,0.8)';
+    c.balls.forEach(function (b) { if (!c.visible(b)) return; ctx.beginPath(); ctx.arc(b.x, b.y, rad, 0, 6.283); ctx.stroke(); });
+    const g = sc.guide && sc.guide[0], p = GA.Effects.portalPos();
+    if (g) { ctx.strokeStyle = 'rgba(0,255,255,0.95)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(g.x0, g.y0); ctx.lineTo(g.x1, g.y1); ctx.stroke(); }
+    if (p) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.arc(p.x, p.y, sc.R * 1.3, 0, 6.283); ctx.stroke(); ctx.setLineDash([]); }
+    const ln = g ? Math.hypot(g.x1 - g.x0, g.y1 - g.y0) : NaN;
+    ctx.font = '12px monospace'; ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = 3; ctx.textAlign = 'left';
+    const txt = 'aim ' + (sh.aim * 57.3).toFixed(1) + '°  garis ' + (isFinite(ln) ? ln.toFixed(0) : 'NaN') + 'px  bola terlihat ' + c.balls.filter(function (b) { return c.visible(b); }).length + '  peluru ' + Bullets.list.filter(function (b) { return b.on; }).length;
+    ctx.strokeText(txt, 8, L.play.y + 14); ctx.fillText(txt, 8, L.play.y + 14);
+    ctx.restore();
+  }
+
   /** fase 1: peta, sarang, boss, rintangan, rantai. fase 2: garis bidik, naga, peluru, efek. Penutup depan peta digambar di antaranya. */
   function drawScene(sc, showGuide, phase) {
     const R = sc.R;
@@ -729,6 +773,8 @@
       if (sc.chain) sc.chain.drawOver(ctx, t, L.px);
       if (Gameplay.debug.chain && sc === run && sc.chain) sc.chain.drawDebug(ctx);      // ?debug=chain: celah merah
       if (showGuide && sc.guide && sc.guide.length) drawGuide(sc.shooter, t, sc.guide);
+      if (Gameplay.debug.aim && sc === run && sc.chain) drawAimDebug(sc);
+      if (sc.swap) sc.swap.draw(ctx, t, sc.R);
       if (sc.haz) sc.haz.drawOver(ctx, t, sc.shooter.aim);
       sc.shooter.draw(ctx, t, L.px);
       if (sc === run) Bullets.draw(ctx, L.px, t);
@@ -944,5 +990,5 @@
   requestAnimationFrame(function (n) { last = n; frame(n); });
 
   // untuk uji coba / debugging
-  GA.game = { get state() { return state; }, relayout: function () { relayout(); }, get run() { return run; }, get adv() { return adv; }, get layout() { return L; }, tick: tick, startAdventure: startAdventure, startStep: startStep, fire: fire, handlers: handlers, validateActive: validateActive, openLine: openLine, pendingVisible: pendingVisible, buildStream: buildStream, allBalls: allBalls, anySettling: anySettling, loseEgg: loseEgg, healEgg: healEgg };
+  GA.game = { skipCountdown: function () { if (state === 'countdown' || state === 'intro') { UI.cancelCountdown(); UI.hide(); GA.Effects.openPortal(); beginPlay(); } }, get state() { return state; }, relayout: function () { relayout(); }, get run() { return run; }, get adv() { return adv; }, get layout() { return L; }, tick: tick, startAdventure: startAdventure, startStep: startStep, fire: fire, handlers: handlers, validateActive: validateActive, openLine: openLine, pendingVisible: pendingVisible, buildStream: buildStream, allBalls: allBalls, anySettling: anySettling, loseEgg: loseEgg, healEgg: healEgg };
 })(window.GA = window.GA || {});
