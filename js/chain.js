@@ -467,7 +467,7 @@
       const one = function (b) {
         let x = b.x, y = b.y, rr = r, alpha = 1;
         const em = Math.max(0, Math.min(1, b.emT / emA));   // animasi keluar portal (berbasis waktu, singkat; HANYA visual: hitbox selalu penuh): sedikit lebih kecil & bercahaya -> ukuran penuh
-        if (em < 1) { const k = em * em * (3 - 2 * em); rr = r * (0.84 + 0.16 * k); alpha = Math.min(1, 0.55 + em * 0.9); }      // tidak pernah mengecil/pudar jauh dari hitbox: garis bidik dan tumbukan tetap sesuai tampilan
+        if (em < 1) { const k = em * em * (3 - 2 * em); rr = r * (0.84 + 0.16 * k); alpha = 1; }      // tidak pernah mengecil/pudar jauh dari hitbox: garis bidik dan tumbukan tetap sesuai tampilan
         if (b.d > len - r * 0.2) rr = Math.max(0.2, r * (1 - (b.d - (len - r * 0.2)) / (r * 2))); // jatuh ke lubang
         if (b.wob > 0) x += Math.sin(t * 70) * 4 * (b.wob / 0.5);
         if (aura) { ctx.fillStyle = aura; ctx.beginPath(); ctx.arc(x, y, rr + 5, 0, 6.283); ctx.fill(); }

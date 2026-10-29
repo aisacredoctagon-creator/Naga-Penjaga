@@ -261,7 +261,33 @@
     ok('audio: ' + names.length + ' suara, ' + A.zones.length + ' ambient, ' + A.songs.length + ' lagu berbunyi tanpa galat', A.errors.length === 0, A.errors.slice(0, 3).join(' | '));
   }
 
+  /** Lapisan: untuk SEMUA jalur x 3 ukuran layar (390×844, 844×390, 1440×900), objek depan peta tidak menyentuh area jalur (garis tengah ± 2R = bola + margin 1R)
+   *  dan setelah bermain sebentar tidak ada bola yang tertimpa elemen lain (?debug=layers: DEPAN/PORTAL/SARANG/BOSS/NAGA/RINTANGAN). */
+  const LEGACY = ['figure8', 'bossU', 'bossU2', 'bossBowl'];
+  async function testLayers() {
+    const G = GA.game, LV = GA.Levels, sizes = [[390, 844], [844, 390], [1440, 900]], bad = [], dyn = []; let n = 0, worst = 0;
+    const sel = { slots: ['add', 'add', 'add', 'add', 'add'], same: true, random: false, diff: 'sedang' };
+    for (const sz of sizes) {
+      GA.devViewport = { w: sz[0], h: sz[1] }; G.relayout();
+      for (let s = 0; s < LV.count; s++) {
+        for (const p of LV.STAGES[s].pool.paths) {
+          if (LEGACY.indexOf(p) >= 0) continue;      // jalur lama (jembatan / arena boss lama): digantikan di tahap (c)
+          G.startAdventure(sel, true, s); G.adv.picks[s].path = p; G.startStep(s, false); G.handlers.introGo();
+          for (let i = 0; i < 60 && G.state !== 'playing'; i++) await sleep(100);
+          const r = G.run, path = r.path, R = r.R, pt = { x: 0, y: 0 }, e0 = GA.Effects.entryD(0); n++;
+          for (let d = e0; d < path.length; d += R) { path.at(d, pt); const c = GA.Background.frontCover(pt.x, pt.y, 2 * R); if (c > worst) worst = c; if (c > 0.12 && bad.length < 4) bad.push(sz.join('×') + ' ' + p + ' d=' + Math.round(d) + ' cover=' + c.toFixed(2)); }
+          for (let i = 0; i < 900; i++) { r.lives = 3; G.tick(1 / 30, true); if (i % 30 === 0 && GA.LayersDebug) G.allBalls().forEach(function (b) { const cs = GA.LayersDebug.causes(b, r, G.layout).filter(function (c) { return c !== 'HUD'; }); if (cs.length && dyn.length < 4) dyn.push(sz.join('×') + ' ' + p + ' ' + cs.join('+')); }); }
+          G.handlers.quit();
+        }
+      }
+    }
+    GA.devViewport = null; G.relayout();
+    ok('lapisan: objek depan tidak menyentuh area jalur (± 2R) di semua jalur x 3 layar', bad.length === 0, n + ' layout, cover maks ' + worst.toFixed(2) + (bad.length ? ' | ' + bad.join('; ') : ''));
+    ok('lapisan: tidak ada bola tertimpa portal/sarang/boss/naga/rintangan/objek depan (?debug=layers)', dyn.length === 0, dyn.join('; '));
+  }
+
   async function runAll() {
+
 
 
     const t0 = performance.now();
@@ -269,6 +295,7 @@
     await testStages();
     await testSteal();
     await testAudio();
+    await testLayers();
     for (let i = 0; i < 40 && !GA.Sim; i++) await sleep(50);
     for (let i = 0; i < 40 && !GA.AimSweep; i++) await sleep(50);
     if (GA.AimSweep) {      // sapu sudut bidik termasuk ke portal (js/dev/aimsweep.js; juga ?debug=aim)

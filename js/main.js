@@ -769,22 +769,23 @@
   function drawScene(sc, showGuide, phase) {
     const R = sc.R;
     const center = { x: L.play.x + L.play.w / 2, y: L.play.y + L.play.h / 2 };
+    // Urutan lapisan TETAP (bawah → atas): 1 latar, 2 alur jalur, 3 dekorasi/objek depan (Scenery.drawFront, dijauhkan dari jalur), 4 dasar/glow portal,
+    // 5 BOLA (tidak ada yang digambar di atasnya kecuali bola api/efek tembakan dan overlay penukaran), 6 bola api + efek, 7 overlay penukaran, 8 HUD/popup.
     if (phase === 2) {
-      if (sc.chain) sc.chain.drawOver(ctx, t, L.px);
       if (Gameplay.debug.chain && sc === run && sc.chain) sc.chain.drawDebug(ctx);      // ?debug=chain: celah merah
-      if (showGuide && sc.guide && sc.guide.length) drawGuide(sc.shooter, t, sc.guide);
-      if (Gameplay.debug.aim && sc === run && sc.chain) drawAimDebug(sc);
-      if (sc.swap) sc.swap.draw(ctx, t, sc.R);
-      if (sc.haz) sc.haz.drawOver(ctx, t, sc.shooter.aim);
       sc.shooter.draw(ctx, t, L.px);
       if (sc === run) Bullets.draw(ctx, L.px, t);
       FX.draw(ctx);
+      if (sc.swap) sc.swap.draw(ctx, t, sc.R);      // lapisan 7: indikator penukaran selalu di atas bola
+      if (GA.LayersDebug && sc === run) GA.LayersDebug.draw(ctx, sc, L, t);
       return;
     }
     GA.Scenery.drawAmbient(ctx, t, frameDt);
     GA.Effects.drawBirds(ctx, t, frameDt);
     FX.drawDecals(ctx, frameDt);
     GA.Effects.drawPortal(ctx, t, frameDt);
+    if (showGuide && sc.guide && sc.guide.length) drawGuide(sc.shooter, t, sc.guide);      // garis bidik putus-putus tipis: DI BAWAH bola
+    if (Gameplay.debug.aim && sc === run && sc.chain) drawAimDebug(sc);
     Path.drawMarkers(ctx, sc.path, R, t, center, L.portrait ? 16 : 15);
     Path.drawNest(ctx, sc.path, R, t, sc === run ? sc.lives : 3, 3, sc.lifeLostT > 0 ? 1 : 0, nestThreat(sc));
     if (sc.boss) {
@@ -792,8 +793,9 @@
       if (L.portrait) sc.boss.drawHP(ctx, sc.boss.x, sc.boss.y + sc.boss.R * 1.75 + 8, Math.min(L.W * 0.6, 340));
       else sc.boss.drawHP(ctx, sc.boss.x, L.play.y + 4, Math.min(L.W * 0.36, 300), true);     // landscape: bar tipis di atas arena (bawah ada naga)
     }
-    if (sc.haz) sc.haz.draw(ctx, t);
-    if (sc.chain) sc.chain.draw(ctx, t, L.px);
+    if (sc.haz) { sc.haz.draw(ctx, t); sc.haz.drawOver(ctx, t, sc.shooter.aim); }      // asap/tangan penutup bidikan juga di bawah bola
+    if (sc.chain) sc.chain.draw(ctx, t, L.px);      // lapisan 5: BOLA
+    if (sc.chain) sc.chain.drawOver(ctx, t, L.px);      // bola di jendela jembatan (jalur lama): tetap bola terakhir yang digambar
   }
 
   /** Ancaman 0..1 pada sarang: bola terdepan rantai mendekat (kurang dari 14 jari-jari dari sarang). */
@@ -809,18 +811,17 @@
     const sc = sceneRef();
     if (!sc) return;
     FX.shakeOffset(shk);
+    GA.Scenery.drawFront(ctx, shk.x * L.px, shk.y * L.px, t);      // lapisan 3: dekorasi / objek depan DI BAWAH bola
     ctx.setTransform(L.px, 0, 0, L.px, L.dpr * (L.ox + shk.x * L.scale), L.dpr * (L.oy + shk.y * L.scale));
     // klip ke area logis supaya bola yang masuk dari luar tidak terlihat di pinggir letterbox
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, L.W, L.H); ctx.clip();
     cineZoom();
     drawScene(sc, run && state === 'playing', 1);
     ctx.restore();
-    GA.Scenery.drawFront(ctx, shk.x * L.px, shk.y * L.px, t);
     ctx.save(); ctx.setTransform(L.px, 0, 0, L.px, L.dpr * (L.ox + shk.x * L.scale), L.dpr * (L.oy + shk.y * L.scale));
     ctx.beginPath(); ctx.rect(0, 0, L.W, L.H); ctx.clip();
     cineZoom();
     drawScene(sc, run && state === 'playing', 2);
-    GA.Scenery.drawOver(ctx, t, frameDt);
     if (GA.debug && sc.path) GA.Paths.drawDebug(ctx, sc.path, sc.R, t);
     ctx.restore();
     baseTransform();

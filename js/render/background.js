@@ -204,8 +204,8 @@
     const pal = map.pal, g = u.g, items = [], placed = [], lights = [];
     const n = Math.round(E.w * E.h / 5400 * map.density);
     const ok = function (x, y, rad, clr) {
-      if (x > 0 && x < L.W && y < L.hud + 6 && y > -1) return false;
-      if (field.dist(x, y) < R * 1.15 + clr) return false;
+      if (x > 0 && x < L.W && y < L.hud + R * 1.5 && y > -1) return false;
+      if (field.dist(x, y) < R * 2.2 + clr) return false;      // dekorasi tidak menyentuh area jalur (garis tengah ± 2,2R)
       if (Math.hypot(x - shooter.x, y - shooter.y) < pondR * 1.25 + rad) return false;
       if (Math.hypot(x - hole.x, y - hole.y) < R * 3.8 + rad) return false;
       if (inBoss(boss, R, x, y, rad)) return false;
@@ -244,12 +244,12 @@
       const x = E.x0 + rnd() * E.w, y = E.y0 + rnd() * E.h;
       if (x > 0 && x < L.W && y < L.hud + 10) continue;
       const nr = field.nearest(x, y), d = nr.d;
-      if (d < R * 2.7 || d > R * 5) continue;
+      if (d < R * 4.6 || d > R * 7.5) continue;      // objek depan: ujungnya berhenti >= 2,6R dari garis tengah jalur (1,5R di luar tepi alur) dan DI BAWAH bola
       if (Math.hypot(x - shooter.x, y - shooter.y) < pondR * 1.4) continue;
       if (Math.hypot(nr.x - hole.x, nr.y - hole.y) < R * 4.5) continue;
       if (inBoss(boss, R, x, y, 40)) continue;
       if (avoid.some(function (a) { return Math.hypot(a[0] - x, a[1] - y) < R * 4; })) continue;
-      const ang = Math.atan2(nr.y - y, nr.x - x), len = d - R * 1.3;
+      const ang = Math.atan2(nr.y - y, nr.x - x), len = d - R * 3.2;
       avoid.push([x, y]);
       if (kind === 'leaf') {
         for (let k = 0; k < 3; k++) {
@@ -269,26 +269,22 @@
         for (let k = 0; k < 4; k++) {
           const a = c[2] + (rnd() - 0.5) * 1.2, ox = c[0], oy = c[1];
           let l = R * (3.2 + rnd() * 1.6);
-          for (; l > R; l -= 6) { const tx = ox + Math.cos(a) * l, ty = oy + Math.sin(a) * l; if (field.dist(tx, ty) > R * 1.4 && field.dist((ox + tx) / 2, (oy + ty) / 2) > R * 1.4) break; }
+          for (; l > R; l -= 6) { const tx = ox + Math.cos(a) * l, ty = oy + Math.sin(a) * l; if (field.dist(tx, ty) > R * 3.2 && field.dist((ox + tx) / 2, (oy + ty) / 2) > R * 3.2) break; }
           if (l > R) D.leaf(g, ox, oy, l, a, pal.leafFront);
         }
       });
     } else if (kind === 'stone') {
       for (let x = E.x0 - 20; x < E.x1 + 20; x += 36 + rnd() * 40) {         // stalaktit menggantung dari tepi atas
-        const len = 36 + rnd() * 70, w = 12 + rnd() * 16; if (field.dist(x, E.y0 + len) < R * 1.5) continue; D2.stalactite(g, x, E.y0 - 4, len, w, pal);
+        const len = 36 + rnd() * 70, w = 12 + rnd() * 16; if (field.dist(x, E.y0 + len) < R * 2.6 + w * 0.5) continue; D2.stalactite(g, x, E.y0 - 4, len, w, pal);
       }
-      for (let k = 0; k < 6; k++) { const x = E.x0 + rnd() * E.w, y = E.y1 - rnd() * 18, s = 26 + rnd() * 30; if (field.dist(x, y - s) > R * 1.6 + s) D.rock(g, x, y, s, rnd, pal, false); }
+      for (let k = 0; k < 6; k++) { const x = E.x0 + rnd() * E.w, y = E.y1 - rnd() * 18, s = 26 + rnd() * 30; if (field.dist(x, y - s) > R * 2.6 + s) D.rock(g, x, y, s, rnd, pal, false); }
     } else if (kind === 'hall') {
       const cols = pal.banners || [['#6a2ab0', '#4a1a88', '#2a0e55'], ['#a02a60', '#781a48', '#480c2c']];
-      for (let x = E.x0 + 30 + rnd() * 30, i = 0; x < E.x1 - 30; x += 120 + rnd() * 90, i++) { const w = 38 + rnd() * 12, h = 70 + rnd() * 70; if (field.dist(x + w / 2, E.y0 + h * 0.7) > R * 1.4 + w * 0.6) D2.banner(g, x, E.y0 - 6, w, h, cols[i % 2], pal.trim || '#e0b860'); }
-      [[E.x0 + 10, E.y0 + 20], [E.x1 - 10, E.y0 + 20], [E.x0 + 10, E.y1 + 10], [E.x1 - 10, E.y1 + 10]].forEach(function (c) { if (field.dist(c[0], c[1] - 40) > R * 2.4 + 30) D2.pillar(g, c[0], c[1], 40, pal); });
+      for (let x = E.x0 + 30 + rnd() * 30, i = 0; x < E.x1 - 30; x += 120 + rnd() * 90, i++) { const w = 38 + rnd() * 12, h = 70 + rnd() * 70; if (field.dist(x + w / 2, E.y0 + h * 0.7) > R * 2.6 + w * 0.6) D2.banner(g, x, E.y0 - 6, w, h, cols[i % 2], pal.trim || '#e0b860'); }
+      [[E.x0 + 10, E.y0 + 20], [E.x1 - 10, E.y0 + 20], [E.x0 + 10, E.y1 + 10], [E.x1 - 10, E.y1 + 10]].forEach(function (c) { if (field.dist(c[0], c[1] - 40) > R * 3 + 30) D2.pillar(g, c[0], c[1], 40, pal); });
     }
     // (3) jembatan batu di jalur atas (persilangan)
     if (path && path.bridges) path.bridges.forEach(function (b) { D2.bridge(g, b, R, pal); });
-    // (4) vignette
-    const cx = E.x0 + E.w / 2, cy = E.y0 + E.h / 2, rr = Math.hypot(E.w, E.h) / 2;
-    const vg = g.createRadialGradient(cx, cy, rr * 0.45, cx, cy, rr); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, pal.vignette);
-    g.fillStyle = vg; g.fillRect(E.x0, E.y0, E.w, E.h);
   }
 
   /* ---------- gambar latar buatan sendiri (opsional): map.art = { landscape, portrait } ---------- */
@@ -333,7 +329,9 @@
     lg.addColorStop(0, pal.warm); lg.addColorStop(0.5, 'rgba(0,0,0,0)'); lg.addColorStop(1, pal.cool);
     g.fillStyle = lg; g.fillRect(E.x0, E.y0, E.w, E.h);
     if (pal.tint) { g.fillStyle = pal.tint; g.fillRect(E.x0, E.y0, E.w, E.h); }
-    S.under = u.c; S.front = f.c; S.glow = gl.c; S.E = E; S.info = info; S.lights = lights;
+    { const cx = E.x0 + E.w / 2, cy = E.y0 + E.h / 2, rr = Math.hypot(E.w, E.h) / 2;      // vignette di lapisan DASAR (bukan di atas bola)
+      const vg = g.createRadialGradient(cx, cy, rr * 0.45, cx, cy, rr); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, pal.vignette); g.fillStyle = vg; g.fillRect(E.x0, E.y0, E.w, E.h); }
+    S.under = u.c; S.front = f.c; S.glow = gl.c; S.E = E; S.info = info; S.lights = lights; S.qs = qs; S.mask = null;
     if (GA.Effects) GA.Effects.build(L, path, R, map, E, info, lights);
   }
 
@@ -357,6 +355,18 @@
       const sw = GA.Effects.quality >= 1 && !Background.reduceMotion ? (Math.sin((t || 0) * 0.9) * 0.0042 + Math.sin((t || 0) * 1.9 + 1) * 0.0018) : 0, H = ctx.canvas.height;
       ctx.save(); ctx.setTransform(1, 0, sw, 1, (ox || 0) - sw * H * 0.5, oy || 0); ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(S.front, 0, 0, ctx.canvas.width, ctx.canvas.height); ctx.restore();
+    },
+    /** Alpha tertinggi lapisan depan (objek depan) di dalam lingkaran logis (x, y, r): dipakai ?debug=layers dan uji geometri. */
+    frontCover: function (x, y, r) {
+      if (!S.front) return 0;
+      if (!S.mask) { const w = Math.max(1, S.front.width >> 2), h = Math.max(1, S.front.height >> 2), c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); g.drawImage(S.front, 0, 0, w, h); S.mask = { w: w, h: h, d: g.getImageData(0, 0, w, h).data }; }
+      const L = S.L, m = S.mask, k = L.px * S.qs / 4, ox = L.dpr * L.ox * S.qs / 4, oy = L.dpr * L.oy * S.qs / 4; let best = 0;
+      for (let ring = 0; ring < 3; ring++) for (let i = 0, n = ring ? 8 : 1; i < n; i++) {
+        const a = i / n * 6.2832, rr = r * ring / 2, px = Math.round((x + Math.cos(a) * rr) * k + ox), py = Math.round((y + Math.sin(a) * rr) * k + oy);
+        if (px < 0 || py < 0 || px >= m.w || py >= m.h) continue;
+        const al = m.d[(py * m.w + px) * 4 + 3] / 255; if (al > best) best = al;
+      }
+      return best;
     },
     has: function (id) { return !!(GA.Maps && GA.Maps[id]); },
     info: function () { return S.info; },

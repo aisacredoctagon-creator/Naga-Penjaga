@@ -350,9 +350,9 @@
     pulse: function (s) { const P = PS[0]; P.pulse = Math.min(1.2, P.pulse + (s || 0.7)); },
     drawPortal: drawPortal,
     /** Efek di bawah rantai (ruang logis): kolam, kabut, berkas cahaya. */
-    drawUnder: function (ctx, t, dt) { drawPond(ctx, t, dt); drawMist(ctx, t); drawShafts(ctx, t); drawLights(ctx, t); },
+    drawUnder: function (ctx, t, dt) { drawPond(ctx, t, dt); drawMist(ctx, t); drawLights(ctx, t); drawFlies(ctx, t, dt); },      // tanpa kerucut cahaya lebar; semuanya DI BAWAH bola
     /** Efek paling atas: kunang-kunang dan burung. */
-    drawOver: function (ctx, t, dt) { drawFlies(ctx, t, dt); }
+    drawOver: function () { }      // tidak ada lagi efek di atas bola
   };
 
   GA.Effects = Effects;
