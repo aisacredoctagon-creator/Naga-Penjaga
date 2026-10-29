@@ -789,8 +789,8 @@
     GA.Effects.drawPortal(ctx, t, frameDt);
     if (showGuide && sc.guide && sc.guide.length) drawGuide(sc.shooter, t, sc.guide);      // garis bidik putus-putus tipis: DI BAWAH bola
     if (Gameplay.debug.aim && sc === run && sc.chain) drawAimDebug(sc);
-    Path.drawMarkers(ctx, sc.path, R, t, center, L.portrait ? 16 : 15);
     Path.drawNest(ctx, sc.path, R, t, sc === run ? sc.lives : 3, 3, sc.lifeLostT > 0 ? 1 : 0, nestThreat(sc));
+    Path.drawMarkers(ctx, sc.path, R, t, center, L.portrait ? 16 : 15);      // label SARANG di atas sarang (tidak tertutup)
     if (sc.boss) {
       sc.boss.draw(ctx, t);
       if (L.portrait) sc.boss.drawHP(ctx, L.W / 2, L.play.y + 26, Math.min(L.W * 0.6, 340));      // potret: di pita antara HUD dan jalur

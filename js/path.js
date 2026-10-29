@@ -144,7 +144,7 @@
     const sh = pr.shooter ? map(pr.shooter) : [pl.x + pl.w / 2, pl.y + pl.h / 2];
     path.shooter = { x: sh[0], y: sh[1] };
     path.boss = pr.boss ? (function () { const b = map(pr.boss); return { x: b[0], y: b[1], R: pr.bossR || 0 }; })() : null;      // R boss (0 = ukuran standar)
-    path.presetId = presetId; path.play = pl;
+    path.presetId = presetId; path.play = pl; path.star = !!pr.star;
     path.ctrl = pr.pts.map(map);
     return GA.Paths && def ? GA.Paths.refine(path, R, layout, def) : path;
   }
@@ -230,7 +230,11 @@
     }
 
     // FINISH: label bendera di sisi lubang yang lapang
-    const h = holeXY(path), f = labelSpot(path, 'finish', h.x, h.y, r * 2.9, path.length - 420, path.length);
+    const h = holeXY(path); let f;
+    if (path.star) {      // naga di tengah: label SARANG di sisi luar sarang (menjauh dari pusat), di dalam area bermain
+      const dx = h.x - path.shooter.x, dy = h.y - path.shooter.y, dl = Math.hypot(dx, dy) || 1, pl2 = path.play, d2 = r * 3.4;
+      f = [Math.max(pl2.x + 70, Math.min(pl2.x + pl2.w - 70, h.x + dx / dl * d2)), Math.max(pl2.y + 26, Math.min(pl2.y + pl2.h - 26, h.y + dy / dl * d2))];
+    } else f = labelSpot(path, 'finish', h.x, h.y, r * 2.9, path.length - 420, path.length);
     pill(ctx, '🥚 SARANG', f[0], f[1], '#e0932a', '#fff', size);
   }
 
