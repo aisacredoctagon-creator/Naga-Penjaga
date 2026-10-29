@@ -50,6 +50,7 @@
   <script src="js/dragon.js"></script>
   <script src="js/shooter.js"></script>
   <script src="js/questions.js"></script>
+  <script src="js/qmanager.js"></script>
   <script src="js/obstacles.js"></script>
   <script src="js/hazards.js"></script>
   <script src="js/levels.js"></script>
@@ -65,14 +66,16 @@
   <script>
     // Alat dev (hanya dimuat dengan parameter URL; pemain biasa tidak pernah melihatnya):
     //   ?test=1 js/dev/tests.js (uji otomatis)   ?debug=orbs js/dev/orbs.js (keterbacaan)   ?resp=1 js/dev/resp.js (responsif)
-    //   ?debug=tune js/dev/tune.js (panel penyetelan)   ?debug=sim js/dev/chainsim.js (simulasi kerapatan rantai)   ?debug=chain overlay celah
+    //   ?debug=tune js/dev/tune.js (panel penyetelan)   ?debug=sim js/dev/chainsim.js (simulasi kerapatan rantai)   ?debug=chain overlay celah   ?debug=question overlay + log soal aktif   ?debug=sim juga js/dev/qsim.js (uji soal aktif)
     (function () {
       var q = location.search, t = /[?&]test(=|&|$)/.test(q), o = /[?&]debug=orbs/.test(q), rs = /[?&]resp(=|&|$)/.test(q);
-      var dbg = (/[?&]debug=([^&#]*)/.exec(q) || [0, ""])[1].split(","), tune = dbg.indexOf("tune") >= 0, sim = dbg.indexOf("sim") >= 0;
+      var dbg = (/[?&]debug=([^&#]*)/.exec(q) || [0, ""])[1].split(","), tune = dbg.indexOf("tune") >= 0, sim = dbg.indexOf("sim") >= 0, qdbg = dbg.indexOf("question") >= 0;
       function load(src, next) { var s = document.createElement("script"); s.src = src; if (next) s.onload = next; document.body.appendChild(s); }
       if (t) load("js/dev/orbs.js", function () { load("js/dev/tests.js"); }); else if (o) load("js/dev/orbs.js"); else if (rs) load("js/dev/resp.js");
       if (tune) load("js/dev/tune.js");
       if (sim || t) load("js/dev/chainsim.js");
+      if (qdbg) load("js/dev/qdebug.js");
+      if (sim || t) load("js/dev/qsim.js");
     })();
   </script>
 </body>

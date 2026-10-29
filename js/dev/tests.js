@@ -111,7 +111,8 @@
       const ab = G.allBalls().find(function (b) { return b.kind === 'num' && b.qid === r.qid; });
       if (!ab) continue;
       const open = G.openLine(ab); if (!open) st.blocked++;
-      const m = sh.muzzle({ x: 0, y: 0 }), want = Math.atan2(ab.y - m.y, ab.x - m.x);
+      let m = sh.muzzle({ x: 0, y: 0 }), want = Math.atan2(ab.y - m.y, ab.x - m.x);
+      for (let it = 0; it < 3; it++) { sh.setAngle(want - sh.off); m = sh.muzzle({ x: 0, y: 0 }); want = Math.atan2(ab.y - m.y, ab.x - m.x); }      // mulut naga bergeser saat memutar: bidik berulang sampai konvergen
       sh.setAngle(want - sh.off);
       let clear = open;
       if (clear && r.haz.blocksLine(m.x, m.y, ab.x, ab.y, Math.hypot(ab.x - m.x, ab.y - m.y) / GA.Shooter.Bullets.speed + 0.15)) clear = false;   // tunggu rintangan zona selesai (ray test prediktif)
@@ -121,11 +122,11 @@
         { const B = GA.Shooter.Bullets, m2 = sh.muzzle({ x: 0, y: 0 }), ux = Math.cos(sh.aim), uy = Math.sin(sh.aim); let px = m2.x, py = m2.y, pred = null;   // diagnostik: bola pertama yang akan kena
           for (let s = 0; s < 120 && !pred; s++) { px += ux * 9; py += uy * 9; for (let k = 0; k < r.chains.length && !pred; k++) pred = r.chains[k].hit(px, py, B.r); }
           lastFire = { t: st.t.toFixed(0), path: r.cfg.pathId, tgt: ab.ch.balls.indexOf(ab), hit: pred ? pred.ch.balls.indexOf(pred) : -1, aim: ((Math.atan2(ab.y - m2.y, ab.x - m2.x) - sh.aim) * Math.hypot(ab.x - m2.x, ab.y - m2.y)).toFixed(0) + 'px', haz: r.haz.list.map(function (e) { return e.kind + ':' + e.mech; }).join(',') }; }
-        G.fire(); think = 1.6; }
+        if (lastFire.hit >= 0 && lastFire.hit !== lastFire.tgt && (st.mis = (st.mis || 0) + dt) < 2.5) { /* bola lain akan kena lebih dulu: tunggu rantai bergeser */ } else { st.mis = 0; G.fire(); think = 1.6; } }
       if (r.wrong > wrongSeen) { wrongSeen = r.wrong; if (wrongInfo.length < 3) wrongInfo.push(JSON.stringify(lastFire)); }
       if (r.correct !== lastCorrect) { lastCorrect = r.correct; stuckT = 0; } else { stuckT += dt; maxStuck = Math.max(maxStuck, stuckT); }
     }
-    const hs = G.run.haz.stats, r = G.run, done = r.deck.filter(function (q) { return q.done; }).length;
+    const hs = G.run.haz.stats, r = G.run, done = r.qm.solvedCount();
     const finished = done === 20 && r.correct === 20;
     ok('sim ' + tag + ': 20/20 soal selesai tanpa macet', finished, 'benar ' + r.correct + ', selesai ' + done + ', waktu sim ' + st.t.toFixed(0) + ' dtk, telur ' + r.lives + ', salah ' + r.wrong + ', tunggu-tanpa-soal ' + (st.noQ / st.t * 100).toFixed(0) + '%, jeda terpanjang antar-jawaban ' + maxStuck.toFixed(0) + ' dtk' + (wrongInfo.length ? '; salah pertama: ' + wrongInfo.join(' ') : ''));
     if (r.boss) ok('sim ' + tag + ': boss kalah, fase naik di jawaban ke-7 dan ke-14', r.boss.defeated && r.boss.phaseIdx === 2 && r.boss.hp <= 0, 'fase ' + (r.boss.phaseIdx + 1) + ', hp ' + r.boss.hp);
@@ -167,7 +168,7 @@
     target.d = r.path.length;     // paksa sampai di sarang
     for (let i = 0; i < 60; i++) G.tick(1 / 30, true);
     const back = ch.balls.some(function (b) { return b.qid === qid; }) || ch.spawnQ.some(function (s) { return s.qid === qid; });
-    ok('anti-macet: bola target yang lolos kembali ke antrean, progres tetap', back && r.correct === before && !r.deck[qid].done && r.lives === lives - 1, 'telur ' + lives + '→' + r.lives);
+    ok('anti-macet: bola target yang lolos kembali ke antrean, progres tetap', back && r.correct === before && !r.qm.isSolved(qid) && r.lives === lives - 1, 'telur ' + lives + '→' + r.lives);
     G.handlers.quit();
   }
 
@@ -223,6 +224,12 @@
       await GA.Sim.run();
       GA.Sim.results.forEach(function (line) { if (line.indexOf('---') !== 0) results.push(line); });
       fails += GA.Sim.fails;
+    }
+    for (let i = 0; i < 40 && !GA.QSim; i++) await sleep(50);
+    if (GA.QSim) {      // simulasi soal aktif (js/dev/qsim.js; juga ?debug=sim)
+      await GA.QSim.run();
+      GA.QSim.results.forEach(function (line) { if (line.indexOf('---') !== 0) results.push(line); });
+      fails += GA.QSim.fails;
     }
     const plan = [[0, 'mudah'], [1, 'sedang'], [2, 'sulit'], [3, 'sedang'], [4, 'sedang'], [0, 'sulit']];
     for (const p of plan) { try { await simStep(p[0], p[1]); } catch (e) { ok('sim step ' + (p[0] + 1) + '/' + p[1], false, 'error: ' + e.message); } }

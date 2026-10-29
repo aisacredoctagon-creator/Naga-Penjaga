@@ -82,7 +82,19 @@
 
   /* ---------- isi dinamis ---------- */
   /** Telur di HUD: sprite telur bersisik yang sama dengan di sarang (elemen mengikuti tema); kosong = siluet redup. */
+  /** Ikon alasan perubahan soal: ANSWERED_CORRECT = centang hijau, TIMEOUT = jam, LOST_TARGET = pusaran portal. */
+  function reasonIcon(ctx, kind, x, y, r, a) {
+    ctx.save(); ctx.globalAlpha = Math.max(0, a); ctx.translate(x, y); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.fillStyle = kind === 'ANSWERED_CORRECT' ? '#2fbf71' : (kind === 'TIMEOUT' ? '#ff7a2e' : '#7a5cff'); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(2, r * 0.18);
+    if (kind === 'ANSWERED_CORRECT') { ctx.beginPath(); ctx.moveTo(-r * 0.45, 0); ctx.lineTo(-r * 0.1, r * 0.35); ctx.lineTo(r * 0.5, -r * 0.35); ctx.stroke(); }
+    else if (kind === 'TIMEOUT') { ctx.beginPath(); ctx.moveTo(0, -r * 0.55); ctx.lineTo(0, 0); ctx.lineTo(r * 0.38, r * 0.22); ctx.stroke(); }
+    else { ctx.beginPath(); for (let k = 0; k < 14; k++) { const u = k / 13, an = u * 7, rr2 = r * (0.1 + u * 0.55); ctx.lineTo(Math.cos(an) * rr2, Math.sin(an) * rr2); } ctx.stroke(); }
+    ctx.restore();
+  }
+
   function egg(ctx, x, y, s, filled, t, i) {
+
     GA.Eggs.draw(ctx, x, y, s * 0.31, { el: GA.Eggs.elFor(GA.Theme.scene, i), state: filled ? 'ok' : 'empty', t: t, i: i, rot: 0, hud: true });
   }
 
@@ -155,7 +167,7 @@
     }
 
     // plakat soal
-    const q = G.q, pop = run.qPop > 0 ? run.qPop / 0.35 : 0, qt = run.q;
+    const q = G.q, pop = run.qPop > 0 ? Math.min(1, run.qPop / 0.38) : 0, qt = run.q;
     if (qt) {
       const hasNote = !!qt.note, inner = q.h - (hasNote ? 30 : 20), ease = pop * pop;
       ctx.save(); rr(ctx, q.x + 6, q.y + 6, q.w - 12, q.h - 12, 11); ctx.clip();
@@ -169,7 +181,22 @@
       }
       if (hasNote) { ctx.font = '700 13px ' + Fo.ui; ctx.fillStyle = '#9a3a10'; ctx.textAlign = 'center'; ctx.fillText(qt.note, q.x + q.w / 2, q.y + q.h - 10); ctx.textAlign = 'left'; }
     }
-    if (!qt) {   // belum ada bola target terlihat: tiga titik berdenyut
+    // transisi soal yang sah: soal lama selesai (memudar + centang) lalu soal baru masuk; TIMEOUT / LOST_TARGET diberi ikon alasan singkat
+    const tr = run.qTrans;
+    if (tr) {
+      const p = Math.min(1, tr.t / 0.38);
+      if (tr.from && p < 1) {
+        ctx.save(); rr(ctx, q.x + 6, q.y + 6, q.w - 12, q.h - 12, 11); ctx.clip();
+        ctx.translate(q.x + q.w / 2, q.y + q.h / 2 - p * 14); ctx.globalAlpha = (1 - p) * 0.9;
+        const sz = MT.fit(ctx, tr.from.text, q.w - 140, q.h - 20, por ? 44 : 42); MT.draw(ctx, tr.from.text, 0, 0, sz, tr.solved ? '#1f6b3a' : '#2a1a3a', null);
+        ctx.restore();
+      }
+      const hold = tr.solved ? 0.6 : 1.3;
+      if (tr.reason !== 'STEP_START' && tr.reason !== 'STEP_RESTART' && tr.t < hold) reasonIcon(ctx, tr.reason, q.x + q.w - 30, q.y + q.h / 2, Math.min(14, q.h * 0.28), Math.min(1, (hold - tr.t) / 0.25));
+    }
+    if (run.qExpire > 0) { ctx.save(); rr(ctx, q.x + 6, q.y + 6, q.w - 12, q.h - 12, 11); ctx.clip(); ctx.fillStyle = 'rgba(255,60,70,' + (0.2 + 0.2 * Math.sin(t * 30)).toFixed(2) + ')'; ctx.fillRect(q.x, q.y, q.w, q.h); ctx.restore(); }
+    if (!qt && !(tr && tr.from && tr.t < 0.38)) {   // belum ada soal aktif: tiga titik berdenyut
+
       for (let i = 0; i < 3; i++) { ctx.fillStyle = 'rgba(90,50,20,' + (0.25 + 0.55 * Math.max(0, Math.sin(t * 4 - i * 0.9))).toFixed(2) + ')'; ctx.beginPath(); ctx.arc(q.x + q.w / 2 + (i - 1) * 18, q.y + q.h / 2, 5, 0, TAU); ctx.fill(); }
     }
     // progres soal "12/20" di sisi kiri plakat: ikon bola + angka

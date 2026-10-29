@@ -217,7 +217,7 @@
     /** spec: { qid, kind } — qid = indeks soal di dek (bola target), kind = 'num' | 'curse' | 'frost' | 'egg'. `out` = sudah terlihat (rantai dekoratif). */
     makeBall(d, spec, out) {
       const b = { ch: this, id: this.nextId++, d: d, vo: 0, lag: 0, kind: 'num', value: 0, text: '', ci: 0, x: 0, y: 0, a: 0, flipT: 0, nv: null, nt: null, wob: 0, red: 0, fog: 0, fogAge: 0,
-        out: !!out, emT: out ? 1e3 : 0, rot: 0, qid: spec && spec.qid != null ? spec.qid : null, want: spec ? spec.kind || 'num' : null };
+        out: !!out, emT: out ? 1e3 : 0, rot: 0, qid: spec && spec.qid != null ? spec.qid : null, want: spec ? spec.kind || 'num' : null, reborn: !!(spec && spec.reborn) };
       this.lastCi = b.ci = (this.lastCi + 1 + Math.floor(Math.random() * 7)) % 8;
       this.labeler(b);
       this.path.at(d, tmp); b.x = tmp.x; b.y = tmp.y; b.a = tmp.a;

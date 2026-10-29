@@ -113,7 +113,29 @@ melaju 1,5×, ditandai pita air), **Hawa Panas** (bidikan bergetar), **Es Licin*
 
 Boss (`js/boss.js` + rig `js/render/wizard.js`): setiap jawaban benar melukai boss (20 soal = boss kalah); fase berubah pada soal ke-7 dan ke-14 (`TUNE.hits = [7, 7, 6]`) dengan **sinematik singkat yang bisa dilewati** (ketuk / Spasi / Enter; state `cine`, rantai berhenti, zoom ke boss, pita sinema). Penyihir digambar penuh dengan kode: sosok tinggi-kurus, jubah compang-camping (simulasi kain verlet 7×7), tudung runcing, wajah pucat berparut bermata hijau/ungu menyala, bantalan bahu bertumpuk (tulang + logam berkarat), sabuk & tali kulit, lengan dua ruas (IK) dengan jari panjang bercincin, tongkat berkristal berisi energi telur curian (cahaya makin besar tiap fase), tekstur prosedural (anyaman kain, kulit, karat, tulang). Animasi: melayang, gestur mantra, serangan sambil tertawa jahat, berkedip dengan perisai heksagonal saat terkena, aura amarah merah di pergantian fase, dan **hancur menjadi abu + energi ungu** saat kalah. Cahaya berasal dari sihirnya sendiri (lantai, jubah, wajah) dan ada bayangan lantai. Mengganti dengan sprite: `Theme.sprites.boss`.
 
+### Soal aktif (`js/qmanager.js`)
+
+**Soal aktif tidak boleh berubah sampai dijawab benar.** Satu sumber kebenaran: `run.qm` (`GA.QM.Manager`).
+
+- 20 soal dibangkitkan **sekali** per step memakai PRNG ber-seed (seed = petualangan × step × percobaan; `Questions.deck(topics, n, rng)`) lalu diurutkan di awal. Soal berupa objek **beku** (`id`, `text`, `answer`, `answerText`, `distractors`, `hint`, `explain`, …); modul lain hanya membaca (`run.q`, `run.qid`, `run.qSerial` hanya-baca).
+- Soal aktif = elemen terdepan antrean yang belum selesai (PENDING → ACTIVE → SOLVED), **bukan** hasil pencarian dari bola yang terlihat. Bola dikeluarkan dari portal menurut urutan soal yang **diacak ber-seed dalam blok kecil** (4 soal; 2 per rantai di Step 5), jadi bola jawaban aktif tidak selalu yang terdepan tetapi paling banyak 3 bola lain keluar lebih dulu; bola target sebuah soal adalah bola ber-`qid` sama (penukaran angka oleh kelelawar/mantra memindahkan qid bersama angkanya).
+- Perubahan hanya lewat `qm.advance(reason)` dengan enum tertutup `GA.QM.REASONS`. **Pemicu sah (satu-satunya):**
+  - `STEP_START` / `STEP_RESTART`: step dimulai / diulang (QuestionManager baru, seed baru).
+  - `ANSWERED_CORRECT`: bola jawaban yang benar tertembak.
+  - `TIMEOUT`: hanya fase 3 boss (soal berbatas waktu). Bilah waktu di plakat; saat habis ada efek merah + SFX ±0,55 dtk, lalu soal pindah ke **ujung antrean** (tidak dihitung terjawab) dan ikon jam muncul.
+  - `LOST_TARGET`: cadangan (soal pindah ke ujung antrean); tidak dipakai saat ini karena bola yang hilang selalu dimunculkan lagi.
+- **Tidak mengubah soal:** jawaban salah (telur berkurang, soal tetap), bola target bergerak / di belakang portal / terhalang, rintangan, buff/nerf, kabut, kelelawar, resize, rotasi, jeda/lanjut, blur/tab tersembunyi, ganti kualitas, penukaran peluru, snapshot/restore.
+- **Bola target dicuri ke sarang / hilang:** soal tetap. Bola yang sama masuk antrean dan diselipkan tepat di batas portal setelah rantai berhenti bergeser (`surfaceTarget`), muncul bercahaya dengan cincin berulang. Bila target terhalang bola khusus/rintangan > 1 dtk, penghalang menyingkir; bila terhalang bola angka lain > 2,4 dtk, angkanya ditukar (animasi balik) sehingga bola jawaban pindah ke depan.
+- **Terlihat:** soal lama memudar dengan centang, soal baru masuk ±0,38 dtk + SFX tick; TIMEOUT/LOST_TARGET menampilkan ikon alasan.
+- **Guard:** menimpa `run.q`/`run.qid` di luar `advance()` dicatat di `qm.violations` dan **melempar Error** pada mode ketat (`?test=1`, `?debug=question`, `?debug=sim`).
+- `qm.snapshot()` / `restore()` memulihkan seed + antrean + soal selesai (soal & urutan identik). Game belum menyimpan progres di tengah step ke localStorage, jadi muat ulang memulai step dari awal.
+
+Alat bantu (hanya dimuat dengan parameter URL):
+- `?debug=question`: overlay soal aktif (id, status, bola target, antrean, jumlah pelanggaran) + **log perubahan soal** (waktu, alasan, lama → baru); juga `console.info`.
+- `?debug=sim`: `js/dev/qsim.js` menjalankan simulasi tanpa render (hasil di layar + `GA.QSim.results`): idle penuh, peluru salah, bola dicuri, semua 5 step, resize/rotasi (390×844 / 844×390 / 1440×900), jeda/blur, ganti kualitas, TIMEOUT boss, seed/snapshot/guard, dan keterbacaan plakat. Juga dijalankan oleh `?test=1`.
+
 ### Audio (`js/audio.js`)
+
 
 Semua suara disintesis dari kode (tanpa berkas): rantai sumber → pan → bus (efek / ambient) → master → kompresor, dengan gema sintetis untuk suara bernuansa ruang.
 
@@ -139,6 +161,7 @@ css/base.css + kit.css  dasar halaman + komponen UI kit   css/pause.css   popup 
 js/theme.js         warna, ukuran bola, naga, latar tiap step (satu-satunya tempat untuk ganti tampilan)
 js/storage.js       localStorage (pilihan, bintang, rekor, pengaturan)
 js/audio.js         efek suara, ambient & musik per zona (Web Audio, tanpa berkas)
+js/qmanager.js      QuestionManager: soal aktif, urutan, pemicu sah (lihat bagian Soal aktif)
 js/fx.js            partikel, getar layar          js/scenery.js   latar parallax + partikel ambient
 js/path.js          jalur (spline) & preset: arc, wave, hook, zigzag, ring, bossU; sarang & penanda
 js/mathtext.js      teks matematika dengan pecahan bersusun (canvas & HTML)

@@ -8,12 +8,14 @@
 (function (GA) {
   'use strict';
 
+  /** Sumber acak generator soal. Untuk dek langkah (buildDeck) diganti sementara dengan PRNG ber-seed supaya soal bisa direproduksi. */
+  let RND = Math.random;
   const MINUS = '−';
   const r4 = function (x) { return Math.round(x * 1e4) / 1e4; };
-  const rnd = function (a, b) { return a + Math.floor(Math.random() * (b - a + 1)); };
-  const pick = function (arr) { return arr[Math.floor(Math.random() * arr.length)]; };
+  const rnd = function (a, b) { return a + Math.floor(RND() * (b - a + 1)); };
+  const pick = function (arr) { return arr[Math.floor(RND() * arr.length)]; };
   function shuffle(a) {
-    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; }
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(RND() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; }
     return a;
   }
 
@@ -130,9 +132,9 @@
     int: function (s) {
       const R = range(s);
       const op = s.op === 'any' ? pick(['+', MINUS, '×', '÷']) : (s.op === '-' ? MINUS : (s.op === '*' || s.op === 'x' ? '×' : (s.op === '/' ? '÷' : s.op)));
-      const sgn = function () { return Math.random() < 0.55 ? -1 : 1; };
+      const sgn = function () { return RND() < 0.55 ? -1 : 1; };
       let a = rnd(R.min, R.max) * sgn(), b = rnd(R.min, R.max) * sgn();
-      if (a > 0 && b > 0 && Math.random() < 0.85) { if (Math.random() < 0.5) a = -a; else b = -b; }
+      if (a > 0 && b > 0 && RND() < 0.85) { if (RND() < 0.5) a = -a; else b = -b; }
       let ans, hint, cands;
       if (op === '+') {
         ans = a + b; cands = [-ans, Math.abs(a) + Math.abs(b), a - b, -(a - b), ans + 2, ans - 2];
@@ -157,7 +159,7 @@
       // pecahan sejati; jawaban SELALU dalam bentuk paling sederhana. s: { ops, mode: 'same'|'rel'|'any', dmax }
       const ops = s.ops;
       const OP = { '+': '+', '-': '−', '×': '×', '*': '×', '÷': '÷', '/': '÷', '−': '−' };
-      let o = OP[ops[Math.floor(Math.random() * ops.length)]], a, b, d1, d2, n, d, tries = 0;
+      let o = OP[ops[Math.floor(RND() * ops.length)]], a, b, d1, d2, n, d, tries = 0;
       do {
         d1 = rnd(2, s.dmax);
         if (s.mode === 'same') d2 = d1;
@@ -193,7 +195,7 @@
       const op = s.op === '-' ? MINUS : (s.op === '*' || s.op === 'x' ? '×' : (s.op === '/' ? '÷' : s.op));
       const ri = function (scale) {
         const lo = Math.round(s.min * scale), hi = Math.round(s.max * scale);
-        let v; do { v = rnd(lo, hi); } while (v % scale === 0 && Math.random() < 0.85);
+        let v; do { v = rnd(lo, hi); } while (v % scale === 0 && RND() < 0.85);
         return v;
       };
       const P10 = function (n) { return Math.pow(10, n); };
@@ -265,7 +267,7 @@
       let q, tries = 0;
       do {
         const total = this.topics.reduce(function (s, t) { return s + (t.weight || 1); }, 0);
-        let r = Math.random() * total, spec = this.topics[0];
+        let r = RND() * total, spec = this.topics[0];
         for (const t of this.topics) { r -= (t.weight || 1); if (r <= 0) { spec = t; break; } }
         q = generate(spec);
       } while (q.text === this.last && ++tries < 12);
@@ -291,12 +293,16 @@
 
   /** Dek soal satu step: `n` soal dengan JAWABAN UNIK (tidak ada dua bola bernilai sama) dan ekspresi unik.
    * Bila rentang topik terlalu sempit, topik dilebarkan otomatis. Hasil: [{ id, text, answerText, ... }]. */
-  function buildDeck(topics, n) {
+  function buildDeck(topics, n, rng) {
+    const prev = RND; if (rng) RND = rng;
+    try { return buildDeckInner(topics, n); } finally { RND = prev; }
+  }
+  function buildDeckInner(topics, n) {
     const local = topics.map(function (t) { return Object.assign({}, t); }), usedA = {}, usedE = {}, out = [];
     let guard = 0;
     while (out.length < n && guard++ < 6000) {
       const total = local.reduce(function (s, t) { return s + (t.weight || 1); }, 0);
-      let r = Math.random() * total, idx = 0;
+      let r = RND() * total, idx = 0;
       for (let i = 0; i < local.length; i++) { r -= (local[i].weight || 1); if (r <= 0) { idx = i; break; } }
       const q = generate(local[idx]);
       if (!usedA[q.answerText] && !usedE[q.text]) { usedA[q.answerText] = 1; usedE[q.text] = 1; q.id = out.length; q.done = false; out.push(q); }
