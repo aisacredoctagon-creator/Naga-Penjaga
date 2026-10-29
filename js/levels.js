@@ -1,7 +1,7 @@
 /* levels.js — lima step petualangan, buff/nerf, dan tabel kesulitan. Semua angka ada di sini sebagai DATA.
  *
  * Aturan inti: tiap step punya TEPAT `TOTAL_Q` (20) soal; tiap soal berpasangan dengan satu bola sihir target. Step selesai setelah
- * semua soal dijawab benar. Bola keluar dari portal berkelompok (gelombang) — lihat `waves`/`gapSec` di TUNE.
+ * semua soal dijawab benar. Bola keluar dari portal sebagai SATU aliran kontinu; kecepatan, kerapatan, dan fase masuk ada di js/config/gameplay.js.
  *
  * Cara menambah/mengubah:
  *  - Step baru: tambahkan objek ke STEPS (scene = id peta di GA.Maps, pathId = arketipe di maps/paths.js, buff/nerf = kunci BUFFS/NERFS)
@@ -43,12 +43,11 @@
     nests:   { id: 'nests',   name: 'Serangan Boss', icon: 'wizard', desc: 'Boss menyerang' }
   };
 
-  /** Pengaturan per kesulitan. travel = detik yang dibutuhkan bola terdepan menempuh seluruh jalur tanpa ditembak (kecepatan rantai
-   * dihitung dari panjang jalur ÷ travel, sehingga satu step ±3–5 menit). waves = jumlah kelompok bola; gapSec = jeda antar-kelompok. */
+  /** Pengaturan per kesulitan (soal, boss, bola khusus, kerapatan rintangan). Kecepatan & kerapatan RANTAI ada di js/config/gameplay.js. */
   const TUNE = {
-    mudah:  { travel: 300, waves: 6, gapSec: 9, retreatSec: 6.5, density: 0.3, hits: [7, 7, 6], qTime: 24, curse: 0 },
-    sedang: { travel: 245, waves: 5, gapSec: 7, retreatSec: 6, density: 0.6, hits: [7, 7, 6], qTime: 20, curse: 1 },
-    sulit:  { travel: 195, waves: 4, gapSec: 5, retreatSec: 5.5, density: 1.0, hits: [7, 7, 6], qTime: 16, curse: 2 }
+    mudah:  { density: 0.3, hits: [7, 7, 6], qTime: 24, curse: 0 },
+    sedang: { density: 0.6, hits: [7, 7, 6], qTime: 20, curse: 1 },
+    sulit:  { density: 1.0, hits: [7, 7, 6], qTime: 16, curse: 2 }
   };
 
   /* Rintangan zona (js/hazards.js): jenis bertambah KUMULATIF tiap step — Step 1 ≈ 2 jenis, Step 2 ≈ 4, Step 3 ≈ 6, Step 4 ≈ 8, Step 5 semua (11) + kelelawar + serangan boss. */
@@ -137,7 +136,7 @@
       step: step, id: S.id, name: S.name, place: S.place, scene: S.scene, pathId: S.pathId, tag: S.tag, isBoss: !!S.boss, story: S.story, notes: S.notes,
       diff: sel.diff, cat: cat, cats: cats, buff: S.buff, nerf: S.nerf, total: TOTAL_Q,
       topics: GA.Questions.topicsFor(topicCats, sel.diff), maxChoices: GA.Questions.maxChoices(sel.diff),
-      travel: T.travel, waves: T.waves, gapSec: T.gapSec, retreatSec: T.retreatSec, specialsN: specialsN,
+      specialsN: specialsN,
       ballScale: Math.max(ballScaleFor(cat), S.boss && uniq.some(function (c) { return c === 'frac' || c === 'dec'; }) ? 1.1 : 1), questionTime: null,
       haz: hazFor(step, T.density), rocks: o.rocks, movers: o.movers, crystals: o.crystals, fog: o.fog, bats: o.bats, freezeOnWrong: o.freezeOnWrong || 0
     };

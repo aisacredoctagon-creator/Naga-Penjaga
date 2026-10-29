@@ -36,13 +36,13 @@
     LV.DIFFS.forEach(function (d) {
       sel.diff = d;
       for (let s = 0; s < LV.count; s++) {
-        const cfg = LV.build(s, sel, LV.resolveCats(sel)), w = GA.game.buildWaves(cfg, [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19], 20, -1);
+        const cfg = LV.build(s, sel, LV.resolveCats(sel)), w = GA.game.buildStream(cfg, [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19], -1);
         const nums = w.filter(function (x) { return x.kind === 'num'; }), ids = {}; nums.forEach(function (x) { ids[x.qid] = 1; });
-        const groups = w.filter(function (x) { return x.gap > 0; }).length + 1;
-        if (nums.length !== 20 || Object.keys(ids).length !== 20 || groups < 4 || groups > 6) { allOk = false; ok('gelombang step ' + (s + 1) + '/' + d, false, nums.length + ' target, ' + groups + ' kelompok'); }
+        let adj = false, early = false; w.forEach(function (x, i) { if (x.kind !== 'num') { if (i < 3) early = true; if (i > 0 && w[i - 1].kind !== 'num') adj = true; } });
+        if (nums.length !== 20 || Object.keys(ids).length !== 20 || w.some(function (x) { return x.gap; }) || adj || early) { allOk = false; ok('aliran step ' + (s + 1) + '/' + d, false, nums.length + ' target' + (adj ? ', khusus berdempetan' : '') + (early ? ', khusus di awal' : '')); }
       }
     });
-    ok('gelombang: 20 target unik dalam 4-6 kelompok, khusus tidak dihitung', allOk);
+    ok('aliran bola: 20 target unik dalam SATU aliran tanpa jeda, khusus tidak dihitung/tersebar', allOk);
   }
 
   function testStrings() {
@@ -94,7 +94,7 @@
     for (let i = 0; i < 60 && G.state !== 'playing'; i++) await sleep(150);
     if (G.state !== 'playing') { ok('sim ' + tag, false, 'tidak masuk ke state playing (' + G.state + ')'); return; }
     const dt = 1 / 30, maxT = 1800, st = { t: 0, noQ: 0, none: 0, blocked: 0, frames: 0, stolen0: G.run.wrong, maxQ: 0 };
-    let lastCorrect = 0, stuckT = 0, maxStuck = 0, lastQ = -2, think = 0, noOpenRun = 0, maxNoOpen = 0;
+    let lastCorrect = 0, stuckT = 0, maxStuck = 0, lastQ = -2, think = 0, noOpenRun = 0, maxNoOpen = 0, wrongSeen = 0, lastFire = null; const wrongInfo = [];
     const thinkSec = { mudah: 8, sedang: 6, sulit: 4 }[diff];    // bot "berpikir" seperti pemain (membaca soal + membidik)
     // jarak titik ke ruas garis tembak (untuk menunggu rintangan bergerak lewat seperti pemain sungguhan)
     const segDist = function (px, py, ax, ay, bx, by) { const vx = bx - ax, vy = by - ay, l2 = vx * vx + vy * vy || 1, u = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / l2)); return Math.hypot(px - (ax + u * vx), py - (ay + u * vy)); };
@@ -116,12 +116,18 @@
       let clear = open;
       if (clear && r.haz.blocksLine(m.x, m.y, ab.x, ab.y, Math.hypot(ab.x - m.x, ab.y - m.y) / GA.Shooter.Bullets.speed + 0.15)) clear = false;   // tunggu rintangan zona selesai (ray test prediktif)
       if (clear && r.obst.predictedHit(m.x, m.y, ab.x, ab.y, GA.Shooter.Bullets.speed, GA.Shooter.Bullets.rObs * 0.55 + 8)) clear = false;   // tunggu lava/petir lewat (ray test prediktif)
-      if (clear && think <= 0 && sh.canFire() && !G.anySettling()) { G.fire(); think = 1.6; }
+      if (clear) for (let k = 0; k < r.haz.list.length; k++) { const e = r.haz.list[k]; if (e.mech === 'deflect' && segDist(e.x, e.y, m.x, m.y, ab.x, ab.y) < e.r + 24) { clear = false; break; } }   // ombak membelokkan api: bot sempurna menunggu (rantai rapat: peluru yang melenceng mengenai bola tetangga)
+      if (clear && think <= 0 && sh.canFire() && !G.anySettling()) {
+        { const B = GA.Shooter.Bullets, m2 = sh.muzzle({ x: 0, y: 0 }), ux = Math.cos(sh.aim), uy = Math.sin(sh.aim); let px = m2.x, py = m2.y, pred = null;   // diagnostik: bola pertama yang akan kena
+          for (let s = 0; s < 120 && !pred; s++) { px += ux * 9; py += uy * 9; for (let k = 0; k < r.chains.length && !pred; k++) pred = r.chains[k].hit(px, py, B.r); }
+          lastFire = { t: st.t.toFixed(0), path: r.cfg.pathId, tgt: ab.ch.balls.indexOf(ab), hit: pred ? pred.ch.balls.indexOf(pred) : -1, aim: ((Math.atan2(ab.y - m2.y, ab.x - m2.x) - sh.aim) * Math.hypot(ab.x - m2.x, ab.y - m2.y)).toFixed(0) + 'px', haz: r.haz.list.map(function (e) { return e.kind + ':' + e.mech; }).join(',') }; }
+        G.fire(); think = 1.6; }
+      if (r.wrong > wrongSeen) { wrongSeen = r.wrong; if (wrongInfo.length < 3) wrongInfo.push(JSON.stringify(lastFire)); }
       if (r.correct !== lastCorrect) { lastCorrect = r.correct; stuckT = 0; } else { stuckT += dt; maxStuck = Math.max(maxStuck, stuckT); }
     }
     const hs = G.run.haz.stats, r = G.run, done = r.deck.filter(function (q) { return q.done; }).length;
     const finished = done === 20 && r.correct === 20;
-    ok('sim ' + tag + ': 20/20 soal selesai tanpa macet', finished, 'benar ' + r.correct + ', selesai ' + done + ', waktu sim ' + st.t.toFixed(0) + ' dtk, telur ' + r.lives + ', salah ' + r.wrong + ', tunggu-tanpa-soal ' + (st.noQ / st.t * 100).toFixed(0) + '%, jeda terpanjang antar-jawaban ' + maxStuck.toFixed(0) + ' dtk');
+    ok('sim ' + tag + ': 20/20 soal selesai tanpa macet', finished, 'benar ' + r.correct + ', selesai ' + done + ', waktu sim ' + st.t.toFixed(0) + ' dtk, telur ' + r.lives + ', salah ' + r.wrong + ', tunggu-tanpa-soal ' + (st.noQ / st.t * 100).toFixed(0) + '%, jeda terpanjang antar-jawaban ' + maxStuck.toFixed(0) + ' dtk' + (wrongInfo.length ? '; salah pertama: ' + wrongInfo.join(' ') : ''));
     if (r.boss) ok('sim ' + tag + ': boss kalah, fase naik di jawaban ke-7 dan ke-14', r.boss.defeated && r.boss.phaseIdx === 2 && r.boss.hp <= 0, 'fase ' + (r.boss.phaseIdx + 1) + ', hp ' + r.boss.hp);
     ok('sim ' + tag + ': selalu ada target terjangkau', st.none / st.frames < 0.35 && maxNoOpen < 4.5, 'bingkai tanpa jalur terbuka ' + (st.none / st.frames * 100).toFixed(1) + '%, terlama ' + maxNoOpen.toFixed(1) + ' dtk, aktif terhalang ' + (st.blocked / st.frames * 100).toFixed(1) + '%');
     ok('sim ' + tag + ': durasi masuk akal (1-8 menit untuk bot cepat)', st.t > 60 && st.t < 480, st.t.toFixed(0) + ' dtk');
@@ -212,6 +218,12 @@
     await testSteal();
     await testDual();
     await testAudio();
+    for (let i = 0; i < 40 && !GA.Sim; i++) await sleep(50);
+    if (GA.Sim) {      // simulasi kerapatan rantai (js/dev/chainsim.js; juga ?debug=sim)
+      await GA.Sim.run();
+      GA.Sim.results.forEach(function (line) { if (line.indexOf('---') !== 0) results.push(line); });
+      fails += GA.Sim.fails;
+    }
     const plan = [[0, 'mudah'], [1, 'sedang'], [2, 'sulit'], [3, 'sedang'], [4, 'sedang'], [0, 'sulit']];
     for (const p of plan) { try { await simStep(p[0], p[1]); } catch (e) { ok('sim step ' + (p[0] + 1) + '/' + p[1], false, 'error: ' + e.message); } }
     results.push('--- ' + (fails ? fails + ' GAGAL' : 'SEMUA LULUS') + ' (' + ((performance.now() - t0) / 1000).toFixed(1) + ' dtk)');

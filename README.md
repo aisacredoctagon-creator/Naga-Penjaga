@@ -28,8 +28,9 @@ Step terbuka berurutan per kesulitan (step n+1 terbuka setelah step n selesai). 
 - **Soal aktif** dipilih hanya dari bola target yang sudah muncul dan terlihat di jalur (utamakan yang garis tembaknya terbuka dan
   yang paling dekat sarang). **Jawaban tiap soal dalam satu step unik** (`Questions.deck`, rentang topik dilebarkan otomatis bila terlalu
   sempit). Bola pengecoh alami = jawaban soal-soal lain yang belum selesai.
-- **Gelombang:** 20 bola dibagi 4–6 kelompok (`TUNE.waves`) yang keluar bergantian dari portal dengan jeda `gapSec`. Saat tidak ada target
-  terlihat, rantai dipercepat 4× sampai kelompok berikutnya muncul. Kecepatan rantai = panjang jalur ÷ `TUNE.travel`.
+- **Aliran bola (bukan gelombang):** semua bola step itu (20 target + bola khusus) keluar sebagai **satu aliran kontinu** dari portal, tanpa jeda
+  antar-kelompok. Portal sudah terbuka sejak hitung mundur, jadi bola pertama keluar tepat saat permainan dimulai. Bola **rapat**: jarak pusat
+  bersebelahan = 2 × radius × `BALL_SPACING_FACTOR` (0,98; diukur lurus pusat-ke-pusat, jadi tetap rapat di tikungan). Lihat "Gameplay rantai" di bawah.
 - **Anti-macet:** (1) bila bola target lolos ke sarang, satu telur hilang, rantai mundur, tetapi **soalnya masuk antrean lagi** dan keluar dari
   portal — progres jawaban benar tidak hilang; (2) jika soal aktif terhalang > 2,4 dtk dan ada target lain yang terbuka, soal berganti;
   (3) jika semua target terhalang > 1,2 dtk, bola khusus penghalang lenyap dan rintangan statis menyurut sementara (kembali setelah ±9 dtk
@@ -37,12 +38,38 @@ Step terbuka berurutan per kesulitan (step n+1 terbuka setelah step n selesai). 
   (5) tembakan ditahan sejenak selama rantai masih bergeser menutup celah.
 - **Bola khusus** (kutukan, beku, telur emas) tidak dihitung dalam 20 dan tidak pernah membuat step mustahil; yang lolos ke sarang lenyap tanpa hukuman.
 
+### Gameplay rantai (`js/config/gameplay.js`)
+
+Semua angka kecepatan & kerapatan ada di satu berkas, dalam **diameter bola per detik** (bukan piksel), jadi terasa sama di portrait, landscape, dan
+desktop. Tiga lapis: `DEFAULTS` → `PER_DIFF[mudah|sedang|sulit]` → `STEP_SPEED_MULT[step]` (Step 5 = ×0,4: dua rantai pada jalur pendek). `Gameplay.resolve(diff, step)` menghasilkan objek `run.gp` yang dibaca `Chain` setiap frame.
+
+| Parameter | Arti | Nilai awal |
+|---|---|---|
+| `CHAIN_BASE_SPEED` | kecepatan normal kepala rantai (d/dtk) | 0,16 / 0,20 / 0,25 (mudah/sedang/sulit) |
+| `CHAIN_ENTRY_SPEED_MULT`, `SPAWN_FILL_TIME`, `ENTRY_HEAD_FRAC` | **fase masuk**: rantai ngebut sampai kepala mencapai `ENTRY_HEAD_FRAC` jalur terlihat (atau semua bola sudah keluar); kecepatan = yang lebih besar antara DASAR × mult dan "bola fase masuk ÷ `SPAWN_FILL_TIME`" | 3× · 6 dtk · 0,25 |
+| `ENTRY_EASE_TIME` | transisi halus ke kecepatan normal | 1 dtk |
+| `CHAIN_PRESSURE_RAMP`, `PRESSURE_RAMP_TIME`, `PRESSURE_DROP` | tekanan: kecepatan naik pelan hingga +15% dalam 240 dtk; tiap jawaban benar beruntun (kombo ≥ 2) menurunkannya | 0,15 · 240 · 0,12 |
+| `NEST_SLOW_DIAMS`, `NEST_SLOW_MULT` | dekat sarang rantai melambat (tidak pernah berhenti) | 7 d · ×0,7 |
+| `BALL_SPACING_FACTOR` | jarak pusat bola bersebelahan = 2R × ini | 0,98 |
+| `GAP_CLOSE_SPEED` | bagian belakang celah menyusul sekian d/dtk (celah 1 bola ±0,13 dtk) | 7,5 |
+| `INSERT_TIME` | bola disisipkan: tetangga bergeser halus selama ini (`Chain.insert`) | 0,12 dtk |
+| `MAX_DT` | langkah waktu maksimum (tab di-resume tidak membuat bola melompat) | 0,05 dtk |
+
+Cara kerja rantai (`js/chain.js`): posisi tiap bola = jarak busur `d`; solver pembatas jarak berjalan tiap frame (bola ke-i tidak boleh melewati bola di depannya dikurangi jarak sentuh; jarak sentuh diukur **lurus** pusat-ke-pusat, sehingga di tikungan busur sedikit lebih panjang dan bola tetap menempel). Bola yang tertinggal menyusul dengan `GAP_CLOSE_SPEED`; bagian depan celah tetap berjalan normal. Seluruh pengali kecepatan (beku, arus, tekanan, sarang, fase boss) berlaku untuk **seluruh rantai**, bukan per bola. Animasi bola keluar portal berbasis waktu (`EMERGE_ANIM_TIME`) dan tidak memperlambat arus.
+
+**Mengapa tidak semua 25 bola keluar dalam 6 detik:** rantai 25 bola panjangnya ±25 diameter, sedangkan jalur hanya 11–43 diameter. Bila semua keluar sekaligus, kepala rantai langsung berada 60–90% jalur (di Step 5 bahkan melewati sarang). Karena itu fase masuk berhenti saat kepala mencapai `ENTRY_HEAD_FRAC`; sisa bola tetap satu aliran rapat tanpa jeda tetapi keluar mengikuti kecepatan normal. Ingin lebih banyak bola di awal? Naikkan `ENTRY_HEAD_FRAC` (0,35–0,5).
+
+**Panel penyetelan `?debug=tune`** (tidak tampil ke pemain biasa): slider semua parameter di atas, berlaku langsung pada step yang berjalan; **Salin nilai** (JSON: nilai yang diubah + nilai efektif), **Reset**, **Ulangi step**, dan angka hidup (fase, kecepatan d/dtk, bola keluar, kepala %, waktu isi, rasio jarak min/maks, jumlah celah). Nilai disimpan di localStorage hanya saat `?debug=tune`. Contoh: `index.html?debug=tune&unlock=1&go=1&diff=sedang` (langsung mulai Step 1).
+Flag lain (boleh digabung, mis. `?debug=tune,chain`): `chain` = overlay garis hijau/merah/oranye antar-bola (merah = celah > 1,05 diameter); `sim` = simulasi kerapatan tanpa render.
+
+**Simulasi kerapatan** (`js/dev/chainsim.js`, `?debug=sim`, juga bagian `?test=1`): semua arketipe jalur × 2 orientasi × 3 radius × 3 kesulitan × 45 dtk dengan pemain acak (hancur, sisip, mundur, dt bergetar + lonjakan 500 ms); jarak bola bersebelahan harus tetap 0,96–1,05 diameter kecuali celah sementara < 400 ms; juga uji penutupan celah, penyisipan halus, fase masuk.
+
 ### Main Menu
 
 - **8 kategori:** Penjumlahan, Pengurangan, Perkalian, Pembagian, Bilangan Bulat, Pecahan, Desimal, Campuran.
 - **5 slot:** Step 1–4 dan Boss. Default **Satu kategori untuk semua**; matikan untuk memilih per step; atau **Acak**. Step 5 (boss) mencampur
   kategori yang dipilih.
-- **Kesulitan:** Mudah / Sedang / Sulit (rentang angka, kerumitan soal, kecepatan rantai, jeda gelombang, kerapatan rintangan).
+- **Kesulitan:** Mudah / Sedang / Sulit (rentang angka, kerumitan soal, kecepatan rantai, kerapatan rintangan).
 - Pilihan terakhir, bintang & skor terbaik per step, skor tertinggi, dan pengaturan disimpan di `localStorage`.
 
 ### Telur, bintang, kontrol
@@ -64,7 +91,7 @@ Step terbuka berurutan per kesulitan (step n+1 terbuka setelah step n selesai). 
 | 4 | Gua Kristal Beku: `crystal`, `iceCave`, `amethyst` | Waktu Beku | Es Licin | + stalaktit jatuh, kristal pemantul, kelelawar (8) |
 | 5 | Menara Penyihir: `tower`, `tower2`, `library` | Telur Emas | Serangan Boss | + petir rune, tangan bayangan, jamur spora (11) + boss |
 
-**Step 5 = dua sarang.** Jalurnya salah satu `dualU/dualW/dualC`: dua portal, dua rantai (`run.chains`), dua sarang berisi **3 telur** masing-masing (`run.nest = [3, 3]`). 20 soal dibagi 10 + 10 ke dua rantai (bola khusus dibagi dua), kecepatan tiap rantai ×0,88. Bola target yang lolos hanya memecahkan telur di sarangnya sendiri; salah jawab / rintangan mengambil telur dari sarang yang masih terbanyak; **kalah bila salah satu sarang kosong**. Bola telur emas menambah telur di sarang rantai asalnya. Ancaman ditandai cahaya merah berdenyut di sarang + panah merah di tepi arena (HUD menampilkan 3 + 3 telur).
+**Step 5 = dua sarang.** Jalurnya salah satu `dualU/dualW/dualC`: dua portal, dua rantai (`run.chains`), dua sarang berisi **3 telur** masing-masing (`run.nest = [3, 3]`). 20 soal dibagi 10 + 10 ke dua rantai (bola khusus dibagi dua), kecepatan tiap rantai ×0,4 dari dasar (`STEP_SPEED_MULT`). Bola target yang lolos hanya memecahkan telur di sarangnya sendiri; salah jawab / rintangan mengambil telur dari sarang yang masih terbanyak; **kalah bila salah satu sarang kosong**. Bola telur emas menambah telur di sarang rantai asalnya. Ancaman ditandai cahaya merah berdenyut di sarang + panah merah di tepi arena (HUD menampilkan 3 + 3 telur).
 
 ### Rintangan zona (`js/hazards.js`)
 
@@ -132,7 +159,7 @@ js/main.js          loop, layout responsif, input, alur petualangan
 
 - **Kategori soal:** tambahkan ke `CATEGORIES` dan isi `TABLE` (tiga kesulitan) di `js/questions.js`. Generator baru ditambahkan ke `GEN`
   (kembalikan lewat `make({ expr, answer, answerText, cands, ... })`; jawaban dinilai dari **teks**).
-- **Kesulitan / kecepatan / jumlah soal:** `TUNE` di `js/levels.js` (nilai per kesulitan: durasi tempuh, gelombang, jeda, retreat).
+- **Kesulitan / jumlah soal:** `TUNE` di `js/levels.js`. **Kecepatan, kerapatan, fase masuk, tekanan rantai:** `js/config/gameplay.js` (satuan diameter bola/detik).
 - **Step atau rintangan baru:** tambahkan objek ke `STEPS` di `js/levels.js` (`scene`, `pathId`, fungsi `obst(d)`). Preset jalur baru
   ada di `presets` pada `js/path.js` (koordinat ternormalisasi; `mode: 'transpose'` untuk potret). Latar baru di `Theme.scenes`.
   Jenis rintangan baru: tambahkan di `js/obstacles.js` dan hubungkan di `onBulletStep` (`js/main.js`).
