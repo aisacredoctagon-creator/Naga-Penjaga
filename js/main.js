@@ -193,6 +193,9 @@
     run.qTime = run.qTimeMax; run.blockedT = 0; run.qPop = 0.38; run.qExpire = 0;
     run.qTrans = { t: 0, from: from, reason: ev.reason, solved: ev.reason === 'ANSWERED_CORRECT' };
     Audio.play('tick');
+    // penjaga keadilan: bola jawaban soal yang baru aktif tidak boleh berada di 12% terakhir jalur; bila terjadi, rantai melambat sebentar (tanpa menandai bola)
+    const q = run.qm.active, c = run.chain;
+    if (q && c) { const b = targetBall(q.id); if (b && b.d > c.path.length * (1 - run.gp.ACTIVE_END_GUARD)) { c.slowT = Math.max(c.slowT, run.gp.ACTIVE_SLOW_SEC); run.endGuards = (run.endGuards || 0) + 1; } }
   }
 
   /** Bola target soal aktif muncul lagi dari portal (dicuri ke sarang / hilang): soal TETAP, bola bercahaya agar terlihat. */
@@ -384,9 +387,9 @@
     const cfg = run.cfg;
     run.playing = true;
     const order = run.qm.order;
-    // posisi bola di rantai diacak ber-seed DALAM blok (4 soal): urutan soal tetap, bola jawaban aktif tidak selalu yang terdepan
-    // tetapi paling banyak (blok-1) bola lain keluar lebih dulu, sehingga tidak perlu menunggu lama
-    let ids = []; for (let i = 0; i < order.length; i += 4) ids = ids.concat(shuffled(order.slice(i, i + 4), function () { return run.qm.rand(); }));
+    // posisi bola jawaban di rantai: pengacakan ber-seed (seed per stage per percobaan) dengan batas keadilan (QM.arrange); urutan antrean SOAL tidak berubah
+    const gpS = run.gp, perm = GA.QM.arrange(order.length, function () { return run.qm.rand(); }, { early: gpS.SHUFFLE_EARLY, late: gpS.SHUFFLE_LATE, first: gpS.SHUFFLE_FIRST, maxRun: gpS.SHUFFLE_MAXRUN });
+    const ids = perm.map(function (k) { return order[k]; });
     const c = new Chain.Chain(run.path, { r: run.R, gp: run.gp, labeler: labelBall });     // kecepatan = gp.CHAIN_BASE_SPEED (diameter/dtk), sama di semua layar
     c.idx = 0; c.hcd = 0; c.entryD = GA.Effects.entryD();
     c.zones = chainZones(run.path); c.overWindows = run.path.overWindows;

@@ -36,7 +36,40 @@
     return base.map(function (_, i) { return i % 2 ? 'missing' : 'result'; });      // cadangan pasti valid: selang-seling
   }
 
+  /** URUTAN POSISI BOLA JAWABAN di rantai (BUKAN urutan soal; antrean soal tidak disentuh). Mengembalikan perm: perm[p] = indeks soal (urutan antrean) untuk bola ke-p yang keluar dari portal.
+   *  Pengacakan ber-seed gaya Fisher-Yates dengan batas keadilan (o: early = W, late = V, first, maxRun):
+   *   - bola soal ke-k hanya boleh keluar di posisi [k − W, k + V]: tidak terlalu awal (nyaris sampai sarang sebelum gilirannya) dan tidak terlalu lambat keluar;
+   *   - jawaban soal pertama ada di `first` bola pertama (langsung terjawab);
+   *   - paling banyak `maxRun` jawaban BERURUTAN (menurut urutan soal) yang bertetangga di rantai (pola mudah ditebak).
+   *  Tiap posisi dipilih acak di antara soal yang boleh (yang tenggatnya habis wajib diambil lebih dulu). Diulang (seed yang sama, aliran acak berlanjut) sampai tak ada pola. */
+  function arrange(n, rng, o) {
+    o = o || {}; const W = o.early == null ? 6 : o.early, V = o.late == null ? 8 : o.late, first = o.first == null ? 3 : o.first, maxRun = o.maxRun == null ? 2 : o.maxRun;
+    const deadline = function (k) { return k === 0 ? Math.min(first - 1, V) : k + V; };
+    let perm = [];
+    for (let attempt = 0; attempt < 400; attempt++) {
+      perm = []; const placed = new Array(n).fill(false), q0slot = Math.floor(rng() * Math.min(first, n));      // posisi soal pertama dipilih acak di antara `first` bola pertama
+      for (let p = 0; p < n; p++) {
+        let forced = -1; const cand = [];
+        for (let k = 0; k < n; k++) {
+          if (placed[k]) continue;
+          if (deadline(k) <= p && (forced < 0 || deadline(k) < deadline(forced))) forced = k;      // tenggat habis: wajib sekarang (paling mendesak lebih dulu)
+          if (k - W <= p) cand.push(k);
+        }
+        const k = forced >= 0 ? forced : (p === q0slot && !placed[0] ? 0 : cand[Math.floor(rng() * cand.length)]);
+        perm.push(k); placed[k] = true;
+      }
+      let ok = true, runA = 1, runD = 1;
+      for (let p = 1; p < n && ok; p++) {
+        runA = perm[p] === perm[p - 1] + 1 ? runA + 1 : 1; runD = perm[p] === perm[p - 1] - 1 ? runD + 1 : 1;
+        if (runA > maxRun || runD > maxRun) ok = false;
+      }
+      if (ok) break;
+    }
+    return perm;
+  }
+
   class QuestionManager {
+
     /** opts: { topics, total, seed, format, onChange(ev) }. format: 'result' | 'missing' | 'mixed' (Stage 3). Urutan main ditentukan lebih dulu, lalu format
      * tiap soal menurut posisinya (jadi pola campuran berlaku pada URUTAN soal yang dilihat pemain), lalu GA.Questions.deck membangkitkan 20 soal sekali. */
     constructor(opts) {
@@ -119,5 +152,5 @@
     }
   }
 
-  GA.QM = { Manager: QuestionManager, REASONS: REASONS, STATE: STATE, prng: prng, seedFor: seedFor, shuffle: shuffle, strict: /[?&]test(=|&|$)/.test(location.search) || /debug=[^&]*(question|sim)/.test(location.search), verbose: /debug=[^&]*question/.test(location.search) };
+  GA.QM = { arrange: arrange, Manager: QuestionManager, REASONS: REASONS, STATE: STATE, prng: prng, seedFor: seedFor, shuffle: shuffle, strict: /[?&]test(=|&|$)/.test(location.search) || /debug=[^&]*(question|sim)/.test(location.search), verbose: /debug=[^&]*question/.test(location.search) };
 })(window.GA = window.GA || {});

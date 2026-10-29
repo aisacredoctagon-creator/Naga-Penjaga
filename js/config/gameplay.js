@@ -59,7 +59,12 @@
     SWAP_TELEGRAPH: 1.8,            // detik indikator sebelum dua bola bertukar tempat
     SWAP_ANIM: 0.45,                // detik gerak tukar (melengkung)
     SWAP_END_GUARD: 0.1,            // bola di 10% terakhir jalur menuju sarang tidak boleh ditukar
-    SWAP_PAIRS_PHASE2: 2            // Stage 3, fase 2 boss: jumlah pasangan yang bertukar sekaligus
+    SWAP_PAIRS_PHASE2: 2,           // Stage 3, fase 2 boss: jumlah pasangan yang bertukar sekaligus
+
+    /* --- posisi bola jawaban di rantai (QM.arrange): bola soal ke-k keluar di posisi [k − EARLY, k + LATE] --- */
+    SHUFFLE_EARLY: 6, SHUFFLE_LATE: 8, SHUFFLE_FIRST: 3, SHUFFLE_MAXRUN: 2,
+    ACTIVE_END_GUARD: 0.12,         // bola jawaban soal yang baru aktif tidak boleh di 12% terakhir jalur; bila terjadi, rantai melambat...
+    ACTIVE_SLOW_SEC: 3              // ...selama sekitar 3 dtk (tanpa menandai bola mana pun)
   };
 
   /** Jeda antar-penukaran bola [min, maks] detik per stage (acak di dalam rentang); null = tanpa penukaran. Stage 3 fase 2 boss: dua pasangan sekaligus. */
