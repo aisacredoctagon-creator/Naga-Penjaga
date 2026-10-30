@@ -18,7 +18,7 @@
   let attract = null;          // adegan dekoratif di menu
   let t = 0, last = 0, hudShown = false, frameDt = 0;
   const keys = {};
-  const ptr = { down: false, onShooter: false, id: null, type: 'mouse' };      // type: 'mouse' | 'touch' | 'key' (radius target-lock dan offset titik bidik)
+  const ptr = { down: false, id: null, type: 'mouse' };      // type: 'mouse' | 'touch' | 'key' (radius target-lock dan offset titik bidik)
   const tmpM = { x: 0, y: 0 }, shk = { x: 0, y: 0 };
 
   /* ================= layout & latar ================= */
@@ -561,7 +561,6 @@
     FX.burst(b.x, b.y, ['#ffb02e', '#ffe8a0', '#fff'], 8); FX.ring(b.x, b.y, '#ffd27a', run.R * 1.2);
   }
 
-  function swapAmmo() { if (state === 'playing') { run.shooter.swap(); Audio.play('swap'); } }
 
   /* ================= selesai stage ================= */
   function startClearing(boss) {
@@ -903,7 +902,6 @@
     const r = canvas.getBoundingClientRect();
     return { x: (e.clientX - r.left - L.ox) / L.scale, y: (e.clientY - r.top - L.oy) / L.scale };
   }
-  const swapMin = function () { return Math.max(64, 26 / L.scale); };
 
   /** Titik bidik dari event pointer: mouse = posisi pointer; sentuh = digeser ke atas TOUCH_OFFSET_PX dari ujung jari supaya jari tidak menutupi bola target (cincin target-lock tetap di luar jari). */
   function aimPointOf(e, p) {
@@ -920,13 +918,11 @@
     if (UI.hitPause(p.x, p.y, L)) { pauseGame(); return; }
     ptr.down = true; ptr.id = e.pointerId;
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* abaikan */ }
-    ptr.onShooter = run.shooter.hitsSwap(p.x, p.y, swapMin());
-    const q = aimPointOf(e, p); if (!ptr.onShooter) run.shooter.aimAt(q.x, q.y);
+    const q = aimPointOf(e, p); run.shooter.aimAt(q.x, q.y);
   });
   on(canvas, 'pointermove', function (e) {
     if (state !== 'playing') return;
     if (!(ptr.down || e.pointerType === 'mouse')) return;
-    if (ptr.down && ptr.onShooter) return;
     const q = aimPointOf(e, toLogical(e)); run.shooter.aimAt(q.x, q.y);
   });
   function release(e) {
@@ -934,7 +930,6 @@
     ptr.down = false;
     if (state !== 'playing') return;
     const p = toLogical(e);
-    if (ptr.onShooter && run.shooter.hitsSwap(p.x, p.y, swapMin())) { swapAmmo(); return; }
     const q = aimPointOf(e, p); run.shooter.aimAt(q.x, q.y); updateLock(run, 0);
     fire();
   }
@@ -952,7 +947,6 @@
     }
     if (state !== 'playing') return;
     if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); GA.lastFireKey = performance.now(); fire(); }
-    if (e.key === 'q' || e.key === 'Q' || e.key === 'Shift') swapAmmo();
   });
   on(window, 'keyup', function (e) { keys[e.key] = false; });
   on(window, 'blur', function () { for (const k in keys) keys[k] = false; if (state === 'playing') pauseGame(); });

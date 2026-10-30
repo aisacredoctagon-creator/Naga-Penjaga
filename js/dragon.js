@@ -6,7 +6,7 @@
  *   dragon.react(kind)            'happy' (mengaum kecil) | 'hurt' (kaget) | 'sad' | 'cheer' (sayap membentang, api ke atas) | 'idle'
  *   dragon.freeze(sec)            naga membeku (tidak bisa menembak) selama sec detik
  *   dragon.update(dt, ballReady)  idle: bernapas, sayap mengepak pelan, ekor bergoyang, berkedip acak
- *   dragon.draw(ctx, x, y, R, ballCb)   ballCb(wx, wy, open) menggambar bola api di mulut (tegak, tidak ikut berputar)
+ *   dragon.draw(ctx, x, y, R, ballCb)   ballCb opsional (null = tanpa bola api di mulut, seperti permainan sejak revisi 10)
  * Dragon.drawSleeping(ctx, w, h, t) menggambar naga tidur (untuk popup Jeda). */
 (function (GA) {
   'use strict';
@@ -334,7 +334,7 @@
       this.head(ctx, R, this.mouth * 0.14 + this.roar * 0.05, this.mouth, pal, pat, C, a);
       ctx.restore();
 
-      // ---- bola api di ujung moncong (tegak, di atas kepala agar angka ×N selalu terbaca; membesar saat terbentuk di tenggorokan) ----
+      // ---- bola api di ujung moncong: hanya bila ballCb diberikan (permainan tidak memakainya; bola api muncul hanya saat melesat) ----
       if (ballCb) { const p = this.mouthPos(x + shiver, y, R, { x: 0, y: 0 }); ballCb(p.x, p.y, this.mouth); }
 
       // ---- efek: asap saat senang, es saat membeku, kilatan merah saat kaget ----

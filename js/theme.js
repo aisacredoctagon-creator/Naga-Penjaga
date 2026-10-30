@@ -44,13 +44,11 @@
      * supaya diameter bola di layar >= minScreenDiameter px (HP), dengan batas maxRadius. */
     BALL_RADIUS_RATIO: 0.06,
 
-    /* Semua bola yang berperan sama memakai radius yang SAMA PERSIS (BALL_RADIUS): bola sihir di rantai, bola api
-     * siap tembak di mulut naga, dan bola api yang melesat. Tidak ada pengali tambahan dan tidak ada perubahan
+    /* Semua bola yang berperan sama memakai radius yang SAMA PERSIS (BALL_RADIUS): bola sihir di rantai dan bola api
+     * yang melesat. Tidak ada pengali tambahan dan tidak ada perubahan
      * ukuran saat ditembak.
-     *   SHOOTER_BALL_SCALE  harus 1.0 (bola siap tembak = bola rantai)
-     *   NEXT_BALL_SCALE     bola berikutnya (preview), sedikit lebih kecil agar hierarkinya jelas */
+     *   SHOOTER_BALL_SCALE  harus 1.0 (bola api yang melesat = bola rantai) */
     SHOOTER_BALL_SCALE: 1.0,
-    NEXT_BALL_SCALE: 0.9,
 
     ball: {
       minScreenDiameter: 46,  // diameter bola (rantai & naga) di layar (px) minimal; radius dinaikkan otomatis di HP kecil
@@ -65,10 +63,8 @@
       const r = Math.max(this.BALL_RADIUS_RATIO * short, (b.minScreenDiameter / 2) / Math.max(scale, 0.01));
       return Math.round(Math.min(r, b.maxRadius));
     },
-    /** Radius bola siap tembak (di mulut) = radius bola × SHOOTER_BALL_SCALE (1.0). */
+    /** Radius bola api yang melesat = radius bola × SHOOTER_BALL_SCALE (1.0). */
     shooterBallRadius: function (R) { return this.SHOOTER_BALL_SCALE * R; },
-    /** Radius bola preview: sedikit lebih kecil dari bola siap tembak. */
-    nextBallRadius: function (R) { return this.NEXT_BALL_SCALE * R; },
 
     /* ---- naga penjaga (js/dragon.js) ---- */
     dragon: {

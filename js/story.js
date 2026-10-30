@@ -35,7 +35,7 @@
   function dragon(ctx, x, y, R, t, mood, aim) {
     const d = ctx._dragon || (ctx._dragon = new GA.Dragon.Dragon());
     d.setAim(aim == null ? -Math.PI / 2 : aim); if (mood) d.react(mood); d.update(0.016, true);
-    d.draw(ctx, x, y, R, function (wx, wy) { if (mood !== 'sad') GA.Shooter.drawAmmo(ctx, wx, wy, R * 0.6, { mult: 1, ci: -1 }, 1, t, null); });
+    d.draw(ctx, x, y, R, null);
   }
 
   /** Gambar ilustrasi panel pada kanvas berukuran w×h (piksel logis). */

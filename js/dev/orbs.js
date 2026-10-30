@@ -1,6 +1,6 @@
 /* dev/orbs.js — halaman uji keterbacaan angka: buka index.html?debug=orbs
  * Menampilkan SEMUA kombinasi warna bola (8) × jenis angka (bulat, negatif, pecahan bersusun, desimal, panjang) pada ukuran bola rantai dan
- * ukuran kecil, plus bola api ×1/×2/×3 (ukuran siap tembak dan preview). Di bawah tiap baris tertera rasio kontras terburuk (WCAG, target ≥ 4,5).
+ * ukuran kecil, plus bola api ×1/×2/×3 (ukuran bola yang melesat). Di bawah tiap baris tertera rasio kontras terburuk (WCAG, target ≥ 4,5).
  * GA.Dev.contrast() dipakai juga oleh tes otomatis (?test=1). */
 (function (GA) {
   'use strict';
@@ -55,8 +55,8 @@
           g.fillStyle = '#fff'; g.font = '700 12px sans-serif'; g.fillText('warna ' + (ci + 1) + '  ' + C.orb[ci].toFixed(1) + ':1', 70 + SAMPLES.length * cw, 74 + ci * 92);
         }
         const fy = rows * 92 + 110;
-        for (let m = 1; m <= 3; m++) { GA.Fire.drawBall(g, 70 + (m - 1) * 120, fy, 34, { mult: m, ci: -1 }, dpr, t, null); GA.Fire.drawBall(g, 70 + (m - 1) * 120 + 56, fy + 14, 30, { mult: m, ci: -1 }, dpr, t, null); }
-        g.fillStyle = '#fff'; g.fillText('bola api (3 tingkat panas), tanpa label: siap tembak (34) dan preview (30 = 0,9 ×)', 12, fy + 62);
+        for (let m = 1; m <= 3; m++) { GA.Fire.drawBall(g, 70 + (m - 1) * 120, fy, 34, { mult: m, ci: -1 }, dpr, t, null); }
+        g.fillStyle = '#fff'; g.fillText('bola api (3 tingkat panas), tanpa label, ukuran bola api yang melesat (34)', 12, fy + 62);
         if (document.getElementById('debug-orbs') || wrap.parentNode) requestAnimationFrame(draw);
       };
       draw();

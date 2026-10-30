@@ -91,8 +91,8 @@ Ganti dengan gambar sendiri: taruh berkas bernama sama (lihat contoh prompt di `
   0 telur = Game Over untuk stage itu. Hanya **satu portal, satu rantai, satu sarang** di semua stage.
 - Bintang (`STAR_3_PCT` 90%, `STAR_2_PCT` 70%): menurut persentase soal yang dijawab **benar pada percobaan pertama**; 1 bintang bila stage selesai.
 - Pecahan **bersusun**; jawaban pecahan harus **bentuk paling sederhana** (1/2 ≠ 2/4), desimal memakai **koma**, tanda negatif "−".
-- Kontrol (revisi 8, **target-lock + lontaran**): arahkan mouse ke sebuah bola jawaban lalu klik; sentuh = seret (titik bidik 56 px di atas jari agar tidak tertutup) lalu lepas; tidak ada aksi hanya-hover. Bola terdekat dalam 1,0R (mouse) / 1,25R (sentuh, papan ketik) dari titik bidik terkunci (cincin kecil di atas bola, bola sedikit menggembung; merah bila terhalang rintangan tinggi). Tanpa bola dalam radius: bola api terbang ke titik itu lalu padam tanpa hukuman. Ketuk naga/bola kecil untuk menukar bola api; papan ketik ← → membidik, ↑ ↓ (W/S) mengubah jarak titik bidik, Spasi menembak, Q menukar, P/Esc jeda.
-- **Bola api bersih**: tidak ada label angka. Tingkat pengali skor acak (×1–×3) tetap ada tetapi hanya terlihat dari panas cahaya api (label "×N" dihapus atas permintaan).
+- Kontrol (revisi 8, **target-lock + lontaran**): arahkan mouse ke sebuah bola jawaban lalu klik; sentuh = seret (titik bidik 56 px di atas jari agar tidak tertutup) lalu lepas; tidak ada aksi hanya-hover. Bola terdekat dalam 1,0R (mouse) / 1,25R (sentuh, papan ketik) dari titik bidik terkunci (cincin kecil di atas bola, bola sedikit menggembung; merah bila terhalang rintangan tinggi). Tanpa bola dalam radius: bola api terbang ke titik itu lalu padam tanpa hukuman. Tidak ada bola api yang diam di samping naga (revisi 10: bola siap-tembak di mulut, soket "bola berikutnya", tukar-bola dengan ketuk naga/Q dihapus karena sasaran ditentukan target-lock, bukan angka bola api): bola api hanya muncul sebagai nyala singkat di mulut saat menembak dan bola yang melesat. Papan ketik ← → membidik, ↑ ↓ (W/S) mengubah jarak titik bidik, Spasi menembak, P/Esc jeda.
+- **Bola api bersih**: tidak ada label angka dan tidak ada pengali skor acak (revisi 10: tingkat panas ×1–×3 hanya hiasan dan tidak memengaruhi skor, jadi dihapus bersama bola siap-tembak).
 
 ### Tiga stage (data di `js/levels.js`)
 
@@ -265,7 +265,7 @@ js/main.js          loop, layout responsif, input, alur petualangan
 ## Ukuran bola
 
 Semua ukuran diturunkan dari konstanta di `js/theme.js`. Bola yang berperan sama memakai radius yang **sama persis**: bola sihir
-di rantai, bola api siap tembak di mulut naga, dan bola api yang melesat (`SHOOTER_BALL_SCALE = 1.0`, tanpa animasi mengecil
+di rantai dan bola api yang melesat (`SHOOTER_BALL_SCALE = 1.0`, tanpa animasi mengecil
 saat ditembak). Bola berikutnya di dada naga sedikit lebih kecil (`NEXT_BALL_SCALE = 0.8`). Diameter bola di layar minimal 46 px (HP);
 batas atas `maxRadius`. Hitbox peluru = radius bola yang terlihat (`bulletHitRatio = 1.0`). Bola desimal/pecahan boleh sedikit lebih
 besar di tiap step (`ballScale`, maks 1,2×) agar angka tetap terbaca. Untuk mengubah ukuran semua bola ubah `BALL_RADIUS_RATIO`.
