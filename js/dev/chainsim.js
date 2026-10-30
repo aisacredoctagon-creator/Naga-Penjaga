@@ -217,7 +217,7 @@
             });
           },
           before: function (pairs) { pairs.forEach(function (pr) { snap[pr[0].id] = [pr[0].text, pr[0].qid, pr[0].ci, pr[0].d]; snap[pr[1].id] = [pr[1].text, pr[1].qid, pr[1].ci, pr[1].d]; }); },
-          go: function (pairs) { prevKeys = curKeys; curKeys = {}; nExec += pairs.length; pairs.forEach(function (pr) { const a = snap[pr[0].id], b = snap[pr[1].id]; if (!a || !b || pr[0].text !== a[0] || pr[0].qid !== a[1] || pr[1].text !== b[0] || pr[1].qid !== b[1] || Math.abs(pr[0].d - b[3]) > 0.01 || Math.abs(pr[1].d - a[3]) > 0.01) identBad++; }); }
+          go: function (pairs) { prevKeys = {}; pairs.forEach(function (pr) { prevKeys[Math.min(pr[0].id, pr[1].id) + '|' + Math.max(pr[0].id, pr[1].id)] = 1; }); curKeys = {}; nExec += pairs.length; pairs.forEach(function (pr) { const a = snap[pr[0].id], b = snap[pr[1].id]; if (!a || !b || pr[0].text !== a[0] || pr[0].qid !== a[1] || pr[1].text !== b[0] || pr[1].qid !== b[1] || Math.abs(pr[0].d - b[3]) > 0.01 || Math.abs(pr[1].d - a[3]) > 0.01) identBad++; }); }
         } });
         while (now < 60) {
           const dt = 0.01 + rng() * 0.03; c.update(dt); mgr.update(dt); now += Math.min(dt, gp.MAX_DT);

@@ -25,7 +25,7 @@
 
   /* ================= layout & latar ================= */
   function computeLayout() {
-    const ov = GA.devViewport, cssW = ov ? ov.w : window.innerWidth, cssH = ov ? ov.h : window.innerHeight;      // devViewport: hanya untuk uji (js/dev/qsim.js)
+    const ov = GA.devViewport, cssW = Math.max(1, ov ? ov.w : window.innerWidth), cssH = Math.max(1, ov ? ov.h : window.innerHeight);      // devViewport: hanya untuk uji (js/dev/qsim.js); jendela berukuran 0 (panel tersembunyi) tidak boleh menghasilkan NaN
     const portrait = cssH > cssW;
     const W = portrait ? 540 : 960, H = portrait ? 960 : 540;
     const scale = Math.min(cssW / W, cssH / H);
@@ -61,7 +61,7 @@
       R: r.R, play: L.play, bounds: { x0: 6, y0: L.play.y + 4, x1: L.W - 6, y1: L.H - 6 }, shooter: sh, muzzleR: sh.r * Theme.dragon.mouthDist, style: GA.Nest.styleFor(Theme.scene), maxTotal: r.cfg.hazMax,
       rObs: function () { return Bullets.rObs; },
       clear: function (x, y) { return pathDist(r.path, x, y) - (r.R + Theme.ball.trackMargin); },
-      targetsOpen: function () { if (!r.chain || run !== r) return true; const v = pendingVisible(); return !v.length || v.some(openLine); },
+      targetsOpen: function () { if (!r.chain || run !== r) return true; const v = pendingVisible(); const ab = v.find(function (b) { return b.qid === r.qid; }); return (!v.length || v.some(openLine)) && (!ab || openLine(ab)); },      // revisi 8: bola jawaban soal AKTIF juga harus tetap punya garis terbuka
       randomBall: function () { if (!r.chain || run !== r) return null; const v = pendingVisible().filter(function (b) { return b.qid !== r.qid; }); return v.length ? v[Math.floor(Math.random() * v.length)] : null; },
       fog: function (x, y, rad, dur) { allBalls().forEach(function (b) { if (b.kind === 'num' && b.ch.visible(b) && b.qid !== r.qid && Math.hypot(b.x - x, b.y - y) < rad + r.R) { b.fog = dur; b.fogAge = 0; } }); },
       warn: function (e) { Audio.hazard(e.kind, e.mech, 'warn', e.x / L.W); },

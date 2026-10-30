@@ -97,7 +97,7 @@
 
   /** Pengali CHAIN_BASE_SPEED tiap stage (indeks 0..2). Stage 1 = nilai step lama 1, Stage 2 = step lama 3, Stage 3 (boss) = step lama 5: jalur boss pendek (±22 d), jadi lebih pelan. */
   const SWAP_TELEGRAPH_MIN_MS = 2000;
-  const STAGE_SPEED_MULT = [1, 1, 0.5];
+  const STAGE_SPEED_MULT = [1, 1, 0.75];      // revisi 8 tahap e: 0,5 → 0,75 (jalur spiral ±25 d, bukan ±15 d); dengan 0,5 bola jawaban lambat keluar portal dan Sedang lanskap Stage 3 hanya 77%
 
   /** Model nominal bola yang sudah keluar saat soal ke-k aktif (QM.arrange), diukur dengan bot ?debug=pace: SHUFFLE_EMIT/LEAD = batas bawah konservatif (jawaban hanya di bola yang pasti sudah keluar), SHUFFLE_TEMIT/TLEAD = rata-rata terukur (untuk menyeimbangkan sepertiga rantai); nilai k awal lalu k + lead. Stage 3 (rantai 0,5x) keluar lebih lambat. */
   const STAGE_SHUFFLE = [

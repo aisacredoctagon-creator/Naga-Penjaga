@@ -453,6 +453,46 @@
     ok('telegraf penukaran: dua pasangan (Stage 3 fase 2) berwarna dan berikon beda; prefers-reduced-motion = cincin statis tanpa galat dengan jeda sama', pairsOk && motionOk, 'pasangan ' + pairsOk + ', reduced-motion ' + motionOk);
   }
 
+  /** Revisi 8 tahap e: penempatan rintangan di tata letak spiral — tiap rintangan yang muncul ada di dalam batas, tidak menimpa jalur / bola (jarak ke garis tengah ≥ r + R + margin), tidak menimpa mulut naga,
+   *  lajur rune sepenuhnya di ruang bebas, radius ≥ 60% dasar; tiap jenis berhasil muncul di tiap stage × 3 layar; bola jawaban soal aktif tetap punya garis terbuka sesudah rintangan pemblokir muncul. */
+  async function testHazardPlacement() {
+    const G = GA.game, kinds = ['thorn', 'wave', 'lily', 'crystal', 'geyser', 'hotrock', 'stalactite', 'rune'], bad = [], lowRate = []; let spawned = 0, tries = 0, minRate = 100, activeBlocked = 0, activeN = 0;
+    for (const sz of [[390, 844], [844, 390], [1440, 900]]) {
+      GA.devViewport = { w: sz[0], h: sz[1] }; G.relayout();
+      for (const step of [0, 1, 2]) {
+        G.startAdventure({ slots: ['add', 'sub', 'mul'], same: false, random: false, diff: 'sedang' }, true, step); G.handlers.introGo();
+        for (let i = 0; i < 60 && G.state !== 'playing'; i++) await sleep(100);
+        const r = G.run; if (!r) { bad.push('tidak ada run'); continue; }
+        for (let i = 0; i < 90; i++) G.tick(1 / 30, true);      // rantai sudah keluar dari portal
+        const c = r.haz.c, s = c.shooter, tag = 'S' + (step + 1) + '/' + r.cfg.pathId + '/' + sz.join('x'), margin = GA.Theme.ball.trackMargin;
+        for (const k of kinds) {
+          let ok = 0; const n = 60;
+          for (let i = 0; i < n; i++) {
+            r.haz.clearAll(); tries++;
+            if (!r.haz.spawn(k)) continue; ok++; spawned++;
+            const e = r.haz.list[0], need = e.r + 6 + r.R + margin - 0.5;
+            if (e.lane) {
+              const L = Math.hypot(e.x1 - e.x0, e.y1 - e.y0); for (let u = 0; u <= 1.0001; u += 0.1) { const px = e.x0 + (e.x1 - e.x0) * u, py = e.y0 + (e.y1 - e.y0) * u; if (u > 0.05 && c.clear(px, py) + r.R + margin < e.r + 6 + r.R + margin - 0.5) { bad.push(tag + ' ' + k + ': lajur menimpa jalur'); break; } }
+              if (L < r.R - 0.5) bad.push(tag + ' ' + k + ': lajur terlalu pendek');
+            } else {
+              if (c.clear(e.x, e.y) + r.R + margin < need) bad.push(tag + ' ' + k + ': menimpa jalur/bola (jarak ' + (c.clear(e.x, e.y) + r.R + margin).toFixed(0) + ' < ' + need.toFixed(0) + ')');
+              if (Math.hypot(e.x - s.x, e.y - s.y) - e.r < c.muzzleR + 12 - 0.5) bad.push(tag + ' ' + k + ': menimpa mulut naga');
+              if (e.x < c.bounds.x0 + e.r || e.x > c.bounds.x1 - e.r || e.y < c.bounds.y0 + e.r || e.y > c.bounds.y1 - e.r) bad.push(tag + ' ' + k + ': di luar area');
+            }
+            if (e.mech !== 'blind' && !e.lane && e.r < 0.6 * 17) bad.push(tag + ' ' + k + ': radius terlalu kecil ' + e.r.toFixed(1));
+            if (['crystal', 'geyser', 'hotrock', 'stalactite', 'rune'].indexOf(k) >= 0) { const ab = G.allBalls().find(function (b) { return b.kind === 'num' && b.qid === r.qid && b.ch.visible(b); }); if (ab) { activeN++; if (!G.openLine(ab)) activeBlocked++; } }
+          }
+          const rate = ok / n * 100; minRate = Math.min(minRate, rate); if (rate < 15) lowRate.push(tag + ' ' + k + ' ' + rate.toFixed(0) + '%');
+        }
+        r.haz.clearAll(); G.handlers.quit();
+      }
+    }
+    GA.devViewport = null; G.relayout();
+    ok('rintangan (tahap e): di dalam area, tidak menimpa jalur / bola / mulut naga, lajur rune di ruang bebas, 9 kombinasi stage × layar × 8 jenis', bad.length === 0 && spawned > 0, spawned + ' muncul dari ' + tries + ' percobaan' + (bad.length ? ' | ' + bad.slice(0, 3).join('; ') : ''));
+    ok('rintangan (tahap e): tiap jenis bisa muncul di semua stage × layar (≥ 15% per 60 percobaan)', lowRate.length === 0, 'terendah ' + minRate.toFixed(0) + '%' + (lowRate.length ? ' | ' + lowRate.slice(0, 4).join('; ') : ''));
+    ok('rintangan (tahap e): bola jawaban soal aktif tetap punya garis terbuka sesudah rintangan pemblokir muncul', activeBlocked === 0, activeBlocked + ' terhalang dari ' + activeN + ' pengamatan');
+  }
+
   async function runAll() {
 
 
@@ -462,6 +502,7 @@
     const t0 = performance.now();
     testDecks(); testFormats(); testHud(); testWaves(); testStorage(); testMigrate(); testStrings(); testContrast(); testPaths(); testInvariants();
     await testStages();
+    await testHazardPlacement();
     await testSteal();
     await testAudio();
     await testLayers();

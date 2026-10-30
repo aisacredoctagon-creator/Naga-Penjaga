@@ -41,7 +41,7 @@ Stage terbuka berurutan per kesulitan (stage n+1 terbuka setelah stage n selesai
 ### Gameplay rantai (`js/config/gameplay.js`)
 
 Semua angka kecepatan & kerapatan ada di satu berkas, dalam **diameter bola per detik** (bukan piksel), jadi terasa sama di portrait, landscape, dan
-desktop. Tiga lapis: `DEFAULTS` → `PER_DIFF[mudah|sedang|sulit]` → `STAGE_SPEED_MULT[stage]` (Stage 3 = ×0,5: jalur boss pendek). `Gameplay.resolve(diff, step)` menghasilkan objek `run.gp` yang dibaca `Chain` setiap frame.
+desktop. Tiga lapis: `DEFAULTS` → `PER_DIFF[mudah|sedang|sulit]` → `STAGE_SPEED_MULT[stage]` (Stage 3 = ×0,75 sejak revisi 8; sebelumnya ×0,5). `Gameplay.resolve(diff, step)` menghasilkan objek `run.gp` yang dibaca `Chain` setiap frame.
 
 | Parameter | Arti | Nilai awal |
 |---|---|---|

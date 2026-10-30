@@ -3,6 +3,8 @@
  * Mekanik (satu jenis perilaku, banyak tampilan):
  * REVISI 8 (tembakan lontar): bola api terbang di atas rantai, jadi hanya rintangan TINGGI (blocks: true: kristal, stalaktit, lahar, batu panas, pilar petir rune) yang memblokir garis naga → target;
  *   rintangan rendah (thorn, lily, wave) dilewati lontaran (hanya hiasan sementara). Peluru lontar yang kena rintangan tinggi: strike = hancur + telur hilang, kristal = diserap tanpa hukuman.
+ *   Penempatan (tahap e): ruang bebas hanya cakram sayap di dalam spiral, jadi radius rintangan menyesuaikan ruang (≥ 60% dasar), pilar rune berupa lajur lurus sepanjang ruang bebas,
+ *   dan bola jawaban soal AKTIF harus tetap punya garis terbuka setelah rintangan pemblokir muncul.
  *   slow     memperlambat peluru, tidak memblokir           thorn (semak berduri tipis)
  *   deflect  membelokkan peluru yang melintas               wave (arus/ombak)
  *   reflect  memantulkan peluru satu kali                   lily (teratai/batu licin), crystal (kristal pemantul)
@@ -59,6 +61,13 @@
     phase(e) { return e.t < e.warn ? 'warn' : (e.t < e.warn + e.dur ? 'on' : 'fade'); }
     isOn(e) { return e.t >= e.warn && e.t < e.warn + e.dur; }
 
+    /** Jarak titik ke ruas lajur petir rune (e.x0,y0 → e.x1,y1; tanpa ruas = lajur vertikal lama dari tepi atas area main sampai mulut naga). */
+    laneDist(e, px, py) {
+      const c = this.c, x0 = e.x0 != null ? e.x0 : e.x, y0 = e.y0 != null ? e.y0 : c.play.y, x1 = e.x1 != null ? e.x1 : e.x, y1 = e.y1 != null ? e.y1 : c.shooter.y - c.muzzleR;
+      const vx = x1 - x0, vy = y1 - y0, l2 = vx * vx + vy * vy || 1, u = Math.max(0, Math.min(1, ((px - x0) * vx + (py - y0) * vy) / l2));
+      return Math.hypot(px - (x0 + u * vx), py - (y0 + u * vy));
+    }
+
     /** Posisi rintangan (semua diam di tempat). */
     pos(e, out) {
       out.x = e.x; out.y = e.y;
@@ -82,16 +91,30 @@
       if (K.mech === 'veil') {
         const b = c.randomBall(); if (!b) return false; e.x = b.x; e.y = b.y;
       } else {
+        // revisi 8: ruang bebas di sekitar naga hanya cakram sayap di dalam spiral, jadi radius MENYESUAIKAN ruang yang ada (≥ 60% radius dasar, tidak pernah menimpa bola / jalur)
+        const gap = c.muzzleR + rO + 12, minRad = rad * (K.blocks ? 0.6 : 0.5);      // rintangan rendah (hiasan bagi lontaran) boleh lebih kecil
         let ok = false;
-        for (let k = 0; k < 14 && !ok; k++) {
-          const a = Math.random() * TAU, d = c.muzzleR + rad + rO + 12 + Math.random() * R * 4.2;
-          let x = s.x + Math.cos(a) * d, y = s.y + Math.sin(a) * d;
-          if (K.lane) { y = s.y - rr(c.muzzleR + 40, c.muzzleR + R * 4); x = s.x + rr(-R * 5, R * 5); }
-          if (x < bd.x0 + rad + 6 || x > bd.x1 - rad - 6 || y < bd.y0 + rad + 6 || y > bd.y1 - rad - 6) continue;
-          if (K.mech !== 'blind' && c.clear(x, y) < rad + 6) continue;
-          let clash = false; for (const o of this.list) if (Math.hypot(o.x - x, o.y - y) < o.r + rad + 12) { clash = true; break; }
+        for (let k = 0; k < 28 && !ok; k++) {
+          let x, y, rd = rad;
+          if (K.lane) {      // pilar petir: lajur lurus dari mulut naga ke arah acak, hanya sepanjang ruang bebas (tidak menutupi bola / jalur)
+            const la = Math.random() * TAU, ux = Math.cos(la), uy = Math.sin(la), d0 = c.muzzleR + 4; let len = 0;
+            while (len < R * 6) { const px = s.x + ux * (d0 + len + 6), py = s.y + uy * (d0 + len + 6); if (px < bd.x0 + rd + 6 || px > bd.x1 - rd - 6 || py < bd.y0 + rd + 6 || py > bd.y1 - rd - 6 || c.clear(px, py) < rd + 6) break; len += 6; }
+            if (len < R) continue;
+            const cx = s.x + ux * (d0 + len / 2), cy = s.y + uy * (d0 + len / 2);
+            let clash = false; for (const o of this.list) if (Math.hypot(o.x - cx, o.y - cy) < o.r + rd + len / 2 + 12) { clash = true; break; }
+            if (clash) continue;
+            e.x = cx; e.y = cy; e.x0 = s.x + ux * d0; e.y0 = s.y + uy * d0; e.x1 = s.x + ux * (d0 + len); e.y1 = s.y + uy * (d0 + len); ok = true; continue;
+          }
+          const a = Math.random() * TAU, d = gap + rd + Math.random() * R * 4.2;
+          x = s.x + Math.cos(a) * d; y = s.y + Math.sin(a) * d;
+          if (K.mech !== 'blind') {
+            const free = c.clear(x, y) - 6;
+            if (free < rd) { if (free < minRad || d - free < gap) continue; rd = free; }
+          }
+          if (x < bd.x0 + rd + 6 || x > bd.x1 - rd - 6 || y < bd.y0 + rd + 6 || y > bd.y1 - rd - 6) continue;
+          let clash = false; for (const o of this.list) if (Math.hypot(o.x - x, o.y - y) < o.r + rd + 12) { clash = true; break; }
           if (clash) continue;
-          e.x = x; e.y = y; ok = true;
+          e.x = x; e.y = y; e.r = rd; ok = true;
         }
         if (!ok) return false;
       }
@@ -143,7 +166,7 @@
         if (e.mech !== 'strike' && this.phase(e) !== 'on') continue;
         this.pos(e, p);
         let hit;
-        if (e.lane) hit = Math.abs(b.x - p.x) < e.r + rO && b.y > this.c.play.y && b.y < this.c.shooter.y - this.c.muzzleR;
+        if (e.lane) hit = this.laneDist(e, b.x, b.y) < e.r + rO;
         else { const dx = b.x - p.x, dy = b.y - p.y, q = e.r + rO * 0.55; hit = dx * dx + dy * dy < q * q; }
         if (!hit) continue;
         if (e.mech === 'strike') { e.hit = 0.3; return 'kill'; }
@@ -166,8 +189,12 @@
       const rO = this.c.rObs(), dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, p = { x: 0, y: 0 };
       for (let i = 0; i < this.list.length; i++) {
         const e = this.list[i]; if (!KINDS[e.kind].blocks) continue;
-        const te = e.t + (ahead || 0); if (te > e.warn + e.dur) continue;                 // sudah selesai pada saat peluru tiba
-        if (e.lane) { if ((x0 - e.x) * (x1 - e.x) < 0 || Math.abs(x1 - e.x) < e.r + rO || Math.abs(x0 - e.x) < e.r + rO) return e; continue; }
+        if (e.t > e.warn + e.dur) continue;                 // sudah selesai (fase memudar). Sengaja TIDAK dikurangi `ahead`: rintangan yang berakhir tepat sebelum lontaran mendarat tetap aktif saat peluru melintasinya
+        if (e.lane) {      // lajur lurus: garis terhalang bila melintasi lajur (cuplik sepanjang garis)
+          const hw = e.r + rO;
+          for (let k = 0; k <= 24; k++) { const u = k / 24; if (this.laneDist(e, x0 + dx * u, y0 + dy * u) < hw) return e; }
+          continue;
+        }
         p.x = e.x; p.y = e.y;
         const fx = p.x - x0, fy = p.y - y0, proj = fx * ux + fy * uy; if (proj < 0 || proj > L) continue;
         const d2 = fx * fx + fy * fy - proj * proj, q = e.r + rO * 0.55; if (d2 < q * q) return e;
@@ -195,9 +222,10 @@
         const e = this.list[i], ph = this.phase(e), fade = ph === 'fade' ? 1 - (e.t - e.warn - e.dur) / FADE : 1, hot = sk.hot, warnCol = 'rgba(255,200,70,0.95)';
         ctx.save(); ctx.globalAlpha = fade;
         if (e.lane) {
-          const x = e.x, y0 = this.c.play.y, y1 = this.c.shooter.y - this.c.muzzleR;
-          if (ph === 'warn') { ctx.strokeStyle = 'rgba(200,150,255,' + (0.45 + 0.4 * Math.sin(t * 14)).toFixed(2) + ')'; ctx.lineWidth = e.r * 1.2; ctx.setLineDash([12, 10]); ctx.lineDashOffset = -t * 40; ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke(); ctx.setLineDash([]); this.warnRing(ctx, { x: x, y: (y0 + y1) / 2, r: e.r * 1.6, t: e.t, warn: e.warn }, t, warnCol); }
-          else { ctx.globalCompositeOperation = 'lighter'; ctx.lineJoin = 'round'; const jag = function (w, a, col) { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.globalAlpha = a * fade; ctx.beginPath(); ctx.moveTo(x, y0); for (let yy = y0, k = 0; yy < y1; yy += 22, k++) ctx.lineTo(x + Math.sin(k * 3.1 + t * 90) * 11, yy); ctx.lineTo(x, y1); ctx.stroke(); }; jag(e.r * 1.4, 0.35, 'rgba(160,110,255,1)'); jag(e.r * 0.5, 0.95, '#ffffff'); }
+          const ax = e.x0 != null ? e.x0 : e.x, ay = e.y0 != null ? e.y0 : this.c.play.y, bx = e.x1 != null ? e.x1 : e.x, by = e.y1 != null ? e.y1 : this.c.shooter.y - this.c.muzzleR;
+          const ll = Math.hypot(bx - ax, by - ay) || 1, ux = (bx - ax) / ll, uy = (by - ay) / ll;
+          if (ph === 'warn') { ctx.strokeStyle = 'rgba(200,150,255,' + (0.45 + 0.4 * Math.sin(t * 14)).toFixed(2) + ')'; ctx.lineWidth = e.r * 1.2; ctx.setLineDash([12, 10]); ctx.lineDashOffset = -t * 40; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.setLineDash([]); this.warnRing(ctx, { x: (ax + bx) / 2, y: (ay + by) / 2, r: e.r * 1.6, t: e.t, warn: e.warn }, t, warnCol); }
+          else { ctx.globalCompositeOperation = 'lighter'; ctx.lineJoin = 'round'; const jag = function (w, a, col) { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.globalAlpha = a * fade; ctx.beginPath(); ctx.moveTo(ax, ay); for (let s = 0, k = 0; s < ll; s += 22, k++) { const j = Math.sin(k * 3.1 + t * 90) * 11; ctx.lineTo(ax + ux * s - uy * j, ay + uy * s + ux * j); } ctx.lineTo(bx, by); ctx.stroke(); }; jag(e.r * 1.4, 0.35, 'rgba(160,110,255,1)'); jag(e.r * 0.5, 0.95, '#ffffff'); }
           ctx.restore(); continue;
         }
         this.pos(e, p);

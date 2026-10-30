@@ -27,24 +27,30 @@
     try {
       G.startAdventure(SEL(diff), true, stage); G.startStep(stage, true); G.skipCountdown();
       const r = G.run, sh = r.shooter, B = GA.Shooter.Bullets, maxLives = r.maxLives, causes = {};
-      let m = { x: 0, y: 0 }, qStart = 0, t = 0, lastQ = -9, think = 0, wantWrong = false, lives = r.lives, wrongShots = 0, cool = 0;
+      let m = { x: 0, y: 0 }, qStart = 0, t = 0, lastQ = -9, think = 0, wantWrong = false, lives = r.lives, wrongShots = 0, cool = 0, lastShot = null;
       const maxT = o.maxT || 900;
       while (t < maxT) {
         if (G.state === 'paused') G.handlers.resume();
         const st = G.state; if (st !== 'playing' && st !== 'cine') break;
         G.tick(DT, true); t += DT; cool -= DT;
-        if (r.lives < lives) { const k = r.reason || '?'; causes[k] = (causes[k] || 0) + (lives - r.lives); if (o.log) o.log.push({ t: +t.toFixed(1), reason: k, qid: r.qid, solved: r.correct, think: +think.toFixed(1), wantWrong: wantWrong, since: +(t - qStart).toFixed(1), nballs: r.chain.balls.length, canFire: sh.canFire() }); }
+        if (r.lives < lives) { const k = r.reason || '?'; causes[k] = (causes[k] || 0) + (lives - r.lives); if (o.log) o.log.push({ t: +t.toFixed(1), reason: k, qid: r.qid, solved: r.correct, think: +think.toFixed(1), wantWrong: wantWrong, since: +(t - qStart).toFixed(1), nballs: r.chain.balls.length, canFire: sh.canFire(), haz: o.hazLog ? r.haz.list.map(function (h) { return h.kind + ' t' + h.t.toFixed(2) + ' r' + Math.round(h.r) + ' hit' + (h.hit || 0).toFixed(2); }) : undefined, fired: o.hazLog ? lastShot : undefined }); }
         lives = r.lives;
         if (G.state !== 'playing' || !r.q) continue;
         if (r.qid !== lastQ) { lastQ = r.qid; qStart = t; if (o.stat) record(o.stat, r, G); think = Math.max(o.minThink || 1.5, o.think[0] + o.think[1] * gauss(rnd)); wantWrong = rnd() >= o.acc; }
-        think -= DT; if (think > 0 || cool > 0 || !sh.canFire() || G.anySettling() || r.chain.balls.some(function (b) { return b.sw; })) continue;
+        think -= DT;
+        if (o.diag && think <= 0) { const dg = o.diag, why = cool > 0 ? 'jeda-tembak' : !sh.canFire() ? 'isi-ulang' : G.anySettling() ? 'rantai-bergerak' : r.chain.balls.some(function (b) { return b.sw; }) ? 'penukaran' : null; if (why) dg[why] = (dg[why] || 0) + 1; }
+        if (think > 0 || cool > 0 || !sh.canFire() || G.anySettling() || r.chain.balls.some(function (b) { return b.sw; })) continue;
         // bidik titik pusat bola (target-lock memilih bola itu) lalu uji garis lurus naga → target dari rintangan tinggi
         const tryAim = function (b) { return G.aimAtBall(b) === b && G.openLine(b); };
         let aimed = false;
         if (wantWrong) { const vis = G.pendingVisible().filter(function (b) { return b.kind === 'num' && b.qid !== r.qid; }); for (let i = vis.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)), x = vis[i]; vis[i] = vis[j]; vis[j] = x; } for (let i = 0; i < vis.length && !aimed; i++) aimed = tryAim(vis[i]); }
         else { const tgt = G.allBalls().find(function (b) { return b.kind === 'num' && b.qid === r.qid && b.ch.visible(b); }); aimed = !!tgt && tryAim(tgt); }
-        if (!aimed) continue;
+        if (!aimed) {
+          if (o.diag) { const tg = G.allBalls().find(function (b) { return b.kind === 'num' && b.qid === r.qid; }), dg = o.diag, why = wantWrong ? 'salah-tak-ada-jalur' : !tg ? 'bola-di-antrean' : !tg.ch.visible(tg) ? 'bola-belum-terlihat' : G.aimAtBall(tg) !== tg ? 'kunci-bukan-target' : 'terhalang-rintangan'; dg[why] = (dg[why] || 0) + 1; if (why === 'bola-belum-terlihat') { dg.gapSum = (dg.gapSum || 0) + (tg.ch.entryD - tg.d) / tg.ch.D; dg.idxSum = (dg.idxSum || 0) + tg.ch.balls.indexOf(tg); dg.nSum = (dg.nSum || 0) + tg.ch.balls.length; dg.qSum = (dg.qSum || 0) + tg.ch.spawnQ.length; } }
+          continue;
+        }
         if (wantWrong) { wrongShots++; wantWrong = false; think = 0.8; } else think = 1.2;      // setelah salah: menembak benar lagi hampir langsung; setelah benar: soal berganti
+        if (o.hazLog) { const lt = G.lockTarget(); lastShot = { t: +t.toFixed(2), lock: !!lt, blocked: r.lockBlocked, hz: r.haz.list.map(function (h) { return h.kind + ' t' + h.t.toFixed(2); }) }; }
         G.fire(); cool = 0.35;
       }
       const win = G.state === 'clearing' || G.state === 'stepdone';
