@@ -74,7 +74,7 @@ Flag lain (boleh digabung, mis. `?debug=tune,chain`): `chain` = overlay garis hi
 ### Telur, bintang, kontrol
 
 - **Telur = nyawa, selalu 3/3** (ikon di HUD). Telur di-refresh penuh di awal **setiap stage**, termasuk saat **Ulangi**. Telur berkurang karena: jawaban salah
-  (`WRONG_ANSWERS_PER_EGG` = 1 di `js/config/gameplay.js`), bola sihir sampai ke sarang, atau terkena zona berbahaya. **Telur emas** memulihkan satu telur tetapi tidak pernah melebihi 3.
+  (`WRONG_ANSWERS_PER_EGG` = 2 di `js/config/gameplay.js`: dua jawaban salah = satu telur; diubah dari 1 di revisi 7 karena dengan akurasi pemain 90% satu telur per salah membatasi kemenangan ≈ 68%, lihat `docs/pacing-c.md`), bola sihir sampai ke sarang, atau terkena zona berbahaya. **Telur emas** memulihkan satu telur tetapi tidak pernah melebihi 3.
   0 telur = Game Over untuk stage itu. Hanya **satu portal, satu rantai, satu sarang** di semua stage.
 - Bintang (`STAR_3_PCT` 90%, `STAR_2_PCT` 70%): menurut persentase soal yang dijawab **benar pada percobaan pertama**; 1 bintang bila stage selesai.
 - Pecahan **bersusun**; jawaban pecahan harus **bentuk paling sederhana** (1/2 ≠ 2/4), desimal memakai **koma**, tanda negatif "−".
@@ -108,11 +108,12 @@ Menambah jenis: tambahkan ke `KINDS` (hazards.js: mekanik, radius, waktu peringa
 
 ### Penukaran bola (`js/swap.js`)
 
-Dua bola jawaban bertukar **tempat** (hanya posisi; soal aktif, teks, warna tidak berubah; rantai tetap rapat). Satu modul untuk semua sumber: kelelawar (Stage 2), penyihir (Stage 3, tongkat menyala), dan penukar anti-macet.
-- **Indikator** `SWAP_TELEGRAPH` (1,8 dtk): kedua bola berdenyut dengan cincin cahaya, dihubungkan busur energi melengkung dengan lencana **⇄** + cincin hitung mundur, SFX naik nada; menempel pada bola dan berukuran menurut radius bola. Coachmark ⇄ ("Dua bola akan bertukar") tampil sekali di zona informasi (tersimpan di localStorage).
-- **Eksekusi** `SWAP_ANIM` (0,45 dtk): gerak melengkung (satu di atas, satu di bawah jalur) + percikan. Bila salah satu bola hancur/menjadi terlarang saat indikator → batal ("fizzle").
-- **Pasangan acak ber-seed**: dua bola jawaban terlihat, jarak di rantai bervariasi, nilai berbeda, bukan pasangan yang sama dua kali berturut-turut; dikecualikan bola yang sedang keluar dari portal, hancur/disisipi, sudah terjawab, dan 10% terakhir jalur (`SWAP_END_GUARD`). Jeda juga acak: `Gameplay.SWAP_EVERY = [null, [20, 30], [12, 20]]`, `SWAP_PAIRS_PHASE2 = 2`.
-- Jeda/rotasi layar membekukan hitung mundur; posisi diambil dari bola tiap frame.
+Dua bola jawaban bertukar **tempat** (hanya posisi; soal aktif, teks, warna tidak berubah; rantai tetap rapat). Satu modul untuk semua sumber: kelelawar (Stage 2), penyihir (Stage 3, tongkat menyala), dan penukar anti-macet. **Tidak mendadak:** dari peringatan sampai mulai menukar `SWAP_TELEGRAPH_MS` (default **2500 ms**, dijepit ≥ 2000) dalam tiga fase:
+1. **Peringatan** (0,8 dtk, `SWAP_WARN_MS`): ikon ⇄ + teks di zona informasi HUD, SFX peringatan, pelaku mulai beraksi, cincin putus-putus samar di kedua bola.
+2. **Sorot** (±1,7 dtk): cincin kontras berdenyut di kedua bola, lencana ⇄ melayang di atas tiap bola dengan cincin hitung mundur yang mengisi, busur energi putus-putus, SFX naik nada. Menempel pada bola (mengikuti rantai), berukuran menurut radius bola, bentuk ikon wajib ada (bukan hanya warna), digambar di lapisan 7 (tidak pernah tertutup). `prefers-reduced-motion`: cincin statis, jeda tetap sama.
+3. **Tukar** (`SWAP_ANIM` 0,5 dtk): gerak melengkung (satu di atas, satu di bawah jalur; lengkung ke atas ditahan di bawah zona HUD, `GA.view.minY`) tanpa celah; sesudahnya cincin memudar 1 dtk (`SWAP_AFTER`) di posisi **baru**.
+
+Aturan: tidak ada penukaran terjadwal dalam 4 dtk pertama stage atau 3 dtk setelah soal aktif berganti; eksekusi ditahan selama peluru terbang; bola hancur/terjawab/hilang selama telegraf membatalkan pasangan itu (efek kecil); jeda membekukan hitung mundur; rotasi layar tidak mengulang/memotong hitung mundur (pasangan batal bila bolanya jatuh di belakang portal pada jalur baru); satu penukaran pada satu waktu, kecuali Stage 3 fase 2 (`SWAP_PAIRS_PHASE2` = 2: pasangan kedua magenta → oranye dengan ikon ⇅). Pasangan acak ber-seed di antara bola jawaban terlihat (jarak 2–9 di rantai, nilai berbeda, bukan pasangan sama berturut-turut; bukan bola yang baru keluar portal / 10% terakhir jalur, `SWAP_END_GUARD`). Jeda antar-penukaran: `Gameplay.SWAP_EVERY = [null, [20, 30], [12, 20]]`. Rincian dan bukti: `docs/swap-e.md`.
 
 ### Zona informasi & umpan balik
 
@@ -124,9 +125,8 @@ Setelah stage selesai (menang) maupun Game Over: telur tersisa, persentase benar
 
 ### Jalur & peta
 
-- [Kolam stage sekarang memakai arketipe baru di bagian "Tata letak" di atas; daftar berikut arketipe lama yang tidak lagi dipakai kolam.] Arketipe jalur di `js/maps/paths.js` (landscape + portrait, divalidasi untuk radius bola 26–32 pada area main di bawah HUD): `hook`, `serp3`, `serp3w`, `serp4`, `serp4w` (padat; jumlah baris menyesuaikan radius bola), `s2`, `zigzag`, `figure8` (persilangan + jembatan), `horseshoe`, `bossU/bossU2/bossBowl`. Tiap stage memilih acak dari 3–5 jalur dan 3–6 peta (disimpan agar "Ulangi" memakai yang sama).
+- Arketipe jalur (revisi 7, semua jalur lama dihapus) di `js/maps/paths.js`: Stage 1 `siput1-3`, Stage 2 `lobus1-3`, Stage 3 `poligon1-3`; tiap varian punya definisi potret dan lanskap/desktop. Tiap stage memilih acak satu varian per petualangan (disimpan agar "Ulangi" memakai yang sama). Lihat "Tata letak" di bawah.
 - Menambah peta: salin satu entri di `js/maps/variants.js`, daftarkan di `Levels.STAGES[n].pool`, `Levels.ZONE`, dan alias warna di `js/theme.js`.
-- **Belum ada:** arketipe spiral dan "dua jalur bertemu".
 
 ### Final boss (`js/boss.js` + rig `js/render/wizard.js`)
 
@@ -134,13 +134,33 @@ Darah **proporsional**: 20 soal = 20 HP, tiap jawaban benar −1. `Gameplay.BOSS
 
 ### Tata letak: naga di tengah, lapisan render, penukaran, posisi bola
 
-**Urutan lapisan (tetap, bawah → atas):** 1 latar, 2 alur jalur, 3 dekorasi/objek depan (`Scenery.drawFront`, dijauhkan ≥ 3,2R dari garis tengah jalur; dekorasi ≥ 2,2R), 4 dasar/glow portal, 5 **bola** (alpha selalu 1), 6 bola api + efek tembakan, 7 overlay penukaran, 8 HUD/popup. Tidak ada kerucut cahaya, vignette, kabut, atau objek depan di atas bola; garis bidik putus-putus digambar di bawah bola. Vignette ada di lapisan dasar. `?debug=layers` menandai merah bola yang bertumpang tindih (HUD = 1,5R di bawah panel, objek depan, sarang, boss, naga, rintangan) dan menggambar garis zona cadangan HUD; uji geometri di `?test=1` memeriksa semua jalur × 3 ukuran layar.
+**Urutan lapisan (tetap, bawah → atas):** 1 latar, 2 alur jalur, 3 dekorasi/objek depan (`Scenery.drawFront`, dijauhkan ≥ 3,2R dari garis tengah jalur; dekorasi ≥ 2,2R), 4 dasar/glow portal, 5 **bola** (alpha selalu 1), 6 bola api + efek tembakan, 7 overlay penukaran, 8 HUD/popup. Tidak ada kerucut cahaya, vignette, kabut, atau objek depan di atas bola; garis bidik putus-putus digambar di bawah bola. Vignette ada di lapisan dasar. `?debug=layers` menandai merah bola yang bertumpang tindih (HUD = 1,5R potret / 1,0R lanskap di bawah panel, objek depan, sarang, boss, naga, rintangan) dan menggambar garis zona cadangan HUD; uji geometri di `?test=1` memeriksa semua jalur × 3 ukuran layar.
 
-**Naga di tengah, jalur mengelilingi** (`js/maps/paths.js`, generator `polar()`): peluru berhenti di **bola pertama yang tersentuh** (`Chain.hit`, radius sentuh = 0,92R + radius peluru), jadi hanya jalur **satu lap** yang "bintang" dari pusat yang aman; spiral 2 putaran / cincin ganda membuat bola luar terlindung bola dalam. Arketipe (potret dan lanskap terpisah): Stage 1 `ring1` (oval), `spiral1` (spiral masuk satu lap), `twoside` (persegi membulat); Stage 2 `kuda` (tapal kuda), `petal3` (kelopak), `ring2`; Stage 3 `bkuda`, `bkuda2`, `bkudaW` (boss di bukaan atas pada potret, di luar cincin pada lanskap). Ujung jalur turun ke tepi platform tengah, sarang menyatu dengan platform. Validator (`analyzeStar`, tampil di `?debug=1`): sudut kumulatif ≤ 360°, ray test dari naga (lap lain ≤ 6%, tetangga satu untai ≤ 35% potret / 45% lanskap; pembanding jalur lama `hook` 39% / 71%), jalur ≥ 2,5R di bawah HUD (`L.padTop`), jarak ke pusat ≥ jangkauan sayap (`Paths.WING_REACH` = 1,6 × radius badan; `Theme.dragon.wingSpan` 0,62). **Jalur lebih pendek** dari serpentin lama (≈ 15–19 diameter potret, ≈ 11–12 lanskap) karena batas bintang dan tinggi area lanskap; kecepatan rantai (diameter/dtk) tidak diubah.
+**Naga di tengah, jalur mengelilingi** (`js/maps/paths.js`, generator `snail()`): naga/platform/sarang tepat di tengah area bermain (setelah dikurangi HUD dan zona informasi); jalur **satu lap** (≤ 330°, celah portal/sarang ≥ 30°) yang mengelilingi naga, berujung di platform; portal di tepi luar, penuh di dalam area bermain dan tidak di bawah HUD. Peluru sebesar bola dan berhenti di **bola pertama yang tersentuh** (`Chain.hit`: sentuh pada 0,92R + radius peluru dari pusat bola; peluru lahir di mulut naga, 2,83R dari pusat), jadi bentuk jalur harus hampir melingkar dari pusat naga. Arketipe: Stage 1 **siput** (lingkaran/oval ≤ 1,1 yang mengecil pelan menuju sarang), Stage 2 **lobus** (cincin dengan 4–6 lobus kecil), Stage 3 **poligon** bulat 5–6 sisi + boss di luar cincin (atas pada potret, samping pada lanskap). `snail()` menyetel otomatis (sapuan, pemipihan, amplitudo lobus, jari-jari ujung) dari bentuk paling bergaya ke paling polos sampai invarian lulus 100%, lalu menyimpan hasilnya per ukuran.
 
-**Indikator penukaran** (`js/swap.js`): 1,8 dtk sebelum menukar, kedua bola mendapat cincin cyan → emas bergelombang dengan garis luar gelap, lencana ⇄ melayang di atas tiap bola dengan cincin hitung mundur yang mengisi, dan busur putus-putus (mulai dari tepi cincin). Digambar di lapisan 7; lencana dijaga di bawah HUD dan di dalam layar. Ikon ⇄ + teks pendek juga muncul di zona informasi HUD; coachmark pertama kali disimpan di localStorage. Pasangan dipilih ber-seed dengan jarak 2–9 bola di rantai (bukan hanya bertetangga), bukan pasangan sama berturut-turut, bukan bola yang baru keluar portal / di 10% terakhir. Pasangan batal hanya bila bola hancur/terjawab/hilang. `?debug=swap`: tombol "⇄ Tukar" (atau tombol X) memicu indikator sekarang.
+**Invarian jalur (divalidasi tiap jalur dibangun, `analyzeStar`; `?debug=1` menampilkannya):**
+- **INV-1 (tidak ada bola tertutup):** rantai penuh dan rapat; untuk setiap posisi bola sepanjang jalur (langkah 0,25R) tiga sinar dari naga (ke pusat dan ke tepi ±0,7R) harus mengenai bola itu sendiri lebih dulu. Syarat lulus memakai peluru nyata (cakram 0,92R + R, berangkat dari mulut); sinar tipis (cakram R) dilaporkan sebagai pembanding. Konsekuensi: lobus/elips kuat tidak mungkin lolos (kemiringan jalur terhadap garis tegak-lurus-radial ≲ 0,1); amplitudo lobus akhirnya hanya 2–4 px dan oval ≤ 1,1.
+- **INV-2:** naga di tengah area bermain; jalur mengelilingi (sudut hanya bertambah) dan berujung di platform; jarak ke naga ≥ jangkauan sayap (`wingNeed`); pusat bola ≥ (celah HUD + 1)R di bawah panel HUD (`L.hudGap`: 1,5 potret, 1,0 lanskap; `padTopFor(L, R)` mengikuti radius stage); portal penuh di area bermain.
+- **INV-3:** jarak antar-segmen jalur ≥ 2,5R + lebar alur (8).
+- Uji `?test=1` (`testInvariants`): 27 jalur × 3 ukuran layar (390×844, 844×390, 1440×900), 8.577 sinar, 100% lulus; `testPaths` memeriksa radius 26–36. Overlay `?debug=1` menggambar jalur, sinar uji (hijau = kena bola itu sendiri, merah = terhalang), bola tertutup berisi merah, dan laporan.
 
-**Posisi bola jawaban** (`QM.arrange`, konstanta `SHUFFLE_*` di `js/config/gameplay.js`): urutan antrean soal tidak berubah; posisi bola di rantai diacak ber-seed per stage per percobaan (urutan baru tiap Ulangi, layout sama). Bola soal ke-k keluar di posisi [k − 6, k + 8]; jawaban soal pertama di 3 bola pertama (slot acak); maks 2 jawaban berurutan bertetangga. Penjaga runtime: bila bola jawaban soal yang baru aktif berada di 12% terakhir jalur, rantai melambat ±3 dtk tanpa menandai bola. Jawaban benar tidak pernah disorot. Uji: 3000 seed + model nominal 7 dtk/jawaban pada semua jalur × 3 layar.
+**Indikator penukaran:** lihat bagian "Penukaran bola" di atas (telegraf 2,5 dtk).
+
+**Posisi bola jawaban** (`QM.arrange`, `js/qmanager.js`; konstanta `SHUFFLE_*` dan `STAGE_SHUFFLE` di `js/config/gameplay.js`): urutan antrean soal tidak berubah; urutan keluar bola jawaban dari portal diundi ber-seed (gaya Fisher-Yates, undian tanpa pengembalian) ke SELURUH rantai per stage per percobaan (urutan baru tiap Ulangi, layout sama). Jawaban soal pertama = bola pertama yang keluar (terlihat begitu hitung mundur selesai); jawaban soal ke-k hanya diundi di antara bola yang sudah keluar saat soal itu aktif (model keluarnya bola diukur dengan bot, per stage); tiap soal diundi ke sepertiga rantai (depan/tengah/ekor) menurut sasaran seimbang; maks 2 jawaban berurutan bertetangga. Penjaga runtime: bila bola jawaban soal yang baru aktif berada di 12% terakhir jalur, rantai melambat ±3 dtk tanpa menandai bola (0 kejadian dalam 54.000 aktivasi bot). Jawaban benar tidak pernah disorot. Hasil di mesin asli (bot, 300 putaran × 9 sel): tiap sepertiga 24,8–41,9% di antara bola jawaban yang ada; rincian dan catatan metrik di `docs/shuffle-d.md`. `lineBlocker` (`js/main.js`) mengikuti fisika peluru yang sama (`Chain.hit` memilih pusat terdekat).
+
+**Kecepatan permainan (bot):** `js/dev/pacing.js` (`?debug=pace`, `GA.Pace.play/run`): pemain buatan (jawab ~N(6, 2) dtk, akurasi 90%, PRNG ber-seed) pada mesin asli tanpa render; Sedang menang 87–94% di potret dan lanskap (`docs/pacing-c.md`). Kecepatan rantai tidak diubah; yang diubah hanya `WRONG_ANSWERS_PER_EGG` (1 → 2).
+
+**Alat debug dan uji (revisi 7):**
+| Parameter URL | Fungsi |
+|---|---|
+| `?debug=1` | overlay jalur: sinar INV-1, bola tertutup merah, ruang naga/boss, laporan validator |
+| `?debug=sim` | simulasi kerapatan rantai + penukaran + soal aktif tanpa render (`GA.Sim`, `GA.QSim`) |
+| `?debug=swap` | tombol "⇄ Tukar" atau tombol X memicu telegraf penukaran sekarang (melewati penjaga waktu) |
+| `?debug=pace` | bot kecepatan (`GA.Pace`); `GA.Pace.newStat()` mengukur posisi jawaban soal aktif |
+| `?debug=layers` | tanda merah bola yang tertimpa (HUD, objek depan, sarang, boss, naga, rintangan) |
+| `?debug=aim` | sapu sudut bidik 0–360° termasuk ke portal |
+| `?test=1` | seluruh suite (±3,5 mnt, `GA.Tests.results`); `?test=1&only=swap` hanya telegraf penukaran |
+| `?resp=1` | `await GA.Resp.check()` memeriksa tiap layar pada viewport sekarang |
 
 ### Soal aktif (`js/qmanager.js`)
 
@@ -275,13 +295,12 @@ Gambar bawaan semuanya prosedural. Untuk memakai ilustrasi sendiri, daftarkan be
 
 ## Jalur & peta (js/maps/)
 
-- `maps/paths.js`: **pustaka arketipe jalur** berbasis data. Tiap arketipe punya definisi LANDSCAPE dan PORTRAIT sendiri (titik kontrol ternormalisasi), posisi penembak/boss, dan opsional zona kecepatan. Step 1: `hook`, `serp3`, `s2`, `serp4`. Step 2: `zigzag`, `figure8` (persilangan dengan jembatan), `horseshoe`, `serp4w`. Step 3: `serp4`, `figure8`, `zigzag`, `serp3w`. Step 4: `horseshoe`, `serp4w`, `s2`, `serp3w`. Step 5: `dualU`, `dualW`, `dualC` (dua sarang). Jalur dan peta dipilih acak per petualangan (`Levels.pick`), disimpan di `adv.picks` supaya Ulangi memakai yang sama.
+- `maps/paths.js`: **pustaka arketipe jalur** (revisi 7: semua jalur lama dihapus). `siput1-3` (Stage 1), `lobus1-3` (Stage 2), `poligon1-3` (Stage 3), masing-masing dengan definisi potret dan lanskap; naga di tengah area bermain. Generator, invarian INV-1..3, dan alat debug dijelaskan di "Tata letak: naga di tengah" (bagian Gameplay di atas).
 - Spline Catmull-Rom sentripetal, tabel panjang busur (`path.js`), jumlah bola mengikuti panjang jalur dan `BALL_RADIUS`.
-- **Validator** (otomatis tiap jalur dibangun): jarak antar-segmen ≥ 2,5R + 8, radius tikungan ≥ 1,15R, jalur di dalam layar, ruang penembak/boss bebas, deteksi persilangan. Tikungan tajam dilunakkan otomatis.
-- **Jembatan**: di persilangan, deck batu digambar di lapisan depan; bola di jalur bawah lewat di bawahnya, bola di jalur atas (`path.overWindows`) digambar setelahnya.
-- **Mode debug** `index.html?debug=1`: menampilkan jalur (cyan), titik kontrol bernomor, pelanggaran jarak (merah), tikungan tajam (oranye), persilangan (hijau), zona kecepatan (magenta), ruang penembak/boss, titik portal, dan laporan validator.
+- **Validator** (otomatis tiap jalur dibangun, `analyze` + `analyzeStar`): INV-1 (tidak ada bola tertutup, peluru nyata), INV-2 (naga di tengah, sayap, HUD, portal), INV-3 (jarak antar-segmen ≥ 2,5R + 8); hasilnya di `path.report`.
+- **Mode debug** `index.html?debug=1`: menampilkan jalur (cyan), titik kontrol, sinar uji INV-1 (hijau/merah), bola tertutup (merah), pelanggaran jarak, ruang penembak/boss, titik portal, dan laporan validator.
 - Peta (`GA.Maps`): `forest`, `grove` (Step 1); `volcano`, `crystal` (Step 2); `tower`, `tower2` (Step 3). Satu file data per tema berisi palet, jenis dasar (`moss|basalt|cave|flags`), komposisi dekorasi (`mix`), elemen depan (`front`: `leaf|stone|hall`), dan opsi efek. Untuk menambah peta: salin salah satu file, ubah palet/`mix`, lalu daftarkan idnya di `Levels` (`POOL`) dan `Theme.scenes`.
-- Zona kecepatan: `zones` pada arketipe (mis. `serp3`) mempercepat rantai di bagian jalur tertentu.
+- Zona kecepatan: `zones` pada arketipe (tidak dipakai jalur baru) mempercepat rantai di bagian jalur tertentu.
 
 ## Bola sihir, bola api, portal, telur & sarang
 
