@@ -90,9 +90,12 @@
     go: function () { tone(1175, 1175, 0.28, 'square', 0.16); tone(1568, 1568, 0.3, 'square', 0.14, 0.05); },
     /* ---- naga & tembakan ---- */
     swap: function () { tone(500, 760, 0.08, 'triangle', 0.2); },
-    swapWarn: function () {      // peringatan penukaran: denyut makin cepat dan naik nada selama ±1,8 dtk
-      for (let i = 0; i < 7; i++) tone(520 + i * 85, 540 + i * 92, 0.11, 'triangle', 0.1 + i * 0.015, i * (0.34 - i * 0.03), { wet: 0.3 });
-      tone(1500, 2100, 0.3, 'sine', 0.08, 1.6, { wet: 0.4 });
+    swapWarn: function (dur) {      // peringatan penukaran selama `dur` dtk (≥ 2,5): 3 bip peringatan (0,8 dtk), lalu denyut yang makin rapat dan NAIK nada sampai saat menukar
+      dur = dur || 2.5; const w = Math.min(0.8, dur * 0.5);
+      for (let i = 0; i < 3; i++) tone(i % 2 ? 660 : 880, i % 2 ? 620 : 840, 0.14, 'square', 0.1, i * w / 3, { wet: 0.25 });
+      const N = 11, L = dur - w - 0.1;
+      for (let i = 0; i < N; i++) { const u = i / (N - 1), at = w + L * (1 - Math.pow(1 - u, 1.5)); tone(480 + 1100 * u, 520 + 1150 * u, 0.1, 'triangle', 0.1 + 0.07 * u, at, { wet: 0.3 }); }
+      tone(1500, 2200, 0.3, 'sine', 0.08, dur - 0.3, { wet: 0.4 });
     },
     swapGo: function () { noise(0.4, 0.2, 0, 3200, { type: 'bandpass', q: 1.5, f1: 700, att: 0.06, wet: 0.3 }); tone(420, 880, 0.3, 'sine', 0.16, 0, { wet: 0.3 }); [1200, 1700, 2300].forEach(function (f, i) { tone(f, f, 0.1, 'sine', 0.07, 0.12 + i * 0.07, { wet: 0.5 }); }); },
     fizzle: function () { noise(0.25, 0.13, 0, 1800, { type: 'lowpass', f1: 600 }); tone(500, 150, 0.25, 'triangle', 0.12, 0, { wet: 0.2 }); },

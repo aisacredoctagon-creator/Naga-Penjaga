@@ -35,7 +35,7 @@
     if (run && Math.abs(ballR - run.baseR) < 3) ballR = run.baseR; // jangan bangun ulang jika jendela hanya berubah sedikit
     L = { portrait: portrait, W: W, H: H, scale: scale, dpr: dpr, cssW: cssW, cssH: cssH, ox: (cssW - W * scale) / 2, oy: (cssH - H * scale) / 2,
       px: dpr * scale, hud: hud, ballR: ballR, pad: ballR + Theme.ball.trackMargin + 6, hudGap: portrait ? 1.5 : 1.0, padTop: Math.round(((portrait ? 1.5 : 1.0) + 1) * ballR * (portrait ? 1.12 : 1.05)), play: { x: 0, y: hud, w: W, h: H - hud - (portrait ? 12 : 0) } };
-    GA.view = { W: W, H: H, hud: hud };
+    GA.view = { W: W, H: H, hud: hud, minY: hud + (L.hudGap + 1) * ballR - 2 };      // minY: pusat bola tidak boleh lebih tinggi (gerak tukar melengkung tidak masuk ke zona HUD / bar boss)
     FX.unit = ballR / 25; Bullets.setSize(run ? run.R : ballR);
     canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
     UI.placeHudButton(L);
@@ -282,8 +282,9 @@
       chain: c, rng: GA.QM.prng((run.qm.seed ^ 0x5A17C0DE) >>> 0), every: Gameplay.SWAP_EVERY[cfg.step] || null, gp: run.gp, qm: run.qm, actor: cfg.isBoss ? 'wizard' : 'bat',
       pairs: function () { return swapPhase2() ? run.gp.SWAP_PAIRS_PHASE2 : 1; },
       hooks: {
-        warn: function (pairs) {      // indikator ~1,8 dtk: SFX naik nada; pelaku mulai beraksi (penyihir mengangkat tongkat, kelelawar mendekat)
-          Audio.play('swapWarn', pairs.length);
+        busy: function () { return Bullets.list.some(function (b) { return b.on; }); },      // peluru terbang: eksekusi ditahan (indikator tetap tampil)
+        warn: function (pairs) {      // peringatan ≥ 2,5 dtk sebelum menukar: SFX peringatan lalu naik nada; pelaku mulai beraksi (penyihir mengangkat tongkat, kelelawar mendekat)
+          Audio.play('swapWarn', run.gp.SWAP_TELEGRAPH);
           if (run.boss) { run.boss.castT = run.gp.SWAP_TELEGRAPH; run.boss.say(run.boss.def.lines.spell.swap, 1.6); }
           if (!Storage.swapSeen) { Storage.swapSeen = true; setInfo({ tone: 'coach', icon: 'swap', text: T('coach.swap'), dur: 2.6 }); } else setInfo({ tone: 'info', icon: 'swap', text: T('coach.swap'), dur: run.gp.SWAP_TELEGRAPH });      // coachmark ⇄ sekali, tersimpan; ikon ⇄ juga muncul di zona informasi HUD setiap penukaran
         },

@@ -56,8 +56,12 @@
     STAR_3_PCT: 0.9,                // bintang 3: benar-pertama-kali >= 90%
     STAR_2_PCT: 0.7,                // bintang 2: >= 70%; bintang 1: stage selesai
     BOSS_HP_BARS: 2,                // 1 atau 2 bar darah boss (2: bar 1 habis di soal ke-10 = fase 2)
-    SWAP_TELEGRAPH: 1.8,            // detik indikator sebelum dua bola bertukar tempat
-    SWAP_ANIM: 0.45,                // detik gerak tukar (melengkung)
+    SWAP_TELEGRAPH_MS: 2500,        // dari peringatan sampai MULAI menukar (ms): peringatan ±0,8 dtk + sorot ±1,7 dtk; batas bawah 2000 (SWAP_TELEGRAPH_MIN_MS). Dipakai sebagai detik di run.gp.SWAP_TELEGRAPH
+    SWAP_WARN_MS: 800,              // fase peringatan (ikon ⇄ di zona informasi + SFX + pelaku mulai beraksi); sisanya fase sorot (cincin, ikon di atas bola, busur, hitung mundur)
+    SWAP_ANIM: 0.5,                 // detik gerak tukar (melengkung)
+    SWAP_AFTER: 1.0,                // detik setelah menukar cincin memudar di posisi BARU
+    SWAP_MIN_START: 4,              // tidak ada penukaran dalam sekian detik pertama stage
+    SWAP_AFTER_QUESTION: 3,         // ...dan dalam sekian detik setelah soal aktif berganti
     SWAP_END_GUARD: 0.1,            // bola di 10% terakhir jalur menuju sarang tidak boleh ditukar
     SWAP_PAIRS_PHASE2: 2,           // Stage 3, fase 2 boss: jumlah pasangan yang bertukar sekaligus
 
@@ -83,6 +87,7 @@
   };
 
   /** Pengali CHAIN_BASE_SPEED tiap stage (indeks 0..2). Stage 1 = nilai step lama 1, Stage 2 = step lama 3, Stage 3 (boss) = step lama 5: jalur boss pendek (±22 d), jadi lebih pelan. */
+  const SWAP_TELEGRAPH_MIN_MS = 2000;
   const STAGE_SPEED_MULT = [1, 1, 0.5];
 
   /** Model nominal bola yang sudah keluar saat soal ke-k aktif (QM.arrange), diukur dengan bot ?debug=pace: SHUFFLE_EMIT/LEAD = batas bawah konservatif (jawaban hanya di bola yang pasti sudah keluar), SHUFFLE_TEMIT/TLEAD = rata-rata terukur (untuk menyeimbangkan sepertiga rantai); nilai k awal lalu k + lead. Stage 3 (rantai 0,5x) keluar lebih lambat. */
@@ -95,6 +100,7 @@
   /** Metadata slider panel ?debug=tune: [min, max, langkah, satuan]. */
   const META = {
     CHAIN_BASE_SPEED: [0.05, 0.6, 0.005, 'd/dtk'],
+    SWAP_TELEGRAPH_MS: [2000, 4000, 100, 'ms'],
     CHAIN_ENTRY_SPEED_MULT: [1, 8, 0.1, 'x'],
     SPAWN_FILL_TIME: [1, 20, 0.5, 'dtk'],
     ENTRY_HEAD_FRAC: [0.05, 0.95, 0.01, 'jalur'],
@@ -139,6 +145,8 @@
     const si = Math.max(0, Math.min(STAGE_SPEED_MULT.length - 1, step | 0));
     out.CHAIN_BASE_SPEED *= STAGE_SPEED_MULT[si]; out.SHUFFLE_EMIT = STAGE_SHUFFLE[si].emit; out.SHUFFLE_LEAD = STAGE_SHUFFLE[si].lead; out.SHUFFLE_TEMIT = STAGE_SHUFFLE[si].tEmit; out.SHUFFLE_TLEAD = STAGE_SHUFFLE[si].tLead;
     for (const k in overrides) if (k in DEFAULTS) out[k] = overrides[k];
+    out.SWAP_TELEGRAPH_MS = Math.max(SWAP_TELEGRAPH_MIN_MS, out.SWAP_TELEGRAPH_MS);      // penukaran tidak boleh mendadak: peringatan → penukaran >= 2 dtk
+    out.SWAP_TELEGRAPH = out.SWAP_TELEGRAPH_MS / 1000; out.SWAP_WARN = Math.min(out.SWAP_WARN_MS, out.SWAP_TELEGRAPH_MS * 0.5) / 1000;
     return out;
   }
   function resolve(diff, step) { return fill({}, diff, step); }
@@ -149,7 +157,7 @@
   function refresh() { if (tracked) fill(tracked.gp, tracked.diff, tracked.step); }
 
   const Gameplay = {
-    DEFAULTS: DEFAULTS, PER_DIFF: PER_DIFF, STAGE_SPEED_MULT: STAGE_SPEED_MULT, STAGE_SHUFFLE: STAGE_SHUFFLE, SWAP_EVERY: SWAP_EVERY, HAZ_MAX: HAZ_MAX, META: META, TUNABLE: TUNABLE,
+    DEFAULTS: DEFAULTS, PER_DIFF: PER_DIFF, STAGE_SPEED_MULT: STAGE_SPEED_MULT, STAGE_SHUFFLE: STAGE_SHUFFLE, SWAP_TELEGRAPH_MIN_MS: SWAP_TELEGRAPH_MIN_MS, SWAP_EVERY: SWAP_EVERY, HAZ_MAX: HAZ_MAX, META: META, TUNABLE: TUNABLE,
     debug: debug, overrides: overrides,
     resolve: resolve, fill: fill, track: track,
     /** Panel: atur satu nilai (berlaku langsung). */

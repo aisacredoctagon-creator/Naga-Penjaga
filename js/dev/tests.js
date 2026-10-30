@@ -392,6 +392,74 @@
     ok('penyetel jalur menemukan bentuk lolos untuk semua ukuran (tanpa cadangan); tiap stage >= 2 varian (' + stageVar.join('/') + ')', badFit.length === 0 && stageVar.every(function (n) { return n >= 2; }), badFit.slice(0, 3).join(', '));
   }
 
+  /** Telegraf penukaran (revisi 7 tahap e) di game sungguhan, 3 ukuran layar: (1) peringatan → mulai menukar SELALU >= 2000 ms (default 2500; konfigurasi di bawah 2000 dijepit); (2) fase: peringatan 0,8 dtk lalu sorot;
+   *  (3) tidak ada penukaran terjadwal dalam 4 dtk pertama atau 3 dtk setelah soal aktif berganti; (4) eksekusi ditahan selama peluru terbang; (5) bola hancur selama telegraf membatalkan pasangan; (6) jeda layar membekukan hitung mundur;
+   *  (7) rotasi layar di tengah telegraf tidak mengulang / memotong hitung mundur; (8) dua pasangan (Stage 3 fase 2) berwarna dan berikon beda; (9) prefers-reduced-motion: gambar statis tanpa galat, jeda tetap. */
+  async function testSwapTiming() {
+    const G = GA.game, sizes = [[390, 844], [844, 390], [1440, 900]], bad = [], iv = [], DT = 1 / 30, SEL = { slots: ['add', 'sub', 'mul'], same: false, random: false, diff: 'sedang' };
+    let early = 0, schedN = 0, holdOk = true, cancelOk = true, pauseOk = true, rotOk = true, rotN = 0, rotSurv = 0, rotFizz = 0, motionOk = true, pairsOk = true, startBad = [];
+    const tick = function (r, sec, render) { for (let i = 0, n = Math.round(sec / DT); i < n; i++) { if (G.state === 'paused') G.handlers.resume(); r.lives = 3; G.tick(DT, !render); } };
+    const begin = function (stage) { G.startAdventure(SEL, true, stage); G.startStep(stage, true); G.skipCountdown(); return G.run; };
+    // konfigurasi di bawah batas dijepit
+    const gLow = GA.Gameplay.resolve('sedang', 1); GA.Gameplay.overrides.SWAP_TELEGRAPH_MS = 800; const gClamp = GA.Gameplay.resolve('sedang', 1); delete GA.Gameplay.overrides.SWAP_TELEGRAPH_MS;
+    for (const sz of sizes) {
+      GA.devViewport = { w: sz[0], h: sz[1] }; G.relayout();
+      for (const stage of [1, 2]) {
+        let r = begin(stage); tick(r, 14); const sw = r.swap, tag = sz.join('×') + ' st' + (stage + 1);
+        // (1)+(2) manual: 3 kali, ukur dari jumlah tick
+        for (let k = 0, tries = 0; k < 3 && tries < 12; tries++) {
+          sw.pend = null; sw.last = {}; if (!GA.SwapDebug.fire()) { tick(r, 3); continue; }
+          k++;
+          let t = 0, sawWarn = false, sawHi = false; const ex0 = sw.stats.executed;
+          for (let i = 0; i < 300 && sw.stats.executed === ex0 && sw.pend; i++) { const ph = sw.phase(); if (ph === 'warn') sawWarn = true; if (ph === 'hi') sawHi = true; tick(r, DT); t += DT; }
+          iv.push(t); if (!(sawWarn && sawHi)) bad.push(tag + ' fase tidak lengkap');
+          if (Math.abs(sw.warnDur - 0.8) > 0.01) bad.push(tag + ' peringatan ' + sw.warnDur);
+          tick(r, 1.6);
+        }
+        // (3) jadwal: tidak dalam 4 dtk pertama / 3 dtk setelah pergantian soal
+        r = begin(stage); const s2 = r.swap; s2.every = [0.1, 0.2]; s2.timer = 0.1; tick(r, 3.8); early += s2.stats.telegraphs;
+        tick(r, 20); const st = s2.stats.starts.filter(function (s) { return !s.manual; }); schedN += st.length; st.forEach(function (s) { if (s.clock < 4 - 1e-6 || s.qT < 3 - 1e-6) startBad.push(tag + ' clock ' + s.clock + ' qT ' + s.qT); });
+        // pergantian soal: penjaga 3 dtk
+        s2.pend = null; s2.timer = 0.05; s2.qSerial = -1; s2.update(0.01); const before = s2.stats.telegraphs; tick(r, 2.5); if (s2.stats.telegraphs !== before) startBad.push(tag + ' mulai < 3 dtk setelah soal berganti');
+        // (4) tahan saat peluru terbang
+        r = begin(stage); tick(r, 14); const s3 = r.swap, hooks = s3.o.hooks, busy0 = hooks.busy; let flying = true; hooks.busy = function () { return flying; };
+        s3.pend = null; s3.every = null; if (GA.SwapDebug.fire()) {
+          const ex0 = s3.stats.executed; tick(r, 3.4); if (s3.stats.executed !== ex0 || !s3.pend) holdOk = false; flying = false; tick(r, 0.2); if (s3.stats.executed === ex0) holdOk = false;
+          const last = s3.stats.intervals[s3.stats.intervals.length - 1]; if (!(last >= 3.3)) holdOk = false;
+        }
+        hooks.busy = busy0;
+        // (5) bola hancur selama telegraf membatalkan pasangan
+        tick(r, 2); s3.pend = null; s3.last = {}; if (GA.SwapDebug.fire()) { const pr = s3.pend.pairs[0], ex0 = s3.stats.executed, fz0 = s3.stats.fizzled; tick(r, 0.6); r.chain.remove(pr[0]); tick(r, 0.2); if (s3.stats.fizzled !== fz0 + 1 || s3.stats.executed !== ex0 || s3.pend) cancelOk = false; }
+        // (6) jeda membekukan hitung mundur
+        tick(r, 2); s3.pend = null; s3.last = {}; if (GA.SwapDebug.fire()) { tick(r, 0.7); const t0 = s3.pend.t; G.handlers.pause(); for (let i = 0; i < 90; i++) G.tick(DT, true); const t1 = s3.pend && s3.pend.t; G.handlers.resume(); if (!s3.pend || Math.abs(t1 - t0) > 0.05) pauseOk = false; }
+        // (7) rotasi di tengah telegraf
+        tick(r, 3); s3.pend = null; s3.last = {}; if (GA.SwapDebug.fire()) {
+          rotN++; const ex0 = s3.stats.executed, fz0 = s3.stats.fizzled, pend = s3.pend; tick(r, 1.0); const tBefore = pend.t; GA.devViewport = { w: sz[1], h: sz[0] }; G.relayout(); tick(r, 0.1, true);
+          if (G.run.swap !== s3) rotOk = false;
+          if (s3.stats.fizzled > fz0) { rotFizz++; GA.devViewport = { w: sz[0], h: sz[1] }; G.relayout(); } else {      // bola pasangan jatuh di belakang portal pada jalur baru: dibatalkan dengan efek kecil (aturan batal), bukan telegraf yang terpotong
+          rotSurv++; if (s3.pend !== pend || pend.t < tBefore) rotOk = false;
+          for (let i = 0; i < 300 && s3.stats.executed === ex0 && s3.pend; i++) { if (G.state === 'paused') G.handlers.resume(); tick(r, DT); } const lastI = s3.stats.intervals[s3.stats.intervals.length - 1];
+          if (!(lastI >= 2.0 && lastI < 2.7)) rotOk = false; GA.devViewport = { w: sz[0], h: sz[1] }; G.relayout(); }
+        }
+        // (9) reduced-motion: gambar statis tanpa galat
+        tick(r, 3); s3.pend = null; s3.last = {}; GA.Swap.reduced = true;
+        if (GA.SwapDebug.fire()) { try { const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64; const cx = cv.getContext('2d'); tick(r, 1.2); const q = s3.pend.pairs[0][0], p1 = GA.Swap.SwapManager.badgePos(q, r.R, 1.0, { x: 0, y: 0, r: 0 }), p2 = GA.Swap.SwapManager.badgePos(q, r.R, 1.6, { x: 0, y: 0, r: 0 }); if (Math.abs(p1.y - p2.y) > 1e-6) motionOk = false; s3.draw(cx, 1.0, r.R); tick(r, 1.5); } catch (e) { motionOk = false; bad.push('reduced-motion: ' + e.message); } }
+        GA.Swap.reduced = null;
+        G.handlers.quit();
+      }
+    }
+    // (8) dua pasangan: berwarna dan berikon berbeda; digambar tanpa galat
+    const PS = GA.Swap.PAIR_STYLE; pairsOk = PS.length >= 2 && PS[0][0] !== PS[1][0] && PS[0][1] !== PS[1][1] && PS[0][2] !== PS[1][2];
+    { const r = begin(2); tick(r, 20); r.swap.o.pairs = function () { return 2; }; r.swap.pend = null; r.swap.last = {}; if (GA.SwapDebug.fire()) { pairsOk = pairsOk && r.swap.pend.pairs.length === 2; try { const cv = document.createElement('canvas'); cv.width = 32; cv.height = 32; tick(r, 1.5); r.swap.draw(cv.getContext('2d'), 1.0, r.R); } catch (e) { pairsOk = false; } } G.handlers.quit(); }
+    GA.devViewport = null; G.relayout();
+    const mn = Math.min.apply(null, iv), mx = Math.max.apply(null, iv);
+    ok('telegraf penukaran: peringatan → mulai menukar >= 2000 ms (default ' + gLow.SWAP_TELEGRAPH_MS + ' ms; konfigurasi 800 ms dijepit ke ' + gClamp.SWAP_TELEGRAPH_MS + ' ms), 3 ukuran layar × Stage 2–3', iv.length >= 12 && mn >= 2.0 - 1e-6 && mx < 2.7 && gLow.SWAP_TELEGRAPH_MS === 2500 && gClamp.SWAP_TELEGRAPH_MS === 2000 && bad.length === 0, iv.length + ' penukaran, jeda ' + mn.toFixed(2) + '–' + mx.toFixed(2) + ' dtk' + (bad.length ? ' | ' + bad.slice(0, 3).join('; ') : ''));
+    ok('telegraf penukaran: tidak ada penukaran terjadwal dalam 4 dtk pertama stage atau 3 dtk setelah soal aktif berganti', early === 0 && schedN >= 3 && startBad.length === 0, early + ' dini, ' + schedN + ' terjadwal' + (startBad.length ? ' | ' + startBad.slice(0, 3).join('; ') : ''));
+    ok('telegraf penukaran: eksekusi ditahan selama peluru terbang (indikator tetap), lalu jalan; bola hancur membatalkan pasangan; jeda membekukan hitung mundur', holdOk && cancelOk && pauseOk, 'tahan ' + holdOk + ', batal ' + cancelOk + ', jeda ' + pauseOk);
+    ok('telegraf penukaran: rotasi layar di tengah telegraf tidak mengulang / memotong hitung mundur (' + rotN + ' rotasi)', rotOk && rotSurv >= 3, 'rotasi ' + rotN + ': hitung mundur berlanjut ' + rotSurv + ', pasangan batal karena bola di belakang portal ' + rotFizz + ', galat ' + !rotOk);
+    ok('telegraf penukaran: dua pasangan (Stage 3 fase 2) berwarna dan berikon beda; prefers-reduced-motion = cincin statis tanpa galat dengan jeda sama', pairsOk && motionOk, 'pasangan ' + pairsOk + ', reduced-motion ' + motionOk);
+  }
+
   async function runAll() {
 
 
@@ -405,6 +473,7 @@
     await testAudio();
     await testLayers();
     await testSwapVisible();
+    await testSwapTiming();
     await testArrange();
     for (let i = 0; i < 40 && !GA.Sim; i++) await sleep(50);
     for (let i = 0; i < 40 && !GA.AimSweep; i++) await sleep(50);
@@ -434,6 +503,7 @@
     console.log(results.join('\n'));
   }
 
-  GA.Tests = { results: results, done: false, run: runAll };
-  setTimeout(function () { runAll().catch(function (e) { results.push('ERROR ' + e.message + '\n' + e.stack); GA.Tests.done = true; console.error(e); }); }, 600);
+  GA.Tests = { results: results, done: false, run: runAll, swapTiming: testSwapTiming };
+  if (/[?&]only=swap/.test(location.search)) setTimeout(function () { testSwapTiming().then(function () { GA.Tests.done = true; }).catch(function (e) { results.push('ERROR ' + e.message + ' - ' + e.stack); GA.Tests.done = true; }); }, 600);      // ?test=1&only=swap: hanya telegraf penukaran
+  else setTimeout(function () { runAll().catch(function (e) { results.push('ERROR ' + e.message + '\n' + e.stack); GA.Tests.done = true; console.error(e); }); }, 600);
 })(window.GA = window.GA || {});

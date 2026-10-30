@@ -338,6 +338,7 @@
           const sw = b.sw; sw.t += dt; const u = Math.min(1, sw.t / sw.dur), e = u * u * (3 - 2 * u);
           this.path.at(sw.fromD + (b.d - sw.fromD) * e + b.vo, tmp); const arc = Math.sin(Math.PI * e) * this.r * 1.7 * sw.side;
           b.x = tmp.x - Math.sin(tmp.a) * arc; b.y = tmp.y + Math.cos(tmp.a) * arc; b.a = tmp.a;
+          { const V = GA.view; if (V && V.minY && b.y < V.minY && tmp.y >= V.minY - 1) b.y = V.minY; }      // lengkungan ke atas ditahan di bawah zona HUD (bola tetap terlihat penuh)
           if (u >= 1) b.sw = null;
         }
         if (!b.out && b.d >= this.entryD) {      // keluar dari portal

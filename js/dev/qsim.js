@@ -148,16 +148,16 @@
     try {
       for (const step of [1, 2]) {
         let mgr = null, badRun = 0, maxBad = 0, minR = 9, maxR = 0, qBefore = null, qChanged = 0;
-        const o = await drive({ step: step, mode: 'bot', secs: 170, immortal: true, think: 4,
+        const o = await drive({ step: step, mode: 'bot', secs: 260, immortal: true, think: 5,
           before: function (t, r) { mgr = r.swap || mgr; },
           after: function (t, r) {
             const c = r.chain; if (!c || c.animating()) { badRun = 0; return; }
             const s = c.spacing(); if (!s.n) return; minR = Math.min(minR, s.min); maxR = Math.max(maxR, s.max);
             if (s.min < 0.96 || s.max > 1.05) { badRun++; maxBad = Math.max(maxBad, badRun); } else badRun = 0;
           },
-          stop: function (t, r) { return !!mgr && mgr.stats.executed >= 8 && t > 40; } });
+          stop: function (t, r) { return !!mgr && mgr.stats.executed >= 5 && t > 40; } });
         clean(o, ['STEP_START', 'ANSWERED_CORRECT', 'TIMEOUT'], 'penukaran bola stage ' + (step + 1));
-        ok('stage ' + (step + 1) + ': penukaran terjadi berulang (≥ 8) dan jarak bola tetap rapat sesudahnya', !!mgr && mgr.stats.executed >= 8 && maxBad < 30, 'indikator ' + (mgr ? mgr.stats.telegraphs : 0) + ', tukar ' + (mgr ? mgr.stats.executed : 0) + ', batal ' + (mgr ? mgr.stats.fizzled : 0) + ', rasio ' + minR.toFixed(3) + '–' + maxR.toFixed(3));
+        ok('stage ' + (step + 1) + ': penukaran terjadi berulang (≥ 5; penjaga 4 dtk awal dan 3 dtk setelah soal berganti membatasi jendela) dan jarak bola tetap rapat sesudahnya', !!mgr && mgr.stats.executed >= 5 && maxBad < 30, 'indikator ' + (mgr ? mgr.stats.telegraphs : 0) + ', tukar ' + (mgr ? mgr.stats.executed : 0) + ', batal ' + (mgr ? mgr.stats.fizzled : 0) + ', rasio ' + minR.toFixed(3) + '–' + maxR.toFixed(3));
         G().handlers.quit();
       }
     } finally { E[1] = save[1]; E[2] = save[2]; }
