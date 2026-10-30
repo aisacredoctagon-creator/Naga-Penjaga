@@ -61,13 +61,7 @@
     return Math.sqrt(m);
   }
 
-  const fitCache = {};
 
-  /* ===== Revisi 8: jalur SPIRAL STADION (kapsul) di sekitar naga + tembakan lontar "target-lock" =====
-   * Naga di tengah area bermain, di sumbu stadion. Jalur masuk dari portal di tepi luar (apex) mengelilingi naga menuju sarang di sebelah platform tengah. Jarak antar-lap (pitch, garis tengah ke
-   * garis tengah) 3R diturunkan sampai batas 2,6R bila perlu panjang. Potret: sumbu vertikal (memakai tinggi layar); lanskap/desktop: sumbu horizontal. Lobus (Stage 2) dan poligon/bintang (Stage 3)
-   * memodulasi jari-jari dengan fase terkunci pada posisi di dalam lap (semua lap sefase, jadi jarak antar-lap tetap) dan mengecil ke dalam. Penyetel otomatis memilih bentuk paling bergaya
-   * yang lolos INV-3 (jarak antar-segmen >= 2,6R), radius tikungan >= 1,15R, dan portal penuh di area bermain, lalu pitch terbesar yang memenuhi INV-4 (panjang). */
 
   /** Panjang kolam serpentin lama (commit ddd3183, sebelum revisi 6) per stage dan layout, diameter bola (2R). INV-4: panjang baru >= 95% dari MINIMUM kolam lama (keputusan pengguna);
    *  rata-rata dilaporkan sebagai pembanding. */
@@ -75,22 +69,6 @@
   const OLD_LEN = { portrait: [38.35, 35.28, 25.47], landscape: [37.05, 34.54, 21.27] };
   const LAP_PITCH_FACTOR = 3, LAP_PITCH_MIN = 2.6, INV4_PCT = 0.95;
 
-  /** Titik pada kurva offset ρ dari sumbu vertikal (y = −h1 … +h2) di parameter tau ∈ [0,1): bobot tetap (ws = sisi lurus, wa = busur) agar posisi apex tidak bergeser saat ρ berubah.
-   *  Mulai di kanan-bawah, naik, busur atas, turun di kiri, busur bawah (berlawanan arah jarum jam di layar). */
-  function capsuleTau(tau, rho, h1, h2, ws, wa) {
-    tau = ((tau % 1) + 1) % 1; const L1 = h1 + h2;
-    if (tau < ws) return [rho, h2 - L1 * tau / ws];
-    tau -= ws; if (tau < wa) { const a = Math.PI * tau / wa; return [rho * Math.cos(a), -h1 - rho * Math.sin(a)]; }
-    tau -= wa; if (tau < ws) return [-rho, -h1 + L1 * tau / ws];
-    tau -= ws; const a = Math.PI * tau / wa; return [-rho * Math.cos(a), h2 + rho * Math.sin(a)];
-  }
-  /** Bentuk gelombang modulasi ∈ [−1, 1]: lobus (sinus), poligon bersudut membulat (sinus terpangkat, puncak datar), bintang (segitiga membulat). */
-  function modWave(shape, x) {
-    const s = Math.sin(x);
-    if (shape === 'poly') return Math.tanh(2.4 * s) / Math.tanh(2.4);      // puncak datar, sudut membulat
-    if (shape === 'star') return 0.7 * (2 / Math.PI) * Math.asin(s) + 0.3 * s;      // segitiga membulat
-    return s;
-  }
   /** Jarak terdekat dua bola yang BUKAN tetangga rantai (titik berjarak busur >= 4R): antar-lap, portal vs ujung; dipakai penyetel dan validator INV-5 (ukuran sama persis). */
   function lockDist(path, R) {
     const xs = path.xs, ys = path.ys, st = path.step, ns = xs.length, stepI = Math.max(1, Math.round(0.25 * R / st)), arcMin = Math.round(4 * R / st); let m = 1e18, at = null;
@@ -108,90 +86,148 @@
     return m;
   }
 
-  /** o: id, stage (0..2), dir (±1), apex ('top'|'bottom' potret; 'left'|'right' lanskap), shape ('lobe'|'poly'|'star'), k (jumlah lobus/sisi), A (amplitudo px × R/32), boss { side: 'top'|'left'|'right', k }. */
-  function spiralA(d, o) {
-    const R = d.R, wing = wingNeed(R), pl = d.pl, PR = 2.2 * R, ex = d.iw / 2, top = d.vc * d.ih, bot = d.ih - top, dir = o.dir || 1, portrait = d.portrait;
-    const key = ['A', o.id, R, d.iw, d.ih, d.vc, portrait].join('|');
-    let fit = fitCache[key];
-    if (!fit) {
-      let bossR = 0, bn = 0; if (o.boss) { bossR = Math.round((o.boss.k || 1.25) * R); bn = 1.5 * bossR + R + 2; }
-      const oldMin = OLD_MIN[portrait ? 'portrait' : 'landscape'][o.stage || 0], target = INV4_PCT * oldMin, A0 = (o.A || 0) * R / 32;
-      // batas luas: potret = sumbu vertikal (atas/bawah), lanskap = sumbu horizontal (kiri/kanan); boss menyisihkan ruang di sisinya
-      let lim1, lim2, rLat;      // lim1/lim2 = batas pusat-bola sepanjang sumbu (atas|kiri, bawah|kanan); rLat = batas lateral
-      if (portrait) { lim1 = top; lim2 = bot; rLat = ex; if (o.boss && o.boss.side === 'top') lim1 = Math.min(lim1, (d.cy - pl.y) - 24 - bossR - bn - 6); }
-      else {
-        lim1 = lim2 = ex; rLat = Math.min(top, bot);
-        if (o.boss && o.boss.side === 'right') lim2 = Math.min(lim2, (pl.x + pl.w - 24 - bossR) - d.cx - bn - 6); if (o.boss && o.boss.side === 'left') lim1 = Math.min(lim1, d.cx - (pl.x + 24 + bossR) - bn - 6);
-      }
-      const why = { portal: 0, gap: 0, curve: 0, gapMin: 9, curveMin: 99 };
-      const to = function (p) { return portrait ? [dir * p[0], p[1]] : [p[1], dir * p[0]]; };
-      const tryA = function (A) {
-        { const sp0 = Math.min(rLat, lim1, lim2) - wing; let am = 1e9; for (let u = 0.02; u < 0.99; u += 0.02) { const tp = Math.pow(Math.sin(Math.PI * u), 0.7); am = Math.min(am, 0.9 * sp0 * (1 - u) / tp, 0.9 * sp0 * u / tp); } A = Math.min(A, am); }      // lobus (selubung sin^0,7) tidak boleh menembus batas luar (HUD/tepi) maupun jangkauan sayap
-        const rOut = Math.min(rLat, lim1, lim2);      // jari-jari luar dasar; lobus tidak menambah ekstensi luar karena amplitudonya nol di ujung luar dan dalam (selubung sin^0,7 sepanjang spiral)
-        if (rOut < wing + 4) return null;
-        const h1 = Math.max(0, lim1 - rOut), h2 = Math.max(0, lim2 - rOut), span = rOut - wing;
-        const rm = (rOut + wing) / 2, L1 = h1 + h2, ws = L1 / (2 * L1 + 2 * Math.PI * rm), wa = 0.5 - ws, apexTau = (o.apex === 'bottom' || o.apex === 'right') ? 1 - wa / 2 : ws + wa / 2;
-        const build = function (n, shift) {
-          const N = Math.max(260, Math.round(n * 560)), P = [], t0 = apexTau - (shift || 0);
-          for (let i = 0; i <= N; i++) {
-            const f = n * i / N, rho = rOut - span * f / n, tau = t0 + f, taper = Math.pow(Math.max(0, Math.sin(Math.PI * f / n)), 0.7);      // selubung: lobus muncul perlahan dari portal, terbesar di tengah spiral, hilang di dekat sarang
-            const rr = rho + (A ? A * taper * modWave(o.shape, 2 * Math.PI * (o.k || 5) * (tau - apexTau)) : 0);
-            P.push(to(capsuleTau(tau, rr, h1, h2, ws, wa)));
-          }
-          return P;
-        };
-        const evalN = function (n) {
-          // portal harus penuh di area bermain: bila apex terlalu dekat tepi, titik awal digeser mundur sepanjang jalur (jalur tetap melewati apex sesudahnya)
-          let P = null, shift = 0;
-          for (let s = 0; s <= 0.08 + 1e-9; s += 0.01) { const Q = build(n, s), sx = d.cx + Q[0][0], sy = d.cy + Q[0][1]; if (sx >= pl.x + PR - 1 && sx <= pl.x + pl.w - PR + 1 && sy >= pl.y + PR - 1 && sy <= pl.y + pl.h - PR + 1) { P = Q; shift = s; break; } }
-          if (!P) { why.portal++; return null; }
-          const path = new GA.Path.Path(P); path.shooter = { x: 0, y: 0 };
-          { const g4 = lockDist(path, R).min, cr = minCurveR(path); if (g4 < LAP_PITCH_MIN * R - 0.5) { why.gap++; why.gapMin = Math.min(why.gapMin, g4 / R); return null; } if (cr < 1.4 * R) { why.curve++; why.curveMin = Math.min(why.curveMin, cr / R); return null; } }      // jarak dua bola non-tetangga (busur >= 4R) >= 2,6R; lengkung cukup landai agar rantai rapat
-          return { P: P, n: n, shift: shift, len: path.length / (2 * R), A: A, rOut: rOut, h1: h1, h2: h2, span: span };
-        };
-        let best = null;
-        for (let pf = LAP_PITCH_FACTOR; pf >= LAP_PITCH_MIN - 1e-9; pf -= 0.1) {
-          let cand = null; const nmax = span / (pf * R);
-          if (nmax >= 1) cand = evalN(nmax); else for (let n = 0.99; n >= 0.5 && !cand; n -= 0.01) cand = evalN(n);
-          if (!cand) continue; cand.pitch = Math.max(LAP_PITCH_MIN, +pf.toFixed(2));
-          if (!best || cand.len > best.len) best = cand;
-          if (cand.len >= target) return cand;      // pitch terbesar yang memenuhi INV-4
-          if (nmax < 1) break;
-        }
-        return best;
-      };
-      let pick = null, any = null;
-      for (const f of [1, 0.8, 0.6, 0.4, 0.2, 0]) { const A = A0 * f, c = tryA(A); if (!c) continue; if (!any || c.len > any.len) any = c; if (c.len >= target) { pick = c; break; } if (!A0) break; }
-      fit = fitCache[key] = pick || any || { P: [[0, 0], [1, 0]], n: 0, len: 0, A: 0, rOut: 0, h1: 0, h2: 0, span: 0, pitch: 0, failed: true };
-      fit.target = target; fit.oldMin = oldMin; fit.oldMean = OLD_LEN[portrait ? 'portrait' : 'landscape'][o.stage || 0]; fit.why = why; fit.bossR = bossR; fit.bn = bn; fit.lim1 = lim1; fit.lim2 = lim2;
-    }
-    const out = { pts: fit.P.map(function (p) { return [(d.cx + p[0] - d.ox) / d.iw, (d.cy + p[1] - d.oy) / d.ih]; }), shooter: [(d.cx - d.ox) / d.iw, (d.cy - d.oy) / d.ih], star: true, spiral: true, stage: o.stage || 0,
-      fit: { n: +fit.n.toFixed(2), pitch: fit.pitch, lenD: +fit.len.toFixed(1), rOut: Math.round(fit.rOut), h1: Math.round(fit.h1), h2: Math.round(fit.h2), A: +fit.A.toFixed(1), target: +fit.target.toFixed(1), oldMin: fit.oldMin, oldMean: fit.oldMean }, failed: !!fit.failed, why: fit.why };
-    if (o.boss) {
-      const ext1 = fit.h1 + fit.rOut, ext2 = fit.h2 + fit.rOut; let bx = d.cx, by = d.cy;
-      if (o.boss.side === 'top') by = d.cy - ext1 - fit.bn - 6; else if (o.boss.side === 'right') bx = d.cx + ext2 + fit.bn + 6; else bx = d.cx - ext1 - fit.bn - 6;
-      out.boss = [(bx - d.ox) / d.iw, (by - d.oy) / d.ih]; out.bossR = fit.bossR;
-    }
-    return out;
-  }
-  const spiralArch = function (id, op, ol) { return function (portrait, d) { return spiralA(d, Object.assign({ id: id + (portrait ? 'p' : 'l') }, portrait ? op : ol)); }; };
 
-  /** Arketipe (semua jalur lama dihapus). Potret: stadion vertikal, portal di apex atas/bawah. Lanskap/desktop: stadion horizontal, portal di apex kiri/kanan. 3 varian per stage (arah dan apex berbeda),
-   *  dipilih acak per petualangan (levels.js). Stage 1 SIPUT: spiral stadion polos. Stage 2 LOBUS: 4–6 lobus yang mengecil ke dalam. Stage 3 POLIGON: poligon/bintang membulat + boss di luar spiral
-   *  (atas pada potret, samping pada lanskap). */
+  /* ===== Revisi 10: RUTE GRID — portal (awal) dan sarang (akhir) di sisi yang saling berseberangan =====
+   * Jalur = rangkaian simpul pada grid persegi panjang berpusat di naga (jarak baris sx, sy >= 2,6R (INV-5); tikungan 90° berjari-jari min(sx, sy)/2 >= 1,3R, jadi U-turn = setengah lingkaran).
+   * Simpul pertama = portal, simpul terakhir = sarang. Rute (data TPL) dicari offline oleh js/dev/routesearch.js (?debug=route) lalu divalidasi; tiap rute dipakai dalam bentuk asli dan cermin
+   * (sumbu x dan/atau y), sehingga satu rute menghasilkan sampai 4 varian. Jarak baris diperlebar sampai memenuhi area bermain (maks. SPACING_CAP·R) supaya panjang jalur maksimal.
+   * Aturan yang divalidasi tiap jalur dibangun (analyzeStar): INV-6 (portal-sarang berjauhan), INV-7 (jalur tidak melewati dekat portal/sarang selain di bagian awal/akhir), INV-8 (zona bersih). */
+  const SPR_PORTAL = 2.45, SPR_NEST = 2.3;      // radius sprite portal (js/render/effects.js: R·2,45) dan sarang (js/render/eggs.js: cincin batu ≈ R·2,3), × R
+  const ARC_FREE = 16, CLEAR7 = 3, CLEAR8 = 2;  // ARC_FREE = 8 diameter (16R) bagian awal/akhir jalur yang boleh dekat portal/sarang; INV-7: jarak >= sprite + 3R; INV-8: zona bersih = sprite + 2R
+  const DESIGN_R = 32, MIN_PITCH = 2.6, SPACING_CAP = 3.3, DIST_FRAC = 0.55, ANG_MIN = 150;      // INV-6: jarak >= 0,55 × sisi terpanjang area bermain, selisih sudut terhadap pivot naga >= 150°
+  /** Panjang jalur revisi 8 (spiral) per stage dan layout, diameter bola. INV-4: baru >= 95% dari yang lebih panjang antara ini dan serpentin lama terpendek (OLD_MIN). */
+  const REV8_LEN = { portrait: [29.4, 25.3, 24.6], landscape: [29.3, 29.4, 25.1] };
+  function lenMinD(portrait, stage) { const k = portrait ? 'portrait' : 'landscape'; return INV4_PCT * Math.max(OLD_MIN[k][stage], REV8_LEN[k][stage]); }
+
+  /** Rute: ox, oy = geseran grid (0 / 0,5 kali jarak baris), nodes = "i,j i,j ..." (i = kolom, j = baris relatif terhadap naga; x = pivot + (i + ox)·sx, y = pivot + (j + oy)·sy). Dibuat oleh js/dev/routesearch.js. */
+  const TPL = {
+    /* Stage 1 (ULAR): serpentin panjang di kantong sisi naga. u = lanskap/desktop, p = potret. */
+    ul1: { ox: 0, oy: 0.5, nodes: '-4,-2 -3,-2 -2,-2 -2,-1 -2,0 -3,0 -4,0 -4,1 -3,1 -2,1 -1,1 0,1 1,1 2,1 2,0 2,-1 2,-2 3,-2 4,-2 4,-1 4,0 4,1' },
+    ul2: { ox: 0, oy: 0.5, nodes: '2,-2 3,-2 4,-2 4,-1 4,0 4,1 3,1 2,1 1,1 0,1 -1,1 -2,1 -2,0 -2,-1 -1,-1 -1,-2 -2,-2 -3,-2 -4,-2 -4,-1 -4,0 -4,1' },
+    up1: { ox: 0, oy: 0.5, nodes: '-2,-4 -1,-4 0,-4 0,-3 -1,-3 -2,-3 -2,-2 -2,-1 -2,0 -2,1 -1,1 0,1 0,2 -1,2 -2,2 -2,3 -1,3 0,3 1,3 1,2 1,1 2,1 2,2 2,3' },
+    up2: { ox: 0, oy: 0.5, nodes: '-2,3 -1,3 0,3 0,2 -1,2 -2,2 -2,1 -2,0 -2,-1 -2,-2 -1,-2 0,-2 0,-3 -1,-3 -2,-3 -2,-4 -1,-4 0,-4 1,-4 1,-3 1,-2 2,-2 2,-3 2,-4' },
+    /* Stage 2 (TELUK): kait panjang melewati atas/bawah naga. */
+    tl1: { ox: 0, oy: 0.5, nodes: '-4,-2 -4,-1 -4,0 -4,1 -3,1 -2,1 -1,1 -1,0 -2,0 -2,-1 -2,-2 -1,-2 0,-2 1,-2 2,-2 3,-2 4,-2 4,-1 4,0 4,1 3,1 2,1' },
+    tl2: { ox: 0, oy: 0.5, nodes: '-4,-2 -3,-2 -3,-1 -4,-1 -4,0 -4,1 -3,1 -2,1 -2,0 -2,-1 -2,-2 -1,-2 0,-2 1,-2 2,-2 3,-2 4,-2 4,-1 4,0 4,1 3,1 2,1' },
+    tp1: { ox: 0, oy: 0.5, nodes: '-2,-4 -1,-4 0,-4 0,-3 -1,-3 -2,-3 -2,-2 -2,-1 -2,0 -2,1 -2,2 -2,3 -1,3 -1,2 -1,1 0,1 1,1 1,2 1,3 2,3 2,2' },
+    tp2: { ox: 0, oy: 0.5, nodes: '-2,-3 -2,-4 -1,-4 0,-4 0,-3 0,-2 1,-2 1,-3 1,-4 2,-4 2,-3 2,-2 2,-1 2,0 2,1 1,1 0,1 0,2 0,3 1,3 2,3' },
+    /* Stage 3 (BENTENG): jalur lebih ringkas, menyisakan ruang lapang untuk boss. */
+    bl1: { ox: 0, oy: 0.5, nodes: '-4,-2 -3,-2 -2,-2 -1,-2 0,-2 1,-2 2,-2 3,-2 4,-2 4,-1 3,-1 2,-1 2,0 1,0 1,1 2,1 3,1 4,1' },
+    bl2: { ox: 0, oy: 0.5, nodes: '-4,-2 -3,-2 -2,-2 -2,-1 -2,0 -3,0 -4,0 -4,1 -3,1 -2,1 -1,1 0,1 1,1 2,1 3,1 4,1 4,0 4,-1' },
+    bp1: { ox: 0, oy: 0.5, nodes: '-2,-4 -1,-4 0,-4 0,-3 -1,-3 -2,-3 -2,-2 -2,-1 -2,0 -2,1 -2,2 -2,3 -1,3 0,3 1,3 1,2 1,1 2,1 2,2 2,3' },
+    bp2: { ox: 0, oy: 0.5, nodes: '2,-4 1,-4 0,-4 -1,-4 -2,-4 -2,-3 -1,-3 0,-3 0,-2 -1,-2 -2,-2 -2,-1 -2,0 -2,1 -1,1 0,1 0,2 0,3 -1,3 -2,3' },
+    /* Radius bola besar (kategori pecahan/desimal 1,12×, R ≈ 36): grid lebih longgar, rute lebih ringkas (cadangan bila rute di atas tidak muat atau melanggar INV-6/7). */
+    xl1: { ox: 0, oy: 0.5, nodes: '-3,-1 -2,-1 -2,0 -3,0 -4,0 -4,1 -3,1 -2,1 -1,1 0,1 1,1 2,1 3,1 4,1 4,0 3,0 2,0 2,-1 3,-1' },
+    xl2: { ox: 0, oy: 0.5, nodes: '-3,-1 -2,-1 -2,0 -3,0 -4,0 -4,1 -3,1 -2,1 -1,1 0,1 1,1 2,1 2,0 2,-1 3,-1 3,0 3,1 4,1 4,0' },
+    xp1: { ox: 0.5, oy: 0, nodes: '-1,-3 -2,-3 -2,-2 -1,-2 0,-2 1,-2 1,-1 1,0 1,1 1,2 0,2 -1,2 -2,2 -2,3 -1,3' }
+  };
+  function parseNodes(s) { return s.trim().split(/\s+/).map(function (t) { const a = t.split(','); return [+a[0], +a[1]]; }); }
+  /** Cermin rute terhadap pivot naga: x → −x dan/atau y → −y (dalam indeks grid, memperhitungkan geseran ox/oy). */
+  function mirrorNodes(nodes, t, fx, fy) { return nodes.map(function (n) { return [fx ? -n[0] - 2 * t.ox : n[0], fy ? -n[1] - 2 * t.oy : n[1]]; }); }
+
+  /** Sudut 90° berfilet (jari-jari r) pada poligon sudut-bersih P; titik rapat (<= 18 px) di bagian lurus dan lengkung. */
+  function filletPath(P, r) {
+    const out = [P[0].slice()], push = function (x, y) { const q = out[out.length - 1], L = Math.hypot(x - q[0], y - q[1]), n = Math.ceil(L / 18); for (let s = 1; s <= n; s++) out.push([q[0] + (x - q[0]) * s / n, q[1] + (y - q[1]) * s / n]); };
+    for (let k = 1; k < P.length - 1; k++) {
+      const a = P[k - 1], b = P[k], c = P[k + 1];
+      let ux = b[0] - a[0], uy = b[1] - a[1], vx = c[0] - b[0], vy = c[1] - b[1]; const lu = Math.hypot(ux, uy), lv = Math.hypot(vx, vy); ux /= lu; uy /= lu; vx /= lv; vy /= lv;
+      if (Math.abs(ux * vy - uy * vx) < 1e-6) { push(b[0], b[1]); continue; }
+      const rr = Math.min(r, lu / 2 + 0.01, lv / 2 + 0.01), p0 = [b[0] - ux * rr, b[1] - uy * rr], p1 = [b[0] + vx * rr, b[1] + vy * rr];
+      push(p0[0], p0[1]);
+      const cx = p0[0] + vx * rr, cy = p0[1] + vy * rr, a0 = Math.atan2(p0[1] - cy, p0[0] - cx), a1 = Math.atan2(p1[1] - cy, p1[0] - cx); let da = a1 - a0; while (da > Math.PI) da -= TAU; while (da < -Math.PI) da += TAU;
+      const n = Math.max(6, Math.ceil(Math.abs(da) * rr / 3)); for (let s = 1; s <= n; s++) { const an = a0 + da * s / n; out.push([cx + Math.cos(an) * rr, cy + Math.sin(an) * rr]); }
+    }
+    push(P[P.length - 1][0], P[P.length - 1][1]); return out;
+  }
+
+  /** Letak boss (Stage 3) di ruang terlapang: jauh dari jalur (>= 1,5·bossR + R + 2), dari zona bersih portal/sarang (sprite + 2R + bossR), dan dari sayap naga. */
+  function bossSpot(pts, d, bossR, P0, N0) {
+    const R = d.R, pl = d.pl, bn = 1.5 * bossR + R + 2, needP = (SPR_PORTAL + CLEAR8) * R + bossR, needN = (SPR_NEST + CLEAR8) * R + bossR, needV = wingNeed(R) - R - 2 + bossR + 6;
+    const sm = []; for (let i = 0; i < pts.length; i += 4) sm.push(pts[i]);
+    let best = null;
+    for (let y = pl.y + bossR + 40; y <= pl.y + pl.h - bossR - 10; y += 10) for (let x = pl.x + bossR + 10; x <= pl.x + pl.w - bossR - 10; x += 10) {
+      let m = 1e12; for (let i = 0; i < sm.length; i++) { const dx = sm[i][0] - x, dy = sm[i][1] - y, dd = dx * dx + dy * dy; if (dd < m) m = dd; }
+      const sc = Math.min(Math.sqrt(m) / bn, Math.hypot(x - P0[0], y - P0[1]) / needP, Math.hypot(x - N0[0], y - N0[1]) / needN, Math.hypot(x - d.cx, y - d.cy) / needV);
+      if (!best || sc > best.sc) best = { x: x, y: y, sc: sc };
+    }
+    return best;
+  }
+
+  /** Kelonggaran INV-6/INV-7 sebuah polyline rute (px; negatif = melanggar): min dari jarak portal-sarang, sudut, jarak jalur ke portal (setelah 16R pertama) dan ke sarang (sebelum 16R terakhir). Dipakai penyetel jarak baris. */
+  function routeSlack(P, d, R) {
+    const n = P.length, arc = new Array(n); arc[0] = 0; for (let i = 1; i < n; i++) arc[i] = arc[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
+    const L = arc[n - 1], p0 = P[0], n0 = P[n - 1], free = ARC_FREE * R, pl = d.pl; let mP = 1e9, mN = 1e9;
+    for (let i = 0; i < n; i += 2) {
+      if (arc[i] > free) mP = Math.min(mP, Math.hypot(P[i][0] - p0[0], P[i][1] - p0[1]));
+      if (L - arc[i] > free) mN = Math.min(mN, Math.hypot(P[i][0] - n0[0], P[i][1] - n0[1]));
+    }
+    let da = Math.abs(Math.atan2(p0[1] - d.cy, p0[0] - d.cx) - Math.atan2(n0[1] - d.cy, n0[0] - d.cx)); if (da > Math.PI) da = 2 * Math.PI - da;
+    return Math.min(mP - (SPR_PORTAL + CLEAR7) * R, mN - (SPR_NEST + CLEAR7) * R, Math.hypot(p0[0] - n0[0], p0[1] - n0[1]) - DIST_FRAC * Math.max(pl.w, pl.h), (da * 180 / Math.PI - ANG_MIN) * 2);
+  }
+
+  /** Geometri satu rute (piksel logis) untuk layout d, atau null bila grid tidak muat (jarak baris < 2,6R). Jarak baris (sx, sy):
+   *  (1) bentuk rancangan = jarak maksimum yang muat untuk R = 32 (radius rancangan), diskalakan R/32 (semua syarat sebanding R, jadi valid bila muat);
+   *  (2) bila tidak muat: jarak maksimum yang muat (maks. SPACING_CAP·R), lalu diperkecil bertahap sampai INV-6/INV-7 terpenuhi (minimum 2,6R). */
+  function routeGeom(d, t, flip, boss) {
+    const R = d.R, pl = d.pl, cx = d.cx, cy = d.cy, pad = d.pad;
+    let nodes = parseNodes(t.nodes); if (flip) nodes = mirrorNodes(nodes, t, flip.indexOf('x') >= 0, flip.indexOf('y') >= 0);
+    const n = nodes.length;
+    const fit = function (Rf, cap) {      // jarak maksimum yang muat untuk bola berjari-jari Rf: portal dan sarang penuh di area bermain; simpul lain >= pad dari tepi dan di bawah zona HUD
+      const PR = SPR_PORTAL * Rf, NR = SPR_NEST * Rf, hudY = pl.y + d.gapR * Rf + 1; let sx = cap * Rf, sy = cap * Rf;
+      nodes.forEach(function (nd, k) {
+        const m = k === 0 ? PR : (k === n - 1 ? NR : pad), x0 = pl.x + m, x1 = pl.x + pl.w - m, y0 = Math.max(hudY, k === 0 || k === n - 1 ? pl.y + m : 0), y1 = pl.y + pl.h - m, a = nd[0] + t.ox, b = nd[1] + t.oy;
+        if (a > 1e-9) sx = Math.min(sx, (x1 - cx) / a); else if (a < -1e-9) sx = Math.min(sx, (cx - x0) / -a);
+        if (b > 1e-9) sy = Math.min(sy, (y1 - cy) / b); else if (b < -1e-9) sy = Math.min(sy, (cy - y0) / -b);
+      });
+      return [sx, sy];
+    };
+    const mp = MIN_PITCH * R, F = fit(R, SPACING_CAP);
+    if (F[0] < mp - 0.3 || F[1] < mp - 0.3) return null;
+    const build = function (ax, ay) { const C = nodes.map(function (nd) { return [cx + (nd[0] + t.ox) * ax, cy + (nd[1] + t.oy) * ay]; }), r = Math.min(ax, ay) / 2; return { C: C, r: r, P: filletPath(C, r), sx: ax, sy: ay }; };
+    const D = fit(DESIGN_R, SPACING_CAP), k = R / DESIGN_R; let best = null, bs = -1e9;
+    if (D[0] * k <= F[0] + 0.01 && D[1] * k <= F[1] + 0.01 && D[0] * k >= mp - 0.3 && D[1] * k >= mp - 0.3) { best = build(D[0] * k, D[1] * k); bs = routeSlack(best.P, d, R); }
+    for (let i = 0; i <= 12 && bs < 0.5; i++) {      // perkecil jarak baris (u: 1 → 0) sampai INV-6/7 terpenuhi; ambil yang paling longgar bila tidak ada
+      const u = 1 - i / 12, c = build(mp + (F[0] - mp) * u, mp + (F[1] - mp) * u), s = routeSlack(c.P, d, R);
+      if (s > bs) { bs = s; best = c; }
+    }
+    const g = best; g.n = n; g.boss = null; g.slack = bs;
+    if (boss) { const bossR = Math.round(boss * R), b = bossSpot(g.P, d, bossR, g.C[0], g.C[n - 1]); g.boss = b; g.bossR = bossR; }
+    return g;
+  }
+
+  /** Arketipe rute: o = { stage, p, l, boss: { p: k, l: k } }; p / l = [templat, cermin] atau daftar alternatif [[templat, cermin], ...] (dicoba berurutan: yang pertama muat dan memenuhi INV-6/7, dan untuk boss
+   *  punya ruang; alternatif untuk radius bola besar, mis. kategori pecahan/desimal 1,12×). cermin: '', 'x', 'y', 'xy'; k = radius boss × R. */
+  function routeArch(id, o) {
+    return function (portrait, d) {
+      const cfg = portrait ? o.p : o.l, opts = Array.isArray(cfg[0]) ? cfg : [cfg], boss = o.boss ? (portrait ? o.boss.p : o.boss.l) : 0;
+      let g = null, used = null;
+      for (let k = 0; k < opts.length; k++) {
+        const t = TPL[opts[k][0]], c = t ? routeGeom(d, t, opts[k][1], boss) : null; if (!c) continue;
+        const good = c.slack >= 0.4 && (!boss || (c.boss && c.boss.sc >= 1));
+        if (!g || good) { g = c; used = opts[k]; } if (good) break;
+      }
+      const P = g ? g.P : [[d.cx, d.cy + 100], [d.cx + 100, d.cy + 100]];
+      const out = { pts: P.map(function (p) { return [(p[0] - d.ox) / d.iw, (p[1] - d.oy) / d.ih]; }), shooter: [(d.cx - d.ox) / d.iw, (d.cy - d.oy) / d.ih], star: true, spiral: true, route: true, stage: o.stage, failed: !g,
+        fit: g ? { nodes: g.n, sx: +g.sx.toFixed(1), sy: +g.sy.toFixed(1), r: +g.r.toFixed(1), tpl: used[0] + (used[1] ? '/' + used[1] : '') } : { failed: true } };
+      if (g) out.ctrl = g.C.map(function (p) { return [(p[0] - d.ox) / d.iw, (p[1] - d.oy) / d.ih]; });      // simpul grid (titik kontrol untuk ?debug=1)
+      if (g && g.boss) { out.boss = [(g.boss.x - d.ox) / d.iw, (g.boss.y - d.oy) / d.ih]; out.bossR = g.bossR; out.bossScore = g.boss.sc; }
+      return out;
+    };
+  }
+  /** Arketipe (jalur spiral revisi 8 dihapus). Stage 1 ULAR (serpentin di kantong), Stage 2 TELUK (kait panjang), Stage 3 BENTENG (boss di ruang lapang). Tiap stage 3 varian (rute + cermin), dipilih acak per petualangan (levels.js). */
   const ARCH = {
-    siput1: spiralArch('siput1', { stage: 0, dir: 1, apex: 'top' }, { stage: 0, dir: 1, apex: 'left' }),
-    siput2: spiralArch('siput2', { stage: 0, dir: -1, apex: 'bottom' }, { stage: 0, dir: -1, apex: 'right' }),
-    siput3: spiralArch('siput3', { stage: 0, dir: -1, apex: 'top' }, { stage: 0, dir: -1, apex: 'left' }),
-    lobus1: spiralArch('lobus1', { stage: 1, dir: 1, apex: 'top', shape: 'lobe', k: 5, A: 22 }, { stage: 1, dir: 1, apex: 'left', shape: 'lobe', k: 5, A: 22 }),
-    lobus2: spiralArch('lobus2', { stage: 1, dir: -1, apex: 'bottom', shape: 'lobe', k: 4, A: 24 }, { stage: 1, dir: -1, apex: 'right', shape: 'lobe', k: 4, A: 24 }),
-    lobus3: spiralArch('lobus3', { stage: 1, dir: 1, apex: 'bottom', shape: 'lobe', k: 6, A: 18 }, { stage: 1, dir: 1, apex: 'right', shape: 'lobe', k: 6, A: 18 }),
-    poligon1: spiralArch('poligon1', { stage: 2, dir: 1, apex: 'bottom', shape: 'poly', k: 5, A: 22, boss: { side: 'top', k: 1.25 } }, { stage: 2, dir: 1, apex: 'left', shape: 'poly', k: 5, A: 22, boss: { side: 'right', k: 1.5 } }),
-    poligon2: spiralArch('poligon2', { stage: 2, dir: -1, apex: 'bottom', shape: 'star', k: 5, A: 22, boss: { side: 'top', k: 1.25 } }, { stage: 2, dir: -1, apex: 'right', shape: 'star', k: 5, A: 22, boss: { side: 'left', k: 1.5 } }),
-    poligon3: spiralArch('poligon3', { stage: 2, dir: 1, apex: 'bottom', shape: 'poly', k: 6, A: 20, boss: { side: 'top', k: 1.25 } }, { stage: 2, dir: 1, apex: 'left', shape: 'poly', k: 6, A: 20, boss: { side: 'right', k: 1.5 } })
+    ular1: routeArch('ular1', { stage: 0, p: [['up1', ''], ['xp1', '']], l: [['ul1', ''], ['xl1', '']] }),
+    ular2: routeArch('ular2', { stage: 0, p: [['up2', 'x'], ['xp1', 'x']], l: [['ul2', 'x'], ['xl2', 'x']] }),
+    ular3: routeArch('ular3', { stage: 0, p: [['up1', 'xy'], ['xp1', 'xy']], l: [['ul1', 'xy'], ['xl2', 'xy']] }),
+    teluk1: routeArch('teluk1', { stage: 1, p: [['tp1', ''], ['xp1', 'y']], l: [['tl1', ''], ['xl2', 'y']] }),
+    teluk2: routeArch('teluk2', { stage: 1, p: [['tp2', 'x'], ['xp1', 'xy']], l: [['tl2', 'y'], ['xl2', 'y']] }),
+    teluk3: routeArch('teluk3', { stage: 1, p: [['tp1', 'y'], ['xp1', 'x']], l: [['tl1', 'xy'], ['xl1', 'x']] }),
+    benteng1: routeArch('benteng1', { stage: 2, p: [['bp1', ''], ['xp1', '']], l: [['bl1', ''], ['xl1', '']], boss: { p: 1.25, l: 1.5 } }),
+    benteng2: routeArch('benteng2', { stage: 2, p: [['bp2', 'x'], ['xp1', 'x']], l: [['bl2', 'x'], ['xl2', 'x']], boss: { p: 1.25, l: 1.5 } }),
+    benteng3: routeArch('benteng3', { stage: 2, p: [['bp1', 'xy'], ['xp1', 'xy']], l: [['bl1', 'y'], ['xl2', 'xy']], boss: { p: 1.25, l: 1.5 } })
   };
 
-  const PLAY_IDS = ['siput1', 'siput2', 'siput3', 'lobus1', 'lobus2', 'lobus3', 'poligon1', 'poligon2', 'poligon3'];
+  const PLAY_IDS = ['ular1', 'ular2', 'ular3', 'teluk1', 'teluk2', 'teluk3', 'benteng1', 'benteng2', 'benteng3'];
   function has(id) { return !!ARCH[id]; }
   /** Margin atas jalur untuk bola stage berjari-jari R (bola kategori bisa 1,12× bola layout): pusat bola >= (hudGap + 1)R di bawah panel HUD. */
   function padTopFor(L, R) {
@@ -201,7 +237,7 @@
   function resolve(id, portrait, L, R) {
     const pl = L && L.play, pad = L && L.pad != null ? L.pad : 40, padTop = padTopFor(L, R), iw = pl ? pl.w - 2 * pad : 440, ih = pl ? pl.h - padTop - pad : 356 - (padTop - pad);
     const vc = pl ? (pl.h / 2 - padTop) / ih : 0.5;      // pusat arena (tengah area bermain) dalam koordinat ternormalisasi area jalur
-    return ARCH[id] ? ARCH[id](!!portrait, { iw: iw, ih: ih, vc: vc, asp: ih / iw, R: R || 29, portrait: !!portrait, pl: pl || { x: 0, y: 0, w: 540, h: 400 }, padTop: padTop, ox: (pl ? pl.x : 0) + pad, oy: (pl ? pl.y : 0) + padTop, cx: pl ? pl.x + pl.w / 2 : 270, cy: pl ? pl.y + pl.h / 2 : 200 }) : null;
+    return ARCH[id] ? ARCH[id](!!portrait, { iw: iw, ih: ih, vc: vc, asp: ih / iw, R: R || 29, pad: pad, gapR: ((L && L.hudGap != null) ? L.hudGap : 1.5) + 1, portrait: !!portrait, pl: pl || { x: 0, y: 0, w: 540, h: 400 }, padTop: padTop, ox: (pl ? pl.x : 0) + pad, oy: (pl ? pl.y : 0) + padTop, cx: pl ? pl.x + pl.w / 2 : 270, cy: pl ? pl.y + pl.h / 2 : 200 }) : null;
   }
 
   /* ---------- validator ---------- */
@@ -285,7 +321,7 @@
     if (endD < wn - 2) issues.push({ kind: 'end', msg: 'ujung jalur ' + Math.round(endD) + ' dari pusat (di dalam platform naga)' });
     const gapR = (L.hudGap == null ? 1.5 : L.hudGap) + 1;
     if (minY < pl.y + gapR * R - 2) issues.push({ kind: 'hud', msg: 'jalur ' + ((minY - pl.y) / R).toFixed(2) + 'R di bawah HUD (< ' + gapR.toFixed(1) + 'R)' });
-    const PR = 2.2 * R, sx = xs[Math.max(0, first)], sy = ys[Math.max(0, first)];
+    const PR = (def && def.route ? SPR_PORTAL : 2.2) * R, sx = xs[Math.max(0, first)], sy = ys[Math.max(0, first)];
     if (sx < pl.x + PR - 1 || sx > pl.x + pl.w - PR + 1 || sy < pl.y + PR - 1 || sy > pl.y + pl.h - PR + 1) issues.push({ kind: 'portal', msg: 'portal tidak penuh di area bermain' });
     // INV-1 dengan peluru nyata (syarat lulus) + sinar tipis (pembanding)
     const v = spiral ? { tot: 0, fat: 0, thin: 0, badPts: [], rays: [] } : inv1(path, R, R, muzzleL(R));
@@ -293,13 +329,46 @@
     let sp = null;
     if (spiral) {
       const Dch = 2 * R * 0.98, ld = lockDist(path, R); let lockMin = ld.min; const lockAt = ld.at;      // jarak terdekat dua bola yang BUKAN tetangga rantai (busur >= 4R): antar-lap, portal vs ujung; tetangga rantai selalu 1,96R (solver jarak)
-      const lenD = path.length / (2 * R), old = OLD_MIN[L.portrait ? 'portrait' : 'landscape'][(def && def.stage) || 0], oldMean = OLD_LEN[L.portrait ? 'portrait' : 'landscape'][(def && def.stage) || 0], need95 = INV4_PCT * old;
-      sp = { lenD: lenD, old: old, oldMean: oldMean, need: need95, pct: 100 * lenD / old, pctMean: 100 * lenD / oldMean, ratioChain: path.length / (20 * 2 * R * 0.98), lockMin: Math.min(lockMin, Dch), lockR: Math.min(lockMin, Dch) / (2 * R) };
+      const kl = L.portrait ? 'portrait' : 'landscape', stg = (def && def.stage) || 0;
+      const lenD = path.length / (2 * R), old = OLD_MIN[kl][stg], oldMean = OLD_LEN[kl][stg], rev8 = REV8_LEN[kl][stg], need95 = INV4_PCT * Math.max(old, rev8);
+      sp = { lenD: lenD, old: old, oldMean: oldMean, rev8: rev8, need: need95, pct: 100 * lenD / old, pctMean: 100 * lenD / oldMean, pctRev8: 100 * lenD / rev8, ratioChain: path.length / (20 * 2 * R * 0.98), lockMin: Math.min(lockMin, Dch), lockR: Math.min(lockMin, Dch) / (2 * R) };
       if (lockMin < LAP_PITCH_MIN * R - 0.5) { issues.push({ kind: 'lock', msg: 'INV-5: dua bola non-tetangga terlalu dekat untuk target-lock (' + (lockMin / R).toFixed(2) + 'R < ' + LAP_PITCH_MIN + 'R)' }); v.badPts.push(lockAt); }
-      if (lenD < need95 && Math.abs(R - 32) <= 1.5) issues.push({ kind: 'length', msg: 'INV-4: panjang ' + lenD.toFixed(1) + ' d < ' + need95.toFixed(1) + ' d (95% serpentin lama terpendek ' + old.toFixed(1) + ' d) = ' + sp.pct.toFixed(0) + '%' });
+      if (lenD < need95 && Math.abs(R - 32) <= 1.5) issues.push({ kind: 'length', msg: 'INV-4: panjang ' + lenD.toFixed(1) + ' d < ' + need95.toFixed(1) + ' d (95% dari ' + Math.max(old, rev8).toFixed(1) + ' d: serpentin lama terpendek ' + old.toFixed(1) + ', revisi 8 ' + rev8.toFixed(1) + ') = ' + (100 * lenD / Math.max(old, rev8)).toFixed(0) + '%' });
     }
+    const rt = def && def.route ? routeChecks(path, R, L, def, v) : null;
+    if (rt) rt.issues.forEach(function (i) { issues.push(i); });
     if (!spiral && v.fat > 0) issues.push({ kind: 'inv1', msg: 'INV-1: ' + v.fat + '/' + v.tot + ' sinar mengenai bola lain lebih dulu (peluru nyata)' });
-    return { issues: issues, inv1: v, rayBad: v.badPts, minCenter: minR, endDist: endD, sweepDeg: sweepDeg, spiral: sp };
+    return { issues: issues, inv1: v, rayBad: v.badPts, minCenter: minR, endDist: endD, sweepDeg: sweepDeg, spiral: sp, route: rt && rt.info };
+  }
+
+  /** INV-6/7/8 untuk jalur rute (portal = titik awal jalur, sarang = titik akhir).
+   *  INV-6: jarak pusat portal-sarang >= 0,55 × sisi terpanjang area bermain DAN selisih sudut keduanya terhadap pivot naga >= 150°.
+   *  INV-7: titik jalur yang berjarak busur > 8 diameter (16R) dari ujung awal harus >= sprite portal + 3R dari pusat portal; titik yang berjarak busur > 8 diameter dari ujung akhir harus >= sprite sarang + 3R dari pusat sarang.
+   *  INV-8: dalam radius sprite + 2R dari portal/sarang tidak ada naga + sayap (dan boss); dekorasi/rintangan/label diperiksa di background.js, hazards.js, path.js (tes). */
+  function routeChecks(path, R, L, def, v) {
+    const xs = path.xs, ys = path.ys, n = xs.length, st = path.step, pl = L.play, cx = path.shooter.x, cy = path.shooter.y, issues = [];
+    const P = { x: xs[0], y: ys[0] }, N = { x: xs[n - 1], y: ys[n - 1] }, rP = SPR_PORTAL * R, rN = SPR_NEST * R, long = Math.max(pl.w, pl.h);
+    const dist = Math.hypot(P.x - N.x, P.y - N.y); let da = Math.abs(Math.atan2(P.y - cy, P.x - cx) - Math.atan2(N.y - cy, N.x - cx)); if (da > Math.PI) da = 2 * Math.PI - da; da = da * 180 / Math.PI;
+    if (dist < DIST_FRAC * long - 0.5) issues.push({ kind: 'inv6', msg: 'INV-6: portal-sarang ' + Math.round(dist) + ' px = ' + (dist / long).toFixed(2) + ' × sisi terpanjang (< ' + DIST_FRAC + ')' });
+    if (da < ANG_MIN - 0.5) issues.push({ kind: 'inv6', msg: 'INV-6: selisih sudut portal-sarang terhadap naga ' + da.toFixed(0) + '° (< ' + ANG_MIN + '°)' });
+    const free = ARC_FREE * R; let mP = 1e9, mN = 1e9, atP = null, atN = null;
+    for (let i = 0; i < n; i++) {
+      const s = i * st;
+      if (s > free) { const d1 = Math.hypot(xs[i] - P.x, ys[i] - P.y); if (d1 < mP) { mP = d1; atP = [xs[i], ys[i]]; } }
+      if ((n - 1 - i) * st > free) { const d2 = Math.hypot(xs[i] - N.x, ys[i] - N.y); if (d2 < mN) { mN = d2; atN = [xs[i], ys[i]]; } }
+    }
+    const needP = rP + CLEAR7 * R, needN = rN + CLEAR7 * R, bad = [];
+    if (mP < needP - 0.5) { issues.push({ kind: 'inv7', msg: 'INV-7: jalur ' + (mP / R).toFixed(2) + 'R dari portal (< ' + (needP / R).toFixed(2) + 'R) setelah 8 diameter pertama' }); bad.push(atP); }
+    if (mN < needN - 0.5) { issues.push({ kind: 'inv7', msg: 'INV-7: jalur ' + (mN / R).toFixed(2) + 'R dari sarang (< ' + (needN / R).toFixed(2) + 'R) sebelum 8 diameter terakhir' }); bad.push(atN); }
+    const wing = wingNeed(R) - R - 2, dP = Math.hypot(P.x - cx, P.y - cy) - wing, dN = Math.hypot(N.x - cx, N.y - cy) - wing, zP = rP + CLEAR8 * R, zN = rN + CLEAR8 * R;
+    if (dP < zP - 0.5) issues.push({ kind: 'inv8', msg: 'INV-8: sayap naga ' + (dP / R).toFixed(2) + 'R dari pusat portal (< ' + (zP / R).toFixed(2) + 'R)' });
+    if (dN < zN - 0.5) issues.push({ kind: 'inv8', msg: 'INV-8: sayap naga ' + (dN / R).toFixed(2) + 'R dari pusat sarang (< ' + (zN / R).toFixed(2) + 'R)' });
+    if (path.boss) {
+      const br = path.boss.R || Math.round(2.45 * R), b1 = Math.hypot(path.boss.x - P.x, path.boss.y - P.y) - br, b2 = Math.hypot(path.boss.x - N.x, path.boss.y - N.y) - br;
+      if (b1 < zP - 0.5) issues.push({ kind: 'inv8', msg: 'INV-8: boss menyentuh zona bersih portal' }); if (b2 < zN - 0.5) issues.push({ kind: 'inv8', msg: 'INV-8: boss menyentuh zona bersih sarang' });
+    }
+    bad.forEach(function (p) { if (p) v.badPts.push(p); });
+    return { issues: issues, info: { P: P, N: N, dist: dist, long: long, frac: dist / long, ang: da, minP: mP, minN: mN, needP: needP, needN: needN, zP: zP, zN: zN, rP: rP, rN: rN, wing: wing, atP: atP, atN: atN } };
   }
 
   /** Lunakkan tikungan tajam:
@@ -352,13 +421,42 @@
     ctx.setLineDash([]);
     (path.zones || []).forEach(function (z) { const a = path.at(z.from, {}), b = path.at(z.to, {}); ctx.strokeStyle = 'rgba(255,0,255,0.8)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); });
     const ed = GA.Effects && GA.Effects.entryD ? GA.Effects.entryD() : 0, ep = path.at(ed, {}); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(ep.x, ep.y, R * 2.2, 0, TAU); ctx.stroke();
-    ctx.fillStyle = 'rgba(0,0,0,0.7)'; const y0 = (path.play ? path.play.y : 100) + 8; ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(4, y0, 330, 14 + 12 * ((rep.issues || []).length + 4));
-    ctx.fillStyle = rep.ok ? '#7dff9a' : '#ff9a7d'; ctx.font = '11px monospace'; ctx.textAlign = 'left';
+    let y0 = (path.play ? path.play.y : 100) + 8;
+    ctx.font = '11px monospace'; ctx.textAlign = 'left';
     const lines = ['jalur ' + path.presetId + '  panjang ' + Math.round(path.length) + '  R ' + R, 'gap min ' + (rep.minGap ? Math.round(rep.minGap) : '-') + ' (butuh ' + Math.round(rep.need || 0) + ')  radius min ' + (rep.minRadius ? Math.round(rep.minRadius) : '-') + '  lunak ' + (rep.softened || 0) + 'x', 'ruang penembak ' + Math.round(rep.shooterClear || 0) + '  silang ' + (rep.crossings || []).length].concat(rep.star && rep.star.spiral ? ['INV-4 panjang ' + rep.star.spiral.lenD.toFixed(1) + ' d = ' + rep.star.spiral.pct.toFixed(0) + '% serpentin lama terpendek (' + rep.star.spiral.old.toFixed(1) + ' d)  rasio rantai ' + rep.star.spiral.ratioChain.toFixed(2), 'INV-5 jarak bola non-tetangga ' + (rep.star.spiral.lockMin / R).toFixed(2) + 'R  kunci ' + rep.star.spiral.lockR.toFixed(2) + ' dia'] : rep.star ? ['INV-1 peluru nyata ' + rep.star.inv1.fat + '/' + rep.star.inv1.tot + '  sinar tipis ' + rep.star.inv1.thin + '  sudut ' + Math.round(rep.star.sweepDeg) + '°  ujung ' + Math.round(rep.star.endDist)] : []).concat((rep.issues || []).map(function (i) { return '! ' + i.msg; }));
-    lines.forEach(function (l, i) { ctx.fillText(l, 10, y0 + 16 + i * 12); });
+    const rt = rep.star && rep.star.route;
+    if (rt) {      // INV-6/7/8: garis portal-sarang, zona INV-7 (putus-putus) dan zona bersih INV-8 (titik-titik); pelanggaran INV-7 ditandai merah (bola merah di rayBad)
+      ctx.save(); ctx.lineWidth = 1.5;
+      [[rt.P, rt.rP, 'rgba(182,156,255,0.95)'], [rt.N, rt.rN, 'rgba(255,170,60,0.95)']].forEach(function (z) {
+        ctx.strokeStyle = z[2]; ctx.setLineDash([8, 6]); ctx.beginPath(); ctx.arc(z[0].x, z[0].y, z[1] + CLEAR7 * R, 0, TAU); ctx.stroke();
+        ctx.setLineDash([2, 5]); ctx.beginPath(); ctx.arc(z[0].x, z[0].y, z[1] + CLEAR8 * R, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+        ctx.beginPath(); ctx.arc(z[0].x, z[0].y, z[1], 0, TAU); ctx.stroke();
+      });
+      ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.setLineDash([4, 6]); ctx.beginPath(); ctx.moveTo(rt.P.x, rt.P.y); ctx.lineTo(rt.N.x, rt.N.y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = '#fff'; ctx.font = '12px monospace'; ctx.textAlign = 'center'; ctx.fillText(Math.round(rt.dist) + ' px', (rt.P.x + rt.N.x) / 2, (rt.P.y + rt.N.y) / 2 - 6); ctx.restore();
+      lines.push('INV-6 portal-sarang ' + Math.round(rt.dist) + ' px = ' + rt.frac.toFixed(2) + ' × sisi terpanjang (≥ ' + DIST_FRAC + '), sudut ' + rt.ang.toFixed(0) + '° (≥ ' + ANG_MIN + '°)');
+      lines.push('INV-7 jalur→portal ' + (rt.minP / R).toFixed(2) + 'R (≥ ' + (rt.needP / R).toFixed(2) + ')  jalur→sarang ' + (rt.minN / R).toFixed(2) + 'R (≥ ' + (rt.needN / R).toFixed(2) + ')   INV-8 zona bersih ' + (rt.zP / R).toFixed(2) + 'R / ' + (rt.zN / R).toFixed(2) + 'R');
+    }
+    // panel laporan (teks dipotong ≤ 54 karakter): ditaruh di tempat yang paling sedikit menutupi jalur, zona portal/sarang, dan naga
+    { const pl = path.play || { x: 0, y: 100, w: 540, h: 400 }, wrapped = []; lines.forEach(function (l) { for (let i = 0; i < l.length; i += 54) wrapped.push((i ? '  ' : '') + l.slice(i, i + 54)); });
+      const ph = 12 + 11 * wrapped.length, pw = 330, pts = [], circles = [];
+      for (let i = 0; i < path.xs.length; i += 6) pts.push([path.xs[i], path.ys[i]]);
+      circles.push([path.shooter.x, path.shooter.y, GA.Theme.dragon.radiusRatio * R * 2.4]); if (path.boss) circles.push([path.boss.x, path.boss.y, (path.boss.R || 2.45 * R) + 8]);
+      if (rt) { circles.push([rt.P.x, rt.P.y, rt.rP + CLEAR7 * R]); circles.push([rt.N.x, rt.N.y, rt.rN + CLEAR7 * R]); }
+      let bx = 4, by = pl.y + 8, bp = 1e9;
+      for (let y = pl.y + 6; y <= pl.y + pl.h - ph - 4; y += 14) for (let x = 4; x <= pl.w - pw - 4; x += 14) {
+        let pen = 0;
+        circles.forEach(function (c) { const cx = Math.max(x, Math.min(c[0], x + pw)), cy = Math.max(y, Math.min(c[1], y + ph)); if (Math.hypot(c[0] - cx, c[1] - cy) < c[2]) pen += 40; });
+        for (let i = 0; i < pts.length; i++) { const cx = Math.max(x, Math.min(pts[i][0], x + pw)), cy = Math.max(y, Math.min(pts[i][1], y + ph)); if (Math.hypot(pts[i][0] - cx, pts[i][1] - cy) < R + 4) pen++; }
+        pen += (y - pl.y) * 0.002; if (pen < bp) { bp = pen; bx = x; by = y; }
+      }
+      y0 = by; ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(bx, y0, pw, ph);
+      ctx.font = '10px monospace'; ctx.textAlign = 'left';
+      wrapped.forEach(function (l, i) { ctx.fillStyle = l.trim()[0] === '!' ? '#ff9a7d' : (rep.ok ? '#7dff9a' : '#dfe'); ctx.fillText(l, bx + 6, y0 + 14 + i * 11); }); }
     ctx.restore();
   }
 
-  GA.Paths = { has: has, resolve: resolve, refine: refine, analyze: analyze, analyzeStar: analyzeStar, inv1: inv1, muzzleL: muzzleL, padTopFor: padTopFor, drawDebug: drawDebug, ids: PLAY_IDS, all: Object.keys(ARCH), wingNeed: wingNeed, WING_REACH: WING_REACH };
+  GA.Paths = { has: has, resolve: resolve, refine: refine, analyze: analyze, analyzeStar: analyzeStar, inv1: inv1, muzzleL: muzzleL, padTopFor: padTopFor, drawDebug: drawDebug, ids: PLAY_IDS, all: Object.keys(ARCH), wingNeed: wingNeed, WING_REACH: WING_REACH, SPR_PORTAL: SPR_PORTAL, SPR_NEST: SPR_NEST, CLEAR7: CLEAR7, CLEAR8: CLEAR8, ARC_FREE: ARC_FREE, DIST_FRAC: DIST_FRAC, ANG_MIN: ANG_MIN, TPL: TPL, lenMinD: lenMinD, routeGeom: routeGeom, parseNodes: parseNodes, mirrorNodes: mirrorNodes, filletPath: filletPath, routeChecks: routeChecks, MIN_PITCH: MIN_PITCH, SPACING_CAP: SPACING_CAP,
+    /** Alat dev (js/dev/routesearch.js): daftarkan arketipe rute sementara. */ registerRoute: function (id, o) { ARCH[id] = routeArch(id, o); } };
   GA.debug = /[?&]debug(=1|&|$)/.test(location.search);
 })(window.GA = window.GA || {});

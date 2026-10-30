@@ -148,7 +148,7 @@
 
   /** Hancurkan satu bola di tengah rantai padat: celah menutup < 400 ms, bagian depan tetap berjalan normal. Sisip: bergeser halus, tanpa celah sesudahnya. */
   function gapAndInsert() {
-    const L = Object.assign({}, LAYS[0], { ballR: 32, pad: 50 }), path = GA.Path.forLayout('siput1', L, 32);
+    const L = Object.assign({}, LAYS[0], { ballR: 32, pad: 50 }), path = GA.Path.forLayout('ular1', L, 32);
     const gp = GA.Gameplay.resolve('sedang', 0), c = new GA.Chain.Chain(path, { r: 32, gp: gp });
     c.entryD = c.unit * 2.6; c.setQueue(specs(22, []));
     for (let i = 0; i < 700 && c.entry.phase !== 'done'; i++) c.update(1 / 60);

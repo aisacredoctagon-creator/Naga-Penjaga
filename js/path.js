@@ -91,7 +91,7 @@
   /** Bangun jalur untuk layout tertentu. layout.play = {x,y,w,h}, layout.portrait */
   function forLayout(presetId, layout, R) {
     R = R || layout.ballR || 32;
-    const def = GA.Paths.resolve(presetId, layout.portrait, layout, R) || GA.Paths.resolve('siput1', layout.portrait, layout, R);   // arketipe jalur (maps/paths.js): sudah dipilah potret/lanskap
+    const def = GA.Paths.resolve(presetId, layout.portrait, layout, R) || GA.Paths.resolve('ular1', layout.portrait, layout, R);   // arketipe jalur (maps/paths.js): sudah dipilah potret/lanskap
     const pr = def;
     const pl = layout.play;
     const pad = layout.pad == null ? 40 : layout.pad; // jarak jalur dari tepi area main
@@ -105,7 +105,7 @@
     path.shooter = { x: sh[0], y: sh[1] };
     path.boss = pr.boss ? (function () { const b = map(pr.boss); return { x: b[0], y: b[1], R: pr.bossR || 0 }; })() : null;      // R boss (0 = ukuran standar)
     path.presetId = presetId; path.play = pl; path.star = !!pr.star;
-    path.ctrl = pr.pts.map(map);
+    path.ctrl = (pr.ctrl || pr.pts).map(map);
     return GA.Paths.refine(path, R, layout, def);
   }
 
@@ -166,6 +166,25 @@
     return (cache[key] = best || [px, py + dist]);
   }
 
+  /** Letak label SARANG (revisi 10): di sekitar sprite sarang (tepat di luar cincin batu), pilih posisi yang jarak persegi labelnya ke garis tengah jalur terjauh (>= R, jadi tidak menutupi bola mana pun),
+   *  di dalam area bermain dan di luar lingkaran sayap naga. Dicache per jalur (tergantung ukuran font). */
+  function nestLabelSpot(ctx, path, r, size) {
+    const key = 'nest' + size, cache = path._lab || (path._lab = {}); if (cache[key]) return cache[key];
+    ctx.font = '800 ' + size + 'px ' + GA.Theme.fonts.ui;
+    const h = holeXY(path), pl = path.play, xs = path.xs, ys = path.ys, w = ctx.measureText('🥚 SARANG').width + 22, hh = size + 12, wing = GA.Paths.wingNeed(r) - r - 2;
+    let best = null, bs = -1e9;
+    for (let a = 0; a < 24; a++) for (let k = 0; k < 4; k++) {
+      const ang = a * Math.PI / 12, d = r * (2.5 + k * 0.45) + hh / 2, x = h.x + Math.cos(ang) * d * (w / hh > 3 ? 1.45 : 1.2), y = h.y + Math.sin(ang) * d;
+      if (x - w / 2 < pl.x + 6 || x + w / 2 > pl.x + pl.w - 6 || y - hh / 2 < pl.y + 4 || y + hh / 2 > pl.y + pl.h - 4) continue;
+      if (Math.hypot(x - path.shooter.x, y - path.shooter.y) < wing + hh) continue;
+      let m = 1e9;
+      for (let i = 0; i < xs.length; i += 3) { const dx = Math.max(Math.abs(xs[i] - x) - w / 2, 0), dy = Math.max(Math.abs(ys[i] - y) - hh / 2, 0), dd = Math.hypot(dx, dy); if (dd < m) m = dd; }
+      const sc = Math.min(m, r * 1.6) - k * 0.5;      // cukup lapang (>= 1,6R) lebih baik daripada makin jauh; hindari jarak besar dari sarang
+      if (sc > bs) { bs = sc; best = [x, y]; }
+    }
+    return (cache[key] = best || [h.x, h.y + r * 3.2]);
+  }
+
   /** Penanda START (di awal alur yang terlihat) dan FINISH (di lubang). */
   function drawMarkers(ctx, path, r, t, center, size) {
     const tmp = { x: 0, y: 0, a: 0 };
@@ -191,10 +210,8 @@
 
     // FINISH: label bendera di sisi lubang yang lapang
     const h = holeXY(path); let f;
-    if (path.star) {      // naga di tengah: label SARANG di sisi luar sarang (menjauh dari pusat), di dalam area bermain
-      const dx = h.x - path.shooter.x, dy = h.y - path.shooter.y, dl = Math.hypot(dx, dy) || 1, pl2 = path.play, d2 = r * 3.4;
-      f = [Math.max(pl2.x + 70, Math.min(pl2.x + pl2.w - 70, h.x + dx / dl * d2)), Math.max(pl2.y + 26, Math.min(pl2.y + pl2.h - 26, h.y + dy / dl * d2))];
-    } else f = labelSpot(path, 'finish', h.x, h.y, r * 2.9, path.length - 420, path.length);
+    if (path.star) f = nestLabelSpot(ctx, path, r, size);      // rute grid (revisi 10): label SARANG di sisi sarang yang paling lapang, tidak menutupi bola mana pun
+    else f = labelSpot(path, 'finish', h.x, h.y, r * 2.9, path.length - 420, path.length);
     pill(ctx, '🥚 SARANG', f[0], f[1], '#e0932a', '#fff', size);
   }
 

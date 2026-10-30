@@ -200,14 +200,30 @@
   /** Zona boss + bilah HP (tidak boleh ditumpuk dekorasi): persegi di sekitar boss. */
   function inBoss(boss, R, x, y, rad) { return !!boss && Math.abs(x - boss.x) < 200 + rad && y > boss.y - R * 3.6 - rad && y < boss.y + R * 3.6 + rad; }
 
-  function scatter(u, gl, E, L, field, hole, shooter, pondR, R, map, rnd, boss) {
+  /** Zona bersih INV-8 (revisi 10): lingkaran sprite + 2R di sekitar portal (titik awal jalur) dan sarang (titik akhir): tanpa dekorasi, objek depan, rintangan, atau label lain. Jalur lama (tanpa portal/sarang rute) memakai 3,8R di sarang. */
+  function clearZones(path, R, hole) {
+    const P = GA.Paths, sp = P && P.SPR_PORTAL ? P.SPR_PORTAL : 2.2, sn = P && P.SPR_NEST ? P.SPR_NEST : 2.3, c2 = P && P.CLEAR8 ? P.CLEAR8 : 2;
+    return [{ x: path.xs[0], y: path.ys[0], r: (sp + c2) * R }, { x: hole.x, y: hole.y, r: (sn + c2) * R }];
+  }
+  function inZones(zones, x, y, rad) { if (!zones) return false; for (let i = 0; i < zones.length; i++) if (Math.hypot(x - zones[i].x, y - zones[i].y) < zones[i].r + rad) return true; return false; }
+  /** Ruas (x0,y0)-(x1,y1) memasuki zona (dengan tambahan pad)? */
+  function zoneHitSeg(zones, x0, y0, x1, y1, pad) {
+    if (!zones) return false;
+    for (let i = 0; i < zones.length; i++) {
+      const z = zones[i], dx = x1 - x0, dy = y1 - y0, l2 = dx * dx + dy * dy || 1; let t = ((z.x - x0) * dx + (z.y - y0) * dy) / l2; t = Math.max(0, Math.min(1, t));
+      if (Math.hypot(x0 + dx * t - z.x, y0 + dy * t - z.y) < z.r + (pad || 0)) return true;
+    }
+    return false;
+  }
+
+  function scatter(u, gl, E, L, field, hole, shooter, pondR, R, map, rnd, boss, zones) {
     const pal = map.pal, g = u.g, items = [], placed = [], lights = [];
     const n = Math.round(E.w * E.h / 5400 * map.density);
     const ok = function (x, y, rad, clr) {
       if (x > 0 && x < L.W && y < L.hud + R * 1.5 && y > -1) return false;
       if (field.dist(x, y) < R * 2.2 + clr) return false;      // dekorasi tidak menyentuh area jalur (garis tengah ± 2,2R)
       if (Math.hypot(x - shooter.x, y - shooter.y) < pondR * 1.25 + rad) return false;
-      if (Math.hypot(x - hole.x, y - hole.y) < R * 3.8 + rad) return false;
+      if (inZones(zones, x, y, rad)) return false;      // INV-8: zona bersih portal dan sarang (sprite + 2R) tanpa dekorasi
       if (inBoss(boss, R, x, y, rad)) return false;
       return true;
     };
@@ -234,7 +250,7 @@
   }
 
   /* ---------- penutup depan ---------- */
-  function paintFront(f, u, E, L, field, hole, shooter, pondR, R, map, rnd, path) {
+  function paintFront(f, u, E, L, field, hole, shooter, pondR, R, map, rnd, path, zones) {
     const boss = path && path.boss;
     const g = f.g, pal = map.pal, avoid = [], kind = map.front || 'leaf';
     const dark = ['rgba(5,22,10,0.20)', 'rgba(5,22,10,0.20)', 'rgba(5,22,10,0.20)'];
@@ -246,7 +262,7 @@
       const nr = field.nearest(x, y), d = nr.d;
       if (d < R * 4.6 || d > R * 7.5) continue;      // objek depan: ujungnya berhenti >= 2,6R dari garis tengah jalur (1,5R di luar tepi alur) dan DI BAWAH bola
       if (Math.hypot(x - shooter.x, y - shooter.y) < pondR * 1.4) continue;
-      if (Math.hypot(nr.x - hole.x, nr.y - hole.y) < R * 4.5) continue;
+      if (Math.hypot(nr.x - hole.x, nr.y - hole.y) < R * 4.5 || zoneHitSeg(zones, x, y, x + Math.cos(Math.atan2(nr.y - y, nr.x - x)) * (d - R * 3.2), y + Math.sin(Math.atan2(nr.y - y, nr.x - x)) * (d - R * 3.2), R * 2)) continue;
       if (inBoss(boss, R, x, y, 40)) continue;
       if (avoid.some(function (a) { return Math.hypot(a[0] - x, a[1] - y) < R * 4; })) continue;
       const ang = Math.atan2(nr.y - y, nr.x - x), len = d - R * 3.2;
@@ -269,19 +285,19 @@
         for (let k = 0; k < 4; k++) {
           const a = c[2] + (rnd() - 0.5) * 1.2, ox = c[0], oy = c[1];
           let l = R * (3.2 + rnd() * 1.6);
-          for (; l > R; l -= 6) { const tx = ox + Math.cos(a) * l, ty = oy + Math.sin(a) * l; if (field.dist(tx, ty) > R * 3.2 && field.dist((ox + tx) / 2, (oy + ty) / 2) > R * 3.2) break; }
+          for (; l > R; l -= 6) { const tx = ox + Math.cos(a) * l, ty = oy + Math.sin(a) * l; if (field.dist(tx, ty) > R * 3.2 && field.dist((ox + tx) / 2, (oy + ty) / 2) > R * 3.2 && !zoneHitSeg(zones, ox, oy, tx, ty, 0)) break; }
           if (l > R) D.leaf(g, ox, oy, l, a, pal.leafFront);
         }
       });
     } else if (kind === 'stone') {
       for (let x = E.x0 - 20; x < E.x1 + 20; x += 36 + rnd() * 40) {         // stalaktit menggantung dari tepi atas
-        const len = 36 + rnd() * 70, w = 12 + rnd() * 16; if (field.dist(x, E.y0 + len) < R * 2.6 + w * 0.5) continue; D2.stalactite(g, x, E.y0 - 4, len, w, pal);
+        const len = 36 + rnd() * 70, w = 12 + rnd() * 16; if (field.dist(x, E.y0 + len) < R * 2.6 + w * 0.5 || zoneHitSeg(zones, x, E.y0 - 4, x, E.y0 + len, w)) continue; D2.stalactite(g, x, E.y0 - 4, len, w, pal);
       }
-      for (let k = 0; k < 6; k++) { const x = E.x0 + rnd() * E.w, y = E.y1 - rnd() * 18, s = 26 + rnd() * 30; if (field.dist(x, y - s) > R * 2.6 + s) D.rock(g, x, y, s, rnd, pal, false); }
+      for (let k = 0; k < 6; k++) { const x = E.x0 + rnd() * E.w, y = E.y1 - rnd() * 18, s = 26 + rnd() * 30; if (field.dist(x, y - s) > R * 2.6 + s && !inZones(zones, x, y - s * 0.5, s)) D.rock(g, x, y, s, rnd, pal, false); }
     } else if (kind === 'hall') {
       const cols = pal.banners || [['#6a2ab0', '#4a1a88', '#2a0e55'], ['#a02a60', '#781a48', '#480c2c']];
-      for (let x = E.x0 + 30 + rnd() * 30, i = 0; x < E.x1 - 30; x += 120 + rnd() * 90, i++) { const w = 38 + rnd() * 12, h = 70 + rnd() * 70; if (field.dist(x + w / 2, E.y0 + h * 0.7) > R * 2.6 + w * 0.6) D2.banner(g, x, E.y0 - 6, w, h, cols[i % 2], pal.trim || '#e0b860'); }
-      [[E.x0 + 10, E.y0 + 20], [E.x1 - 10, E.y0 + 20], [E.x0 + 10, E.y1 + 10], [E.x1 - 10, E.y1 + 10]].forEach(function (c) { if (field.dist(c[0], c[1] - 40) > R * 3 + 30) D2.pillar(g, c[0], c[1], 40, pal); });
+      for (let x = E.x0 + 30 + rnd() * 30, i = 0; x < E.x1 - 30; x += 120 + rnd() * 90, i++) { const w = 38 + rnd() * 12, h = 70 + rnd() * 70; if (field.dist(x + w / 2, E.y0 + h * 0.7) > R * 2.6 + w * 0.6 && !zoneHitSeg(zones, x + w / 2, E.y0, x + w / 2, E.y0 + h, w)) D2.banner(g, x, E.y0 - 6, w, h, cols[i % 2], pal.trim || '#e0b860'); }
+      [[E.x0 + 10, E.y0 + 20], [E.x1 - 10, E.y0 + 20], [E.x0 + 10, E.y1 + 10], [E.x1 - 10, E.y1 + 10]].forEach(function (c) { if (field.dist(c[0], c[1] - 40) > R * 3 + 30 && !inZones(zones, c[0], c[1] - 20, 50)) D2.pillar(g, c[0], c[1], 40, pal); });
     }
     // (3) jembatan batu di jalur atas (persilangan)
     if (path && path.bridges) path.bridges.forEach(function (b) { D2.bridge(g, b, R, pal); });
@@ -321,8 +337,9 @@
       if (!art) { D.pond(u.g, sh.x, sh.y, pondR, pal, N.rng(map.seed + 3)); D.slab(u.g, sh.x, sh.y, slabR, pal, N.rng(map.seed + 4)); }
       if (pal.poolGlow) { const g2 = gl.g, pg = g2.createRadialGradient(sh.x, sh.y, slabR * 0.6, sh.x, sh.y, pondR * 1.25); pg.addColorStop(0, 'rgba(' + pal.poolGlow + ',0.0)'); pg.addColorStop(0.7, 'rgba(' + pal.poolGlow + ',0.5)'); pg.addColorStop(1, 'rgba(' + pal.poolGlow + ',0)'); g2.fillStyle = pg; g2.beginPath(); g2.arc(sh.x, sh.y, pondR * 1.25, 0, TAU); g2.fill(); }
       if (pal.runeCol) { const g2 = gl.g; g2.strokeStyle = pal.runeCol; g2.lineWidth = 2.4; g2.beginPath(); g2.ellipse(sh.x, sh.y, slabR * 0.78, slabR * 0.7, 0, 0, TAU); g2.stroke(); }
-      if (!art) lights = scatter(u, gl.g, E, L, field, hole, sh, pondR, R, map, N.rng(map.seed + 5), path.boss);
-      paintFront(f, u, E, L, field, hole, sh, pondR, R, art ? Object.assign({}, map, { front: 'none' }) : map, N.rng(map.seed + 6), path);
+      const zones = clearZones(path, R, hole);      // zona bersih portal + sarang (revisi 10)
+      if (!art) lights = scatter(u, gl.g, E, L, field, hole, sh, pondR, R, map, N.rng(map.seed + 5), path.boss, zones);
+      paintFront(f, u, E, L, field, hole, sh, pondR, R, art ? Object.assign({}, map, { front: 'none' }) : map, N.rng(map.seed + 6), path, zones);
       info = { pond: { x: sh.x, y: sh.y, r: pondR, rip: pal.ripple || '255,255,255' }, hole: hole };
     }
     const g = u.g, lg = g.createLinearGradient(E.x0, E.y0, E.x1, E.y1);

@@ -51,7 +51,7 @@ desktop. Tiga lapis: `DEFAULTS` → `PER_DIFF[mudah|sedang|sulit]` → `STAGE_SP
 | `CHAIN_PRESSURE_RAMP`, `PRESSURE_RAMP_TIME`, `PRESSURE_DROP` | tekanan: kecepatan naik pelan hingga +15% dalam 240 dtk; tiap jawaban benar beruntun (kombo ≥ 2) menurunkannya | 0,15 · 240 · 0,12 |
 | `NEST_SLOW_DIAMS`, `NEST_SLOW_MULT` | dekat sarang rantai melambat (tidak pernah berhenti) | 7 d · ×0,7 |
 | `BALL_SPACING_FACTOR` | jarak pusat bola bersebelahan = 2R × ini | 0,98 |
-| `GAP_CLOSE_SPEED` | bagian belakang celah menyusul sekian d/dtk (celah 1 bola ±0,13 dtk) | 7,5 |
+| `GAP_CLOSE_SPEED` | bagian belakang celah menyusul sekian d/dtk (celah 1 bola ±0,125 dtk; revisi 10: 7,5 → 8 karena U-turn berjari-jari 1,3R memperlambat penutupan celah ganda) | 8 |
 | `INSERT_TIME` | bola disisipkan: tetangga bergeser halus selama ini (`Chain.insert`) | 0,12 dtk |
 | `MAX_DT` | langkah waktu maksimum (tab di-resume tidak membuat bola melompat) | 0,05 dtk |
 

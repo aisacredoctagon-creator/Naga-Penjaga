@@ -126,7 +126,7 @@
     const mk = function (portrait) { const W = portrait ? 540 : 960, H = portrait ? 960 : 540, h = GA.HUD.metrics({ portrait: portrait, W: W, scale: 1 }).h; return { portrait: portrait, W: W, H: H, play: { x: 0, y: h, w: W, h: H - h - (portrait ? 12 : 0) } }; };
     const R = 29, lays = [mk(false), mk(true)], bad = [], ratio = [];
     lays.forEach(function (L) { L.ballR = R; L.pad = R + 18; });
-    [[26, 26], [29, 29], [32, 32], [36, 32]].forEach(function (rp) {      // [radius bola stage, radius bola layout]: kategori pecahan/desimal memakai bola 1,12x
+    [[26, 26], [29, 29], [32, 32], [34.56, 32], [35.84, 32], [36, 32]].forEach(function (rp) {      // [radius bola stage, radius bola layout]: kategori campuran 1,08x, pecahan/desimal 1,12x
     const R = rp[0];
     lays.forEach(function (L) { L.ballR = rp[1]; L.pad = rp[1] + 18; L.hudGap = L.portrait ? 1.5 : 1.0; L.padTop = Math.round((L.hudGap + 1) * rp[1] * (L.portrait ? 1.12 : 1.05)); });
     GA.Paths.ids.forEach(function (id) {
@@ -366,30 +366,36 @@
     ok('20 soal terjawab tepat sekali, tanpa macet: semua stage yang dimenangkan bot menjawab tepat 20 soal', bad20 === 0, 'putaran ' + allRuns + ', menang dengan jawaban != 20: ' + bad20);
   }
 
-  /** Invarian jalur (revisi 8, spiral stadion + tembakan lontar) pada TIGA ukuran layar nyata (390×844, 844×390, 1440×900) untuk semua arketipe stage 1–3:
-   *  INV-2 naga di tengah area bermain, jalur mengelilingi dan berujung di platform (sayap tidak menutupi), portal penuh di area, tidak di bawah HUD; INV-3 jarak antar-segmen >= 2,6R (pitch);
-   *  INV-4 panjang >= 95% dari serpentin lama TERPENDEK untuk stage dan layout yang sama (commit ddd3183); INV-5 keterpilihan: dua bola non-tetangga >= 2,6R, tetangga rantai 1,96R, jadi target-lock
-   *  (bola terdekat dalam 1,0R dari titik bidik) memilih bola itu sendiri untuk semua titik dalam 0,98R dari pusat bola. Juga: penyetel tidak jatuh ke cadangan, tiap stage >= 2 varian. */
+  /** Invarian jalur (revisi 10, rute grid + tembakan lontar target-lock) pada TIGA ukuran layar nyata (390×844, 844×390, 1440×900) untuk semua arketipe stage 1–3 dan varian:
+   *  INV-2 naga di tengah area bermain, sayap tidak menutupi jalur, jalur di bawah HUD, portal dan sarang penuh di area; INV-3 jarak antar-segmen >= 2,6R; INV-4 panjang >= 95% panjang saat ini (revisi 8) dan serpentin lama;
+   *  INV-5 keterpilihan target-lock (dua bola non-tetangga >= 2,6R); INV-6 portal dan sarang berjauhan (jarak >= 0,55 × sisi terpanjang dan sudut >= 150°); INV-7 jalur tidak melewati dekat portal/sarang selain 8 diameter pertama/terakhir;
+   *  INV-8 zona bersih sprite + 2R tanpa naga/sayap/boss (dekorasi, rintangan, label: diuji terpisah). Juga: tiap rute muat tanpa cadangan, tiap stage >= 2 varian. */
   function testInvariants() {
-    const G = GA.game, sizes = [[390, 844], [844, 390], [1440, 900]], bad2 = [], bad3 = [], bad4 = [], bad5 = [], badFit = []; let builds = 0, minGap = 1e9, minPct = 1e9, minLock = 1e9, minPitchSeen = 1e9, laps = [];
-    const INV2 = { center: 1, wing: 1, end: 1, hud: 1, portal: 1, bounds: 1, shooter: 1, hud2: 1 };
+    const G = GA.game, sizes = [[390, 844], [844, 390], [1440, 900]], K = { 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: [], x: [] }, rows = []; let builds = 0, minGap = 1e9, minLock = 1e9, minFrac = 1e9, minAng = 1e9, minP = 1e9, minN = 1e9, minPct = 1e9;
+    const INV2 = { center: 1, wing: 1, end: 1, hud: 1, portal: 1, bounds: 1, shooter: 1, hud2: 1 }, tracker = {};
     sizes.forEach(function (sz) {
       GA.devViewport = { w: sz[0], h: sz[1] }; G.relayout();
       const L = G.layout, R = L.ballR;
       GA.Paths.ids.forEach(function (id) {
-        const p = GA.Path.forLayout(id, L, R), rep = p.report, st = rep.star, sp = st.spiral, tag = id + '@' + sz.join('×'), def = GA.Paths.resolve(id, L.portrait, L, R);
-        builds++; if (rep.minGap != null) minGap = Math.min(minGap, rep.minGap / R); minPct = Math.min(minPct, sp.pct); minLock = Math.min(minLock, sp.lockMin / R); if (def.fit) { minPitchSeen = Math.min(minPitchSeen, def.fit.pitch); laps.push(def.fit.n); }
-        if (def.failed) badFit.push(tag);
-        rep.issues.forEach(function (i) { if (i.kind === 'length') bad4.push(tag + ' ' + i.msg); else if (i.kind === 'lock') bad5.push(tag + ' ' + i.msg); else if (i.kind === 'gap') bad3.push(tag + ' ' + i.msg); else if (INV2[i.kind]) bad2.push(tag + ' ' + i.msg); else bad2.push(tag + ' ' + i.msg); });
+        const p = GA.Path.forLayout(id, L, R), rep = p.report, st = rep.star, sp = st.spiral, rt = st.route, tag = id + '@' + sz.join('×'), def = GA.Paths.resolve(id, L.portrait, L, R);
+        builds++; if (rep.minGap != null) minGap = Math.min(minGap, rep.minGap / R); minPct = Math.min(minPct, 100 * sp.lenD / Math.max(sp.old, sp.rev8)); minLock = Math.min(minLock, sp.lockMin / R);
+        minFrac = Math.min(minFrac, rt.frac); minAng = Math.min(minAng, rt.ang); minP = Math.min(minP, rt.minP / R); minN = Math.min(minN, rt.minN / R);
+        rows.push(tag + ' ' + sp.lenD.toFixed(1) + 'd ' + Math.round(rt.dist) + 'px');
+        if (def.failed) K.x.push(tag + ' (rute tidak muat)');
+        rep.issues.forEach(function (i) { const m = tag + ' ' + i.msg, k = i.kind === 'length' ? 4 : i.kind === 'lock' ? 5 : i.kind === 'gap' ? 3 : i.kind === 'inv6' ? 6 : i.kind === 'inv7' ? 7 : i.kind === 'inv8' ? 8 : 2; K[k].push(m); });
       });
     });
     GA.devViewport = null; G.relayout();
     const stageVar = GA.Levels.STAGES.map(function (s) { return s.pool.paths.length; });
-    ok('INV-2: ' + builds + ' jalur (stage 1–3 × varian × 3 ukuran layar): naga di tengah area bermain, jalur mengelilingi dan berujung di platform, sayap tidak menutupi, portal penuh di area dan tidak di bawah HUD', bad2.length === 0, bad2.slice(0, 3).join(' | '));
-    ok('INV-3: jarak antar-segmen jalur (pitch antar-lap) >= 2,6R (minimum terukur ' + minGap.toFixed(2) + 'R; pitch penyetel ≥ ' + minPitchSeen.toFixed(1) + 'R)', bad3.length === 0, bad3.slice(0, 3).join(' | '));
-    ok('INV-4: panjang jalur >= 95% serpentin lama terpendek per stage dan layout (terendah terukur ' + minPct.toFixed(0) + '%)', bad4.length === 0, bad4.slice(0, 3).join(' | '));
-    ok('INV-5: keterpilihan target-lock: dua bola non-tetangga >= 2,6R (terdekat ' + minLock.toFixed(2) + 'R; tetangga rantai 1,96R)', bad5.length === 0, bad5.slice(0, 3).join(' | '));
-    ok('penyetel jalur menemukan bentuk lolos untuk semua ukuran (tanpa cadangan); tiap stage >= 2 varian (' + stageVar.join('/') + '); putaran ' + Math.min.apply(null, laps).toFixed(2) + '–' + Math.max.apply(null, laps).toFixed(2), badFit.length === 0 && stageVar.every(function (n) { return n >= 2; }), badFit.slice(0, 3).join(', '));
+    ok('INV-2: ' + builds + ' jalur (stage 1–3 × varian × 3 ukuran layar): naga di tengah area bermain, sayap tidak menutupi bola, jalur di bawah HUD, portal dan sarang penuh di area bermain', K[2].length === 0, K[2].slice(0, 3).join(' | '));
+    ok('INV-3: jarak antar-segmen jalur >= 2,6R (minimum terukur ' + minGap.toFixed(2) + 'R)', K[3].length === 0, K[3].slice(0, 3).join(' | '));
+    ok('INV-4: panjang jalur >= 95% dari yang lebih panjang antara panjang saat ini (revisi 8) dan serpentin lama terpendek, per stage dan layout (terendah terukur ' + minPct.toFixed(0) + '% dari yang lebih panjang)', K[4].length === 0, K[4].slice(0, 3).join(' | '));
+    ok('INV-5: keterpilihan target-lock: dua bola non-tetangga >= 2,6R (terdekat ' + minLock.toFixed(2) + 'R; tetangga rantai 1,96R)', K[5].length === 0, K[5].slice(0, 3).join(' | '));
+    ok('INV-6: portal dan sarang berjauhan: jarak >= 0,55 × sisi terpanjang area bermain (terkecil ' + minFrac.toFixed(2) + ') dan selisih sudut terhadap naga >= 150° (terkecil ' + minAng.toFixed(0) + '°)', K[6].length === 0, K[6].slice(0, 3).join(' | '));
+    ok('INV-7: jalur tidak berbalik mendekat: setelah/sebelum 8 diameter dari ujung, jarak ke portal >= sprite + 3R (terdekat ' + minP.toFixed(2) + 'R) dan ke sarang >= sprite + 3R (terdekat ' + minN.toFixed(2) + 'R)', K[7].length === 0, K[7].slice(0, 3).join(' | '));
+    ok('INV-8 (naga/boss): zona bersih sprite + 2R di sekitar portal dan sarang tidak memuat naga, sayap, atau boss', K[8].length === 0, K[8].slice(0, 3).join(' | '));
+    ok('semua rute muat (tanpa cadangan) di tiga ukuran layar; tiap stage >= 2 varian (' + stageVar.join('/') + ')', K.x.length === 0 && stageVar.every(function (n) { return n >= 2; }), K.x.slice(0, 3).join(', '));
+    GA.Tests.pathTable = rows;
   }
 
   /** Telegraf penukaran (revisi 7 tahap e) di game sungguhan, 3 ukuran layar: (1) peringatan → mulai menukar SELALU >= 2000 ms (default 2500; konfigurasi di bawah 2000 dijepit); (2) fase: peringatan 0,8 dtk lalu sorot;

@@ -38,7 +38,7 @@
 
     /* --- kerapatan --- */
     BALL_SPACING_FACTOR: 0.98,      // jarak pusat bola bersebelahan = 2 x BALL_RADIUS x ini (0,96-1,0: saling menyentuh)
-    GAP_CLOSE_SPEED: 7.5,           // bagian belakang celah menyusul sekian d/dtk (celah 1 bola menutup ±0,13 dtk)
+    GAP_CLOSE_SPEED: 8,             // bagian belakang celah menyusul sekian d/dtk (celah 1 bola menutup ±0,125 dtk); revisi 10: 7,5 → 8 karena U-turn rute grid (radius 1,3R) memperlambat penutupan celah ganda ke 408 ms (batas 400 ms)
     INSERT_TIME: 0.12,              // bola menyisip: tetangga bergeser halus selama ini
     MAX_DT: 0.05,                   // batas langkah waktu (dtk): tab di-resume / FPS jatuh tidak membuat bola melompat
 

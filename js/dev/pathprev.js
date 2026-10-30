@@ -13,7 +13,7 @@
 
   function row(id, sz) {
     const b = build(id, sz), sp = b.rep.star && b.rep.star.spiral, D = 2 * b.R * 0.98, len = b.p.length;
-    return { id: id, size: sz.join('x'), R: b.R, lenD: len / (2 * b.R), ratio: len / (20 * D), pct: sp ? sp.pct : null, issues: (b.rep.issues || []).map(function (i) { return i.kind; }), fit: b.def && b.def.fit };
+    return { id: id, size: sz.join('x'), R: b.R, lenD: len / (2 * b.R), ratio: len / (20 * D), pct: sp ? sp.pct : null, rev8: sp ? sp.rev8 : null, pctRev8: sp ? sp.pctRev8 : null, old: sp ? sp.old : null, dist: b.rep.star && b.rep.star.route ? Math.round(b.rep.star.route.dist) : null, frac: b.rep.star && b.rep.star.route ? +b.rep.star.route.frac.toFixed(2) : null, ang: b.rep.star && b.rep.star.route ? Math.round(b.rep.star.route.ang) : null, issues: (b.rep.issues || []).map(function (i) { return i.kind; }), fit: b.def && b.def.fit };
   }
 
   function draw(g, b, id, sz, s, ox, oy) {
@@ -40,7 +40,8 @@
     const sp = rep.star && rep.star.spiral, len = p.length;
     const lines = [id + '  ' + sz.join('×') + (L.portrait ? ' potret' : ' lanskap') + '  R ' + R,
       'panjang ' + (len / (2 * R)).toFixed(1) + ' d   rasio rantai-20 ' + (len / (20 * D)).toFixed(2) + (sp ? '   vs serpentin lama terpendek ' + sp.pct.toFixed(0) + '% (' + sp.old.toFixed(1) + ' d; rata-rata ' + sp.pctMean.toFixed(0) + '%)' : '')];
-    if (b.def && b.def.fit && b.def.fit.n != null) lines.push('putaran ' + b.def.fit.n + '   pitch ' + b.def.fit.pitch.toFixed(1) + 'R   kunci ' + (sp ? sp.lockR.toFixed(2) + '×dia' : '-'));
+    if (b.def && b.def.fit && b.def.fit.tpl) lines.push('rute ' + b.def.fit.tpl + '  jarak baris ' + b.def.fit.sx + ' × ' + b.def.fit.sy + ' px  kunci ' + (sp ? sp.lockR.toFixed(2) + '×dia' : '-'));
+    if (rep.star && rep.star.route) lines.push('portal-sarang ' + Math.round(rep.star.route.dist) + ' px = ' + rep.star.route.frac.toFixed(2) + '× sisi terpanjang, sudut ' + Math.round(rep.star.route.ang) + '°');
     else if (rep.star && rep.star.inv1) lines.push('INV-1 peluru nyata ' + rep.star.inv1.fat + '/' + rep.star.inv1.tot + '   sinar tipis ' + rep.star.inv1.thin);
     (rep.issues || []).slice(0, 3).forEach(function (i) { lines.push('! ' + i.msg); });
     g.fillStyle = 'rgba(0,0,0,0.72)'; g.fillRect(pl.x + 4, pl.y + 4, Math.min(L.W - 8, 470), 12 + 22 * lines.length);

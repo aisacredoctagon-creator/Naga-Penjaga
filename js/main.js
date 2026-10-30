@@ -52,11 +52,26 @@
     sh.setPos(path.shooter.x, path.shooter.y);
   }
 
+  /** Pusat-x bar darah boss: tengah layar, atau digeser ke kiri/kanan bila menimpa sprite portal atau sarang (INV-8: HUD/label tidak menimpa portal dan sarang). */
+  function bossBarX(sc, w, cy, top, bottom) {
+    const P = GA.Paths, xs = sc.path.xs, ys = sc.path.ys, n = xs.length, R = sc.R, circles = [[xs[0], ys[0], P.SPR_PORTAL * R + 6], [xs[n - 1], ys[n - 1], P.SPR_NEST * R + 6]], y0 = cy - top, y1 = cy + bottom;
+    const hit = function (cx) { return circles.some(function (c) { const px = Math.max(cx - w / 2, Math.min(c[0], cx + w / 2)), py = Math.max(y0, Math.min(c[1], y1)); return Math.hypot(c[0] - px, c[1] - py) < c[2]; }); };
+    const cand = [L.W / 2, L.W - w / 2 - 8, w / 2 + 8];
+    for (let i = 0; i < cand.length; i++) if (!hit(cand[i])) return cand[i];
+    return cand[0];
+  }
+
+  /** Zona bersih INV-8 (sprite + 2R) di sekitar portal (titik awal jalur) dan sarang (titik akhir): tanpa rintangan, dekorasi, atau label lain. */
+  function clearZonesOf(path, R) {
+    const P = GA.Paths, n = path.xs.length;
+    return [{ x: path.xs[0], y: path.ys[0], r: (P.SPR_PORTAL + P.CLEAR8) * R }, { x: path.xs[n - 1], y: path.ys[n - 1], r: (P.SPR_NEST + P.CLEAR8) * R }];
+  }
+
   /** Rintangan zona (js/hazards.js) untuk run r: konteks berisi geometri, uji keadilan, dan kait ke permainan. */
   function makeHaz(r) {
     const sh = r.shooter;
     return GA.Hazards.create(r.cfg.haz, {
-      R: r.R, play: L.play, bounds: { x0: 6, y0: L.play.y + 4, x1: L.W - 6, y1: L.H - 6 }, shooter: sh, muzzleR: sh.r * Theme.dragon.mouthDist, style: GA.Nest.styleFor(Theme.scene), maxTotal: r.cfg.hazMax,
+      R: r.R, play: L.play, bounds: { x0: 6, y0: L.play.y + 4, x1: L.W - 6, y1: L.H - 6 }, shooter: sh, zones: clearZonesOf(r.path, r.R), muzzleR: sh.r * Theme.dragon.mouthDist, style: GA.Nest.styleFor(Theme.scene), maxTotal: r.cfg.hazMax,
       rObs: function () { return Bullets.rObs; },
       clear: function (x, y) { return pathDist(r.path, x, y) - (r.R + Theme.ball.trackMargin); },
       targetsOpen: function () { if (!r.chain || run !== r) return true; const v = pendingVisible(); const ab = v.find(function (b) { return b.qid === r.qid; }); return (!v.length || v.some(openLine)) && (!ab || openLine(ab)); },      // revisi 8: bola jawaban soal AKTIF juga harus tetap punya garis terbuka
@@ -105,7 +120,7 @@
 
   /* ================= adegan menu (dekoratif) ================= */
   function buildAttract() {
-    const R = L.ballR, path = Path.forLayout('siput1', L, R);
+    const R = L.ballR, path = Path.forLayout('ular1', L, R);
     const chain = new Chain.Chain(path, { r: R, speed: 34, maxBalls: 26 });
     chain.fill(Math.min(24, Math.ceil(path.length * 0.55 / chain.D) + 1), path.length * 0.55, 0);
     const sh = new Shooter.Shooter(); fitShooter(sh, path, R);
@@ -829,8 +844,8 @@
     Path.drawMarkers(ctx, sc.path, R, t, center, L.portrait ? 16 : 15);      // label SARANG di atas sarang (tidak tertutup)
     if (sc.boss) {
       sc.boss.draw(ctx, t);
-      if (L.portrait) sc.boss.drawHP(ctx, L.W / 2, L.play.y + 26, Math.min(L.W * 0.6, 340));      // potret: di pita antara HUD dan jalur
-      else sc.boss.drawHP(ctx, L.W / 2, L.play.y + 4, Math.min(L.W * 0.36, 300), true);     // lanskap: bar tipis di pita atas
+      if (L.portrait) { const bw = Math.min(L.W * 0.6, 340); sc.boss.drawHP(ctx, bossBarX(sc, bw, L.play.y + 26, 22, 24), L.play.y + 26, bw); }      // potret: di pita antara HUD dan jalur (digeser bila menimpa portal/sarang)
+      else { const bw = Math.min(L.W * 0.36, 300); sc.boss.drawHP(ctx, bossBarX(sc, bw, L.play.y + 4, 4, 18), L.play.y + 4, bw, true); }     // lanskap: bar tipis di pita atas
     }
     if (sc.haz) { sc.haz.draw(ctx, t); sc.haz.drawOver(ctx, t, sc.shooter.aim); }      // asap/tangan penutup bidikan juga di bawah bola
     if (sc.chain) sc.chain.draw(ctx, t, L.px);      // lapisan 5: BOLA

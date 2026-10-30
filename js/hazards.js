@@ -22,6 +22,8 @@
 (function (GA) {
   'use strict';
   const TAU = Math.PI * 2, rr = function (a, b) { return a + Math.random() * (b - a); };
+  /** INV-8 (revisi 10): lingkaran (x, y, rad) menyentuh zona bersih portal/sarang (c.zones = [{ x, y, r }], dibuat main.js dari jalur)? */
+  function inZone(c, x, y, rad) { const z = c.zones; if (!z) return false; for (let i = 0; i < z.length; i++) if (Math.hypot(x - z[i].x, y - z[i].y) < z[i].r + rad) return true; return false; }
 
   /** Definisi jenis. r = radius (px logis, dikali skala bola), warn = detik peringatan, on = detik aktif (persisten: umur), base = jeda muncul dasar (dtk). */
   const KINDS = {
@@ -89,7 +91,7 @@
       const c = this.c, K = KINDS[kind], R = c.R, rad = rr(K.r[0], K.r[1]) * (0.75 + 0.25 * R / 25), s = c.shooter, rO = c.rObs(), bd = c.bounds;
       const e = { id: this.nid++, kind: kind, mech: K.mech, r: rad, x: 0, y: 0, t: 0, warn: K.warn, dur: rr(K.on[0], K.on[1]), dir: Math.random() < 0.5 ? -1 : 1, rot: Math.random() * TAU, lane: !!K.lane, fired: false, bounced: 0 };
       if (K.mech === 'veil') {
-        const b = c.randomBall(); if (!b) return false; e.x = b.x; e.y = b.y;
+        const b = c.randomBall(); if (!b || inZone(c, b.x, b.y, e.r)) return false; e.x = b.x; e.y = b.y;      // revisi 10: tidak di zona bersih portal/sarang (INV-8)
       } else {
         // revisi 8: ruang bebas di sekitar naga hanya cakram sayap di dalam spiral, jadi radius MENYESUAIKAN ruang yang ada (≥ 60% radius dasar, tidak pernah menimpa bola / jalur)
         const gap = c.muzzleR + rO + 12, minRad = rad * (K.blocks ? 0.6 : 0.5);      // rintangan rendah (hiasan bagi lontaran) boleh lebih kecil
@@ -98,7 +100,7 @@
           let x, y, rd = rad;
           if (K.lane) {      // pilar petir: lajur lurus dari mulut naga ke arah acak, hanya sepanjang ruang bebas (tidak menutupi bola / jalur)
             const la = Math.random() * TAU, ux = Math.cos(la), uy = Math.sin(la), d0 = c.muzzleR + 4; let len = 0;
-            while (len < R * 6) { const px = s.x + ux * (d0 + len + 6), py = s.y + uy * (d0 + len + 6); if (px < bd.x0 + rd + 6 || px > bd.x1 - rd - 6 || py < bd.y0 + rd + 6 || py > bd.y1 - rd - 6 || c.clear(px, py) < rd + 6) break; len += 6; }
+            while (len < R * 6) { const px = s.x + ux * (d0 + len + 6), py = s.y + uy * (d0 + len + 6); if (px < bd.x0 + rd + 6 || px > bd.x1 - rd - 6 || py < bd.y0 + rd + 6 || py > bd.y1 - rd - 6 || c.clear(px, py) < rd + 6 || inZone(c, px, py, rd)) break; len += 6; }
             if (len < R) continue;
             const cx = s.x + ux * (d0 + len / 2), cy = s.y + uy * (d0 + len / 2);
             let clash = false; for (const o of this.list) if (Math.hypot(o.x - cx, o.y - cy) < o.r + rd + len / 2 + 12) { clash = true; break; }
@@ -111,7 +113,7 @@
             const free = c.clear(x, y) - 6;
             if (free < rd) { if (free < minRad || d - free < gap) continue; rd = free; }
           }
-          if (x < bd.x0 + rd + 6 || x > bd.x1 - rd - 6 || y < bd.y0 + rd + 6 || y > bd.y1 - rd - 6) continue;
+          if (x < bd.x0 + rd + 6 || x > bd.x1 - rd - 6 || y < bd.y0 + rd + 6 || y > bd.y1 - rd - 6 || inZone(c, x, y, rd)) continue;
           let clash = false; for (const o of this.list) if (Math.hypot(o.x - x, o.y - y) < o.r + rd + 12) { clash = true; break; }
           if (clash) continue;
           e.x = x; e.y = y; e.r = rd; ok = true;

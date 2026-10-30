@@ -46,15 +46,15 @@
   const STAGES = [
     {
       id: 's1', place: 'Lembah Hutan Naga', tag: 'Stage 1', icon: 'dragon', format: 'result', story: 'story.s1', specials: { frost: 0, egg: 0 },
-      pool: { paths: ['siput1', 'siput2', 'siput3'], maps: ['forest', 'grove', 'bloom'] }
+      pool: { paths: ['ular1', 'ular2', 'ular3'], maps: ['forest', 'grove', 'bloom'] }
     },
     {
       id: 's2', place: 'Gunung & Gua Kristal', tag: 'Stage 2', icon: 'flame', format: 'missing', story: 'story.s2', specials: { frost: 1, egg: 1 },
-      pool: { paths: ['lobus1', 'lobus2', 'lobus3'], maps: ['volcano', 'ashfield', 'magma', 'crystal', 'iceCave', 'amethyst'] }
+      pool: { paths: ['teluk1', 'teluk2', 'teluk3'], maps: ['volcano', 'ashfield', 'magma', 'crystal', 'iceCave', 'amethyst'] }
     },
     {
       id: 's3', place: 'Menara Penyihir', tag: 'Stage 3', icon: 'wizard', format: 'mixed', story: 'story.s3', boss: true, specials: { frost: 2, egg: 1 },
-      pool: { paths: ['poligon1', 'poligon2', 'poligon3'], maps: ['tower', 'tower2', 'library'] }
+      pool: { paths: ['benteng1', 'benteng2', 'benteng3'], maps: ['tower', 'tower2', 'library'] }
     }
   ];
 
