@@ -367,29 +367,30 @@
     ok('20 soal terjawab tepat sekali, tanpa macet: semua stage yang dimenangkan bot menjawab tepat 20 soal', bad20 === 0, 'putaran ' + allRuns + ', menang dengan jawaban != 20: ' + bad20);
   }
 
-  /** Invarian jalur (revisi 7) pada TIGA ukuran layar nyata (390×844, 844×390, 1440×900) untuk semua arketipe stage 1–3:
-   *  INV-1 dari pivot naga, tiap posisi bola sepanjang jalur (langkah 0,25R, rantai penuh dan rapat), sinar ke pusat dan ke tepi ±0,7R pertama kali mengenai bola itu sendiri
-   *  (peluru nyata = sebesar bola; sinar tipis dilaporkan sebagai pembanding); INV-2 naga di tengah area bermain, jalur mengelilingi dan berujung di platform, portal penuh di area, tidak di bawah HUD;
-   *  INV-3 jarak antar-segmen >= 2,5R + lebar alur. Juga: penyetel otomatis tidak jatuh ke cadangan, dan stage punya >= 2 varian. */
+  /** Invarian jalur (revisi 8, spiral stadion + tembakan lontar) pada TIGA ukuran layar nyata (390×844, 844×390, 1440×900) untuk semua arketipe stage 1–3:
+   *  INV-2 naga di tengah area bermain, jalur mengelilingi dan berujung di platform (sayap tidak menutupi), portal penuh di area, tidak di bawah HUD; INV-3 jarak antar-segmen >= 2,6R (pitch);
+   *  INV-4 panjang >= 95% dari serpentin lama TERPENDEK untuk stage dan layout yang sama (commit ddd3183); INV-5 keterpilihan: dua bola non-tetangga >= 2,6R, tetangga rantai 1,96R, jadi target-lock
+   *  (bola terdekat dalam 1,0R dari titik bidik) memilih bola itu sendiri untuk semua titik dalam 0,98R dari pusat bola. Juga: penyetel tidak jatuh ke cadangan, tiap stage >= 2 varian. */
   function testInvariants() {
-    const G = GA.game, sizes = [[390, 844], [844, 390], [1440, 900]], bad1 = [], bad2 = [], bad3 = [], badFit = []; let rays = 0, fat = 0, thin = 0, builds = 0, minGap = 1e9;
-    const INV2 = { center: 1, wing: 1, end: 1, hud: 1, portal: 1, angle: 1, bounds: 1, shooter: 1 };
+    const G = GA.game, sizes = [[390, 844], [844, 390], [1440, 900]], bad2 = [], bad3 = [], bad4 = [], bad5 = [], badFit = []; let builds = 0, minGap = 1e9, minPct = 1e9, minLock = 1e9, minPitchSeen = 1e9, laps = [];
+    const INV2 = { center: 1, wing: 1, end: 1, hud: 1, portal: 1, bounds: 1, shooter: 1, hud2: 1 };
     sizes.forEach(function (sz) {
       GA.devViewport = { w: sz[0], h: sz[1] }; G.relayout();
       const L = G.layout, R = L.ballR;
       GA.Paths.ids.forEach(function (id) {
-        const p = GA.Path.forLayout(id, L, R), rep = p.report, st = rep.star, tag = id + '@' + sz.join('×'), def = GA.Paths.resolve(id, L.portrait, L, R);
-        builds++; rays += st.inv1.tot; fat += st.inv1.fat; thin += st.inv1.thin; if (rep.minGap != null) minGap = Math.min(minGap, rep.minGap);
+        const p = GA.Path.forLayout(id, L, R), rep = p.report, st = rep.star, sp = st.spiral, tag = id + '@' + sz.join('×'), def = GA.Paths.resolve(id, L.portrait, L, R);
+        builds++; if (rep.minGap != null) minGap = Math.min(minGap, rep.minGap / R); minPct = Math.min(minPct, sp.pct); minLock = Math.min(minLock, sp.lockMin / R); if (def.fit) { minPitchSeen = Math.min(minPitchSeen, def.fit.pitch); laps.push(def.fit.n); }
         if (def.failed) badFit.push(tag);
-        rep.issues.forEach(function (i) { if (i.kind === 'inv1') bad1.push(tag + ' ' + i.msg); else if (INV2[i.kind]) bad2.push(tag + ' ' + i.msg); else if (i.kind === 'gap') bad3.push(tag + ' ' + i.msg); else bad2.push(tag + ' ' + i.msg); });
+        rep.issues.forEach(function (i) { if (i.kind === 'length') bad4.push(tag + ' ' + i.msg); else if (i.kind === 'lock') bad5.push(tag + ' ' + i.msg); else if (i.kind === 'gap') bad3.push(tag + ' ' + i.msg); else if (INV2[i.kind]) bad2.push(tag + ' ' + i.msg); else bad2.push(tag + ' ' + i.msg); });
       });
     });
     GA.devViewport = null; G.relayout();
     const stageVar = GA.Levels.STAGES.map(function (s) { return s.pool.paths.length; });
-    ok('INV-1: ' + builds + ' jalur (stage 1–3 × varian × 3 ukuran layar), ' + rays + ' sinar uji dari naga: 100% mengenai bola itu sendiri lebih dulu (peluru nyata; sinar tipis ' + thin + ' gagal)', bad1.length === 0 && fat === 0, 'gagal ' + fat + '/' + rays + (bad1.length ? '; ' + bad1.slice(0, 3).join(' | ') : ''));
-    ok('INV-2: naga di tengah area bermain, jalur mengelilingi (≤ 330°), berujung di platform, portal penuh di area dan tidak di bawah HUD', bad2.length === 0, bad2.slice(0, 3).join(' | '));
-    ok('INV-3: jarak antar-segmen jalur >= 2,5R + 8 (minimum terukur ' + minGap.toFixed(0) + ')', bad3.length === 0, bad3.slice(0, 3).join(' | '));
-    ok('penyetel jalur menemukan bentuk lolos untuk semua ukuran (tanpa cadangan); tiap stage >= 2 varian (' + stageVar.join('/') + ')', badFit.length === 0 && stageVar.every(function (n) { return n >= 2; }), badFit.slice(0, 3).join(', '));
+    ok('INV-2: ' + builds + ' jalur (stage 1–3 × varian × 3 ukuran layar): naga di tengah area bermain, jalur mengelilingi dan berujung di platform, sayap tidak menutupi, portal penuh di area dan tidak di bawah HUD', bad2.length === 0, bad2.slice(0, 3).join(' | '));
+    ok('INV-3: jarak antar-segmen jalur (pitch antar-lap) >= 2,6R (minimum terukur ' + minGap.toFixed(2) + 'R; pitch penyetel ≥ ' + minPitchSeen.toFixed(1) + 'R)', bad3.length === 0, bad3.slice(0, 3).join(' | '));
+    ok('INV-4: panjang jalur >= 95% serpentin lama terpendek per stage dan layout (terendah terukur ' + minPct.toFixed(0) + '%)', bad4.length === 0, bad4.slice(0, 3).join(' | '));
+    ok('INV-5: keterpilihan target-lock: dua bola non-tetangga >= 2,6R (terdekat ' + minLock.toFixed(2) + 'R; tetangga rantai 1,96R)', bad5.length === 0, bad5.slice(0, 3).join(' | '));
+    ok('penyetel jalur menemukan bentuk lolos untuk semua ukuran (tanpa cadangan); tiap stage >= 2 varian (' + stageVar.join('/') + '); putaran ' + Math.min.apply(null, laps).toFixed(2) + '–' + Math.max.apply(null, laps).toFixed(2), badFit.length === 0 && stageVar.every(function (n) { return n >= 2; }), badFit.slice(0, 3).join(', '));
   }
 
   /** Telegraf penukaran (revisi 7 tahap e) di game sungguhan, 3 ukuran layar: (1) peringatan → mulai menukar SELALU >= 2000 ms (default 2500; konfigurasi di bawah 2000 dijepit); (2) fase: peringatan 0,8 dtk lalu sorot;
@@ -505,5 +506,6 @@
 
   GA.Tests = { results: results, done: false, run: runAll, swapTiming: testSwapTiming };
   if (/[?&]only=swap/.test(location.search)) setTimeout(function () { testSwapTiming().then(function () { GA.Tests.done = true; }).catch(function (e) { results.push('ERROR ' + e.message + ' - ' + e.stack); GA.Tests.done = true; }); }, 600);      // ?test=1&only=swap: hanya telegraf penukaran
+  else if (/[?&]only=paths/.test(location.search)) setTimeout(function () { try { testPaths(); testInvariants(); } catch (e) { results.push('ERROR ' + e.message + ' - ' + e.stack); } GA.Tests.done = true; }, 600);      // ?test=1&only=paths: hanya uji jalur
   else setTimeout(function () { runAll().catch(function (e) { results.push('ERROR ' + e.message + '\n' + e.stack); GA.Tests.done = true; console.error(e); }); }, 600);
 })(window.GA = window.GA || {});

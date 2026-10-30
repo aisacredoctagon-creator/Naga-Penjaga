@@ -39,7 +39,7 @@
     (rep.star && rep.star.rayBad || []).forEach(function (q) { if (q) { g.fillStyle = 'rgba(255,40,40,0.55)'; g.beginPath(); g.arc(q[0], q[1], R, 0, 7); g.fill(); } });
     const sp = rep.star && rep.star.spiral, len = p.length;
     const lines = [id + '  ' + sz.join('×') + (L.portrait ? ' potret' : ' lanskap') + '  R ' + R,
-      'panjang ' + (len / (2 * R)).toFixed(1) + ' d   rasio rantai-20 ' + (len / (20 * D)).toFixed(2) + (sp ? '   vs serpentin lama ' + sp.pct.toFixed(0) + '% (' + sp.old.toFixed(1) + ' d)' : '')];
+      'panjang ' + (len / (2 * R)).toFixed(1) + ' d   rasio rantai-20 ' + (len / (20 * D)).toFixed(2) + (sp ? '   vs serpentin lama terpendek ' + sp.pct.toFixed(0) + '% (' + sp.old.toFixed(1) + ' d; rata-rata ' + sp.pctMean.toFixed(0) + '%)' : '')];
     if (b.def && b.def.fit && b.def.fit.n != null) lines.push('putaran ' + b.def.fit.n + '   pitch ' + b.def.fit.pitch.toFixed(1) + 'R   kunci ' + (sp ? sp.lockR.toFixed(2) + '×dia' : '-'));
     else if (rep.star && rep.star.inv1) lines.push('INV-1 peluru nyata ' + rep.star.inv1.fat + '/' + rep.star.inv1.tot + '   sinar tipis ' + rep.star.inv1.thin);
     (rep.issues || []).slice(0, 3).forEach(function (i) { lines.push('! ' + i.msg); });
