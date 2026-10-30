@@ -61,8 +61,11 @@
     SWAP_END_GUARD: 0.1,            // bola di 10% terakhir jalur menuju sarang tidak boleh ditukar
     SWAP_PAIRS_PHASE2: 2,           // Stage 3, fase 2 boss: jumlah pasangan yang bertukar sekaligus
 
-    /* --- posisi bola jawaban di rantai (QM.arrange): bola soal ke-k keluar di posisi [k − EARLY, k + LATE] --- */
-    SHUFFLE_EARLY: 6, SHUFFLE_LATE: 8, SHUFFLE_FIRST: 3, SHUFFLE_MAXRUN: 2,
+    /* --- posisi bola jawaban di rantai (QM.arrange): undian Fisher-Yates ber-seed ke seluruh rantai, tiap soal ke sepertiga rantai (depan/tengah/ekor) secara seimbang --- */
+    SHUFFLE_FIRST: 1,               // jawaban soal pertama ada di sekian bola pertama (1 = bola pertama: terlihat begitu hitung mundur selesai)
+    SHUFFLE_CONS: 0.5,              // bagian soal yang jawabannya hanya diundi di bola yang pasti sudah keluar (sisanya boleh di bola terbaru yang mungkin baru muncul)
+    SHUFFLE_MAXRUN: 2,              // paling banyak sekian jawaban berurutan (urutan soal) yang bertetangga di rantai
+    SHUFFLE_LEAD: 4,                // model nominal (batas bawah konservatif): saat soal ke-k aktif (k >= 4) sudah keluar k + LEAD bola; jawaban hanya diundi di antara bola yang sudah keluar
     ACTIVE_END_GUARD: 0.12,         // bola jawaban soal yang baru aktif tidak boleh di 12% terakhir jalur; bila terjadi, rantai melambat...
     ACTIVE_SLOW_SEC: 3              // ...selama sekitar 3 dtk (tanpa menandai bola mana pun)
   };
@@ -81,6 +84,13 @@
 
   /** Pengali CHAIN_BASE_SPEED tiap stage (indeks 0..2). Stage 1 = nilai step lama 1, Stage 2 = step lama 3, Stage 3 (boss) = step lama 5: jalur boss pendek (±22 d), jadi lebih pelan. */
   const STAGE_SPEED_MULT = [1, 1, 0.5];
+
+  /** Model nominal bola yang sudah keluar saat soal ke-k aktif (QM.arrange), diukur dengan bot ?debug=pace: SHUFFLE_EMIT/LEAD = batas bawah konservatif (jawaban hanya di bola yang pasti sudah keluar), SHUFFLE_TEMIT/TLEAD = rata-rata terukur (untuk menyeimbangkan sepertiga rantai); nilai k awal lalu k + lead. Stage 3 (rantai 0,5x) keluar lebih lambat. */
+  const STAGE_SHUFFLE = [
+    { emit: [1, 5, 6, 8, 9], lead: 5, tEmit: [1, 5, 6, 8, 9], tLead: 5 },
+    { emit: [1, 5, 7, 7, 8], lead: 4, tEmit: [1, 5, 7, 7, 8], tLead: 4 },
+    { emit: [1, 4, 5, 6, 7], lead: 3, tEmit: [1, 4, 5, 6, 7], tLead: 3 }
+  ];
 
   /** Metadata slider panel ?debug=tune: [min, max, langkah, satuan]. */
   const META = {
@@ -126,7 +136,8 @@
   /** Isi `out` (objek yang dipegang run) dengan nilai terselesaikan untuk kesulitan & step. */
   function fill(out, diff, step) {
     Object.assign(out, DEFAULTS, PER_DIFF[diff] || PER_DIFF.sedang);
-    out.CHAIN_BASE_SPEED *= STAGE_SPEED_MULT[Math.max(0, Math.min(STAGE_SPEED_MULT.length - 1, step | 0))];
+    const si = Math.max(0, Math.min(STAGE_SPEED_MULT.length - 1, step | 0));
+    out.CHAIN_BASE_SPEED *= STAGE_SPEED_MULT[si]; out.SHUFFLE_EMIT = STAGE_SHUFFLE[si].emit; out.SHUFFLE_LEAD = STAGE_SHUFFLE[si].lead; out.SHUFFLE_TEMIT = STAGE_SHUFFLE[si].tEmit; out.SHUFFLE_TLEAD = STAGE_SHUFFLE[si].tLead;
     for (const k in overrides) if (k in DEFAULTS) out[k] = overrides[k];
     return out;
   }
@@ -138,7 +149,7 @@
   function refresh() { if (tracked) fill(tracked.gp, tracked.diff, tracked.step); }
 
   const Gameplay = {
-    DEFAULTS: DEFAULTS, PER_DIFF: PER_DIFF, STAGE_SPEED_MULT: STAGE_SPEED_MULT, SWAP_EVERY: SWAP_EVERY, HAZ_MAX: HAZ_MAX, META: META, TUNABLE: TUNABLE,
+    DEFAULTS: DEFAULTS, PER_DIFF: PER_DIFF, STAGE_SPEED_MULT: STAGE_SPEED_MULT, STAGE_SHUFFLE: STAGE_SHUFFLE, SWAP_EVERY: SWAP_EVERY, HAZ_MAX: HAZ_MAX, META: META, TUNABLE: TUNABLE,
     debug: debug, overrides: overrides,
     resolve: resolve, fill: fill, track: track,
     /** Panel: atur satu nilai (berlaku langsung). */

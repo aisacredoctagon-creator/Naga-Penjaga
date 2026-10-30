@@ -318,58 +318,53 @@
     ok('penukaran manual (?debug=swap): jarak pasangan bervariasi, bukan hanya bertetangga', ks.length >= 3 && near < 0.4, 'jarak: ' + ks.map(function (k) { return k + '×' + gaps[k]; }).join(' '));
   }
 
-  /** Posisi bola jawaban diacak (QM.arrange): ribuan seed memenuhi batas keadilan, deterministik per seed, berbeda tiap percobaan; model nominal (pemain menjawab tiap ~7 dtk)
-   *  pada semua jalur x 3 ukuran layar: bola jawaban soal yang baru aktif sudah keluar dan tidak di 12% terakhir jalur, tanpa bola depan yang lolos ke sarang. */
-  function testArrange() {
-    const QM = GA.QM, gp0 = GA.Gameplay.resolve('sedang', 1), W = gp0.SHUFFLE_EARLY, V = gp0.SHUFFLE_LATE, N = 20, SEEDS = 3000;
-    let bounds = 0, firstBad = 0, runBad = 0, notPerm = 0, ident = 0, detBad = 0, diff = 0; const posQ0 = {}, posLast = {};
-    for (let s = 1; s <= SEEDS; s++) {
-      const opt = { early: W, late: V, first: gp0.SHUFFLE_FIRST, maxRun: gp0.SHUFFLE_MAXRUN };
-      const p = QM.arrange(N, QM.prng(s * 7919), opt), q = QM.arrange(N, QM.prng(s * 7919), opt), r2 = QM.arrange(N, QM.prng(s * 7919 + 1), opt);
-      if (p.join() !== q.join()) detBad++; if (p.join() !== r2.join()) diff++;
-      if (p.slice().sort(function (a, b) { return a - b; }).some(function (v, i) { return v !== i; })) notPerm++;
-      const pos = []; p.forEach(function (k, i) { pos[k] = i; });
-      for (let k = 0; k < N; k++) if (pos[k] < k - W || pos[k] > k + V) bounds++;
-      if (pos[0] >= gp0.SHUFFLE_FIRST) firstBad++;
-      let runA = 1, runD = 1, bad = false; for (let i = 1; i < N; i++) { runA = p[i] === p[i - 1] + 1 ? runA + 1 : 1; runD = p[i] === p[i - 1] - 1 ? runD + 1 : 1; if (runA > 2 || runD > 2) bad = true; } if (bad) runBad++;
-      if (p.every(function (k, i) { return k === i; })) ident++;
-      posQ0[pos[0]] = (posQ0[pos[0]] || 0) + 1; posLast[pos[N - 1]] = (posLast[pos[N - 1]] || 0) + 1;
+  /** Posisi bola jawaban diacak (QM.arrange, revisi 7 tahap d): (1) ribuan seed memenuhi batas keadilan: permutasi sah, deterministik per seed, beda tiap percobaan, jawaban soal pertama = bola pertama,
+   *  jawaban soal ke-k hanya di antara bola yang sudah keluar saat soal itu aktif (model nominal per stage), maks 2 jawaban berurutan bertetangga; (2) DISTRIBUSI: posisi jawaban soal yang baru aktif di antara bola
+   *  rantai (0% = depan/dekat sarang ... 100% = ekor/dekat portal) merata: tiap sepertiga memuat 25–42% (model nominal 5000 seed per stage, lalu bot di mesin permainan asli: bola benar-benar keluar dari portal,
+   *  pemain menjawab ~6 dtk, 10% salah); (3) 20 soal terjawab tepat sekali dan tanpa macet (bot menyelesaikan stage; bola jawaban selalu ada). */
+  async function testArrange() {
+    const QM = GA.QM, N = 20, SEEDS = 5000, GPS = [0, 1, 2].map(function (s) { return GA.Gameplay.resolve('sedang', s); });
+    let notPerm = 0, ident = 0, detBad = 0, diff = 0, firstBad = 0, hidden = 0, runBad = 0; const thirds = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], posQ0 = {}, posLast = {};
+    for (let st = 0; st < 3; st++) {
+      const gp = GPS[st], opt = { first: gp.SHUFFLE_FIRST, maxRun: gp.SHUFFLE_MAXRUN, lead: gp.SHUFFLE_LEAD, emit: gp.SHUFFLE_EMIT, tLead: gp.SHUFFLE_TLEAD, cons: gp.SHUFFLE_CONS, tEmit: gp.SHUFFLE_TEMIT };
+      for (let s = 1; s <= SEEDS; s++) {
+        const p = QM.arrange(N, QM.prng(s * 7919), opt), q = QM.arrange(N, QM.prng(s * 7919), opt), r2 = QM.arrange(N, QM.prng(s * 7919 + 1), opt);
+        if (p.join() !== q.join()) detBad++; if (p.join() !== r2.join()) diff++;
+        if (p.slice().sort(function (a, b) { return a - b; }).some(function (v, i) { return v !== i; })) notPerm++;
+        if (p.every(function (k, i) { return k === i; })) ident++;
+        const pos = []; p.forEach(function (k, i) { pos[k] = i; });
+        if (pos[0] >= gp.SHUFFLE_FIRST) firstBad++;
+        let runA = 1, runD = 1, bad = false;
+        const used = new Array(N).fill(false); used[pos[0]] = true;
+        for (let k = 1; k < N; k++) {
+          runA = pos[k] === pos[k - 1] + 1 ? runA + 1 : 1; runD = pos[k] === pos[k - 1] - 1 ? runD + 1 : 1; if (runA > gp.SHUFFLE_MAXRUN || runD > gp.SHUFFLE_MAXRUN) bad = true;
+          const E = QM.emitted(k, N, opt), Et = Math.max(E, QM.emitted(k, N, opt, true)); if (pos[k] >= E) hidden++;
+          const ex = []; for (let q2 = 0; q2 < Et; q2++) if (!used[q2]) ex.push(q2); thirds[st][QM.thirdOf(ex.indexOf(pos[k]), ex.length)]++; used[pos[k]] = true;
+        }
+        if (bad) runBad++;
+        if (st === 1) { posQ0[pos[0]] = (posQ0[pos[0]] || 0) + 1; posLast[pos[N - 1]] = (posLast[pos[N - 1]] || 0) + 1; }
+      }
     }
-    ok('posisi bola jawaban: ' + SEEDS + ' seed memenuhi batas [k−' + W + ', k+' + V + '], soal pertama di ' + gp0.SHUFFLE_FIRST + ' bola pertama, maks ' + gp0.SHUFFLE_MAXRUN + ' jawaban berurutan bertetangga', bounds === 0 && firstBad === 0 && runBad === 0 && notPerm === 0, 'batas ' + bounds + ', pertama ' + firstBad + ', pola ' + runBad + ', bukan permutasi ' + notPerm);
-    ok('posisi bola jawaban: deterministik per seed, berbeda antar percobaan, tidak pernah identik dengan urutan soal', detBad === 0 && diff > SEEDS * 0.95 && ident === 0, 'beda ' + diff + '/' + SEEDS + ', identik ' + ident);
-    ok('posisi bola jawaban: tersebar (soal pertama di ' + Object.keys(posQ0).length + ' posisi, soal terakhir di ' + Object.keys(posLast).length + ' posisi)', Object.keys(posQ0).length >= 3 && Object.keys(posLast).length >= 6, 'q0: ' + JSON.stringify(posQ0));
-    // model nominal
-    const G = GA.game, sizes = [[390, 844], [844, 390], [1440, 900]], rep = []; let sims = 0, viol = 0, late = 0, stolen = 0;
-    const model = function (perm, Ld, speed, tau, gp) {
-      const emit = []; for (let p = 0; p < N; p++) emit[p] = p < 9 ? 0.66 * p : 6 + (p - 9) / speed;
-      const pos = []; perm.forEach(function (k, i) { pos[k] = i; });
-      const exists = new Array(N).fill(true); let t = 0, front = 0, bad = 0, lateN = 0, st = 0;
-      const frontAt = function (tt) { return tt < 6 ? 0.25 * Ld * tt / 6 : 0.25 * Ld + speed * (tt - 6); };
-      let front0 = 0, last = 0; front = 0;
-      for (let k = 0; k < N; k++) {
-        const ta = 3 + k * tau;      // soal k aktif pada waktu ini (setelah jawaban k−1)
-        for (let tt = last; tt < ta; tt += 0.25) { const dt = Math.min(0.25, ta - tt); front = tt < 6 ? Math.max(front, 0.25 * Ld * (tt + dt) / 6) : front + speed * dt; }
-        last = ta;
-        if (emit[pos[k]] > ta) lateN++;      // belum keluar saat aktif
-        let rank = 0; for (let p = 0; p < pos[k]; p++) if (exists[perm[p]] && emit[p] <= ta) rank++;
-        const d = front - rank; if (d > 0.88 * Ld) bad++;
-        if (front > Ld - 0.3) st++;
-        // dijawab: bola dihapus; jika paling depan, depan mundur satu bola; rantai mundur (retreat)
-        let ahead = 0; for (let p = 0; p < pos[k]; p++) if (exists[perm[p]] && emit[p] <= ta) ahead++;
-        exists[k] = false; if (ahead === 0) front -= 1; front = Math.max(2, front - (gp.RETREAT_SEC * speed + Math.min(k, 5) * gp.COMBO_RETREAT_DIAMS));
-      }
-      return { bad: bad, late: lateN, stolen: st };
-    };
-    for (const sz of sizes) {
-      GA.devViewport = { w: sz[0], h: sz[1] }; G.relayout(); const L = G.layout, R = L.ballR;
-      for (const id of GA.Paths.ids) {
-        const path = GA.Path.forLayout(id, L, R), Ld = path.length / (2 * R + 1);
-        for (let s = 1; s <= 150; s++) { const perm = QM.arrange(N, QM.prng(s * 104729 + sz[0]), { early: W, late: V, first: gp0.SHUFFLE_FIRST, maxRun: gp0.SHUFFLE_MAXRUN }), m = model(perm, Ld, gp0.CHAIN_BASE_SPEED, 7, gp0); sims++; if (m.bad) viol++; if (m.late) late++; if (m.stolen) stolen++; }
-        rep.push(sz.join('×') + ' ' + id + ' ' + Ld.toFixed(1) + 'd');
-      }
+    ok('posisi bola jawaban: ' + (3 * SEEDS) + ' seed (3 stage): permutasi sah, deterministik per seed, jawaban soal pertama = bola pertama, jawaban selalu di antara bola yang sudah keluar, maks ' + GPS[0].SHUFFLE_MAXRUN + ' jawaban berurutan bertetangga', notPerm === 0 && detBad === 0 && firstBad === 0 && hidden === 0 && runBad === 0, 'bukan permutasi ' + notPerm + ', beda-seed sama ' + detBad + ', pertama ' + firstBad + ', belum keluar ' + hidden + ', pola ' + runBad);
+    ok('posisi bola jawaban: berbeda antar percobaan (seed lain), tidak pernah sama dengan urutan soal, soal terakhir tersebar', diff > 3 * SEEDS * 0.95 && ident === 0 && Object.keys(posLast).length >= 6, 'beda ' + diff + '/' + (3 * SEEDS) + ', identik ' + ident + ', posisi soal terakhir ' + Object.keys(posLast).length);
+    const pc = thirds.map(function (t) { const s = t[0] + t[1] + t[2]; return t.map(function (v) { return 100 * v / s; }); });
+    ok('distribusi (model nominal, ' + SEEDS + ' seed/stage): tiap sepertiga rantai memuat 25–42% jawaban soal aktif', pc.every(function (t) { return t.every(function (v) { return v >= 25 && v <= 42; }); }), pc.map(function (t, i) { return 'S' + (i + 1) + ' ' + t.map(function (v) { return v.toFixed(1); }).join('/'); }).join('  '));
+    // mesin permainan asli: bot ?debug=pace (dimuat oleh ?test=1)
+    for (let i = 0; i < 40 && !GA.Pace; i++) await sleep(50);
+    if (!GA.Pace) { ok('distribusi (mesin asli): bot tersedia', false, 'js/dev/pacing.js tidak dimuat'); return; }
+    const G = GA.game, rows = [];
+    GA.devViewport = { w: 390, h: 844 }; G.relayout();
+    let allAns = 0, allRuns = 0, bad20 = 0;
+    for (let st = 0; st < 3; st++) {
+      const stat = GA.Pace.newStat(); let won = 0;
+      for (let s = 1; s <= 100; s++) { const x = GA.Pace.play(st, 'sedang', s, { think: [6, 2], acc: 0.9, maxT: 900, stat: stat }); allRuns++; allAns += x.answered; if (x.win) { won++; if (x.answered !== N) bad20++; } }
+      const nv = stat.n - stat.hidden; rows.push({ st: st + 1, th: stat.chainA.map(function (v) { return 100 * v / nv; }), all: stat.chain.map(function (v) { return 100 * v / nv; }), hid: 100 * stat.hidden / stat.n, won: won, endG: stat.endGuard });
     }
     GA.devViewport = null; G.relayout();
-    ok('posisi bola jawaban (model nominal 7 dtk/jawaban, ' + sims + ' simulasi di semua jalur × 3 layar): bola aktif sudah keluar dan tidak di 12% terakhir; tak ada bola depan lolos ke sarang', viol === 0 && late === 0 && stolen === 0, 'melanggar 12% ' + viol + ', belum keluar ' + late + ', lolos ke sarang ' + stolen);
+    // sampel 100 putaran × 20 soal: simpangan ±1,5 poin, jadi batas uji 22–45 (tabel 300 putaran × 9 sel di docs/shuffle-d.md: 24,8–41,9%)
+    ok('distribusi (mesin asli, 100 putaran/stage, potret, Sedang): di antara bola jawaban yang ada, tiap sepertiga rantai (depan/tengah/ekor) memuat ±25–42% jawaban soal aktif', rows.every(function (r) { return r.th.every(function (v) { return v >= 22 && v <= 45; }); }), rows.map(function (r) { return 'S' + r.st + ' ' + r.th.map(function (v) { return v.toFixed(1); }).join('/') + ' (semua bola terlihat ' + r.all.map(function (v) { return v.toFixed(0); }).join('/') + ')'; }).join('  '));
+    ok('jawaban soal aktif sudah keluar saat aktif (mesin asli: <= 18% belum keluar dari portal; yang belum keluar dimunculkan game lewat surfaceTarget/percepatan), tidak pernah di 12% terakhir jalur', rows.every(function (r) { return r.hid <= 18 && r.endG === 0; }), rows.map(function (r) { return 'S' + r.st + ' belum keluar ' + r.hid.toFixed(1) + '%, 12% terakhir ' + r.endG; }).join('  '));
+    ok('20 soal terjawab tepat sekali, tanpa macet: semua stage yang dimenangkan bot menjawab tepat 20 soal', bad20 === 0, 'putaran ' + allRuns + ', menang dengan jawaban != 20: ' + bad20);
   }
 
   /** Invarian jalur (revisi 7) pada TIGA ukuran layar nyata (390×844, 844×390, 1440×900) untuk semua arketipe stage 1–3:
@@ -410,7 +405,7 @@
     await testAudio();
     await testLayers();
     await testSwapVisible();
-    testArrange();
+    await testArrange();
     for (let i = 0; i < 40 && !GA.Sim; i++) await sleep(50);
     for (let i = 0; i < 40 && !GA.AimSweep; i++) await sleep(50);
     if (GA.AimSweep) {      // sapu sudut bidik termasuk ke portal (js/dev/aimsweep.js; juga ?debug=aim)

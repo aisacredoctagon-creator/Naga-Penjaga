@@ -36,36 +36,48 @@
     return base.map(function (_, i) { return i % 2 ? 'missing' : 'result'; });      // cadangan pasti valid: selang-seling
   }
 
+  /** Banyak bola yang sudah keluar dari portal saat soal ke-k (urutan main) menjadi aktif, model nominal pemain ±6–7 dtk/jawaban (diukur dengan bot ?debug=pace):
+   *  E(0) = 1 (hanya bola pertama), 3, 5, 6, lalu k + lead (lead = 4; batas bawah konservatif untuk semua stage dan kesulitan). */
+  function emitted(k, n, o, mean) {
+    const head = (mean ? o && o.tEmit : o && o.emit) || (o && o.emit) || [1, 3, 5, 6], lead = mean ? (o && o.tLead != null ? o.tLead : (o && o.lead != null ? o.lead : 4)) : (o && o.lead != null ? o.lead : 4);
+    return Math.min(n, k < head.length ? head[k] : k + lead);
+  }
+  /** Sepertiga panjang rantai (0 = depan/dekat sarang, 1 = tengah, 2 = ekor/dekat portal) tempat bola ke-i (dari depan) di antara m bola berada: setiap bola menempati 1/m panjang rantai,
+   *  jadi posisinya di tengah selnya, (i + 0,5) / m; bola pertama dan terakhir tidak dipaksa ke 0% / 100%. */
+  function thirdOf(i, m) { return Math.min(2, Math.floor(3 * (i + 0.5) / Math.max(1, m))); }
+
   /** URUTAN POSISI BOLA JAWABAN di rantai (BUKAN urutan soal; antrean soal tidak disentuh). Mengembalikan perm: perm[p] = indeks soal (urutan antrean) untuk bola ke-p yang keluar dari portal.
-   *  Pengacakan ber-seed gaya Fisher-Yates dengan batas keadilan (o: early = W, late = V, first, maxRun):
-   *   - bola soal ke-k hanya boleh keluar di posisi [k − W, k + V]: tidak terlalu awal (nyaris sampai sarang sebelum gilirannya) dan tidak terlalu lambat keluar;
-   *   - jawaban soal pertama ada di `first` bola pertama (langsung terjawab);
+   *  Pengacakan ber-seed gaya Fisher-Yates (undian tanpa pengembalian) ke seluruh rantai, dengan batas keadilan (o: first, maxRun, emit, lead):
+   *   - jawaban soal pertama = bola pertama yang keluar (`first` = 1): terlihat begitu hitung mundur selesai;
+   *   - jawaban soal ke-k hanya boleh di antara bola yang SUDAH keluar saat soal itu aktif (model emitted(k)): tidak menunggu keluar dari portal, tidak macet;
+   *   - tiap soal diundi ke sepertiga rantai (depan / tengah / ekor) menurut daftar seimbang yang diacak ber-seed, jadi posisi jawaban soal aktif tersebar merata (bukan menumpuk di depan);
    *   - paling banyak `maxRun` jawaban BERURUTAN (menurut urutan soal) yang bertetangga di rantai (pola mudah ditebak).
-   *  Tiap posisi dipilih acak di antara soal yang boleh (yang tenggatnya habis wajib diambil lebih dulu). Diulang (seed yang sama, aliran acak berlanjut) sampai tak ada pola. */
+   *  Diulang (aliran acak berlanjut) sampai semua batas terpenuhi. */
   function arrange(n, rng, o) {
-    o = o || {}; const W = o.early == null ? 6 : o.early, V = o.late == null ? 8 : o.late, first = o.first == null ? 3 : o.first, maxRun = o.maxRun == null ? 2 : o.maxRun;
-    const deadline = function (k) { return k === 0 ? Math.min(first - 1, V) : k + V; };
-    let perm = [];
-    for (let attempt = 0; attempt < 400; attempt++) {
-      perm = []; const placed = new Array(n).fill(false), q0slot = Math.floor(rng() * Math.min(first, n));      // posisi soal pertama dipilih acak di antara `first` bola pertama
-      for (let p = 0; p < n; p++) {
-        let forced = -1; const cand = [];
-        for (let k = 0; k < n; k++) {
-          if (placed[k]) continue;
-          if (deadline(k) <= p && (forced < 0 || deadline(k) < deadline(forced))) forced = k;      // tenggat habis: wajib sekarang (paling mendesak lebih dulu)
-          if (k - W <= p) cand.push(k);
-        }
-        const k = forced >= 0 ? forced : (p === q0slot && !placed[0] ? 0 : cand[Math.floor(rng() * cand.length)]);
-        perm.push(k); placed[k] = true;
+    o = o || {}; const maxRun = o.maxRun == null ? 2 : o.maxRun, mix = o.mix || [1 / 3, 1 / 3, 1 / 3];      // bagian sasaran depan/tengah/ekor (sama rata)
+    let best = null;
+    for (let attempt = 0; attempt < 600; attempt++) {
+      const pos = new Array(n), used = new Array(n).fill(false), cnt = [0, 1, 0];      // soal pertama (satu-satunya bola) dihitung sebagai "tengah"
+      pos[0] = Math.min(n - 1, Math.max(0, Math.floor(rng() * Math.max(1, o.first == null ? 1 : o.first)))); used[pos[0]] = true;
+      for (let k = 1; k < n; k++) {
+        const Et = Math.max(emitted(k, n, o), emitted(k, n, o, true)), Ev = Math.max(k + 1, Et - (rng() < (o.cons == null ? 0.5 : o.cons) ? 1 : 0)), ex = [];      // sebagian soal (cons) hanya di bola yang PASTI sudah keluar (satu lebih sedikit)
+         for (let p = 0; p < Et; p++) if (!used[p]) ex.push(p);       // bola yang ada saat soal k aktif (rata-rata; soal < k sudah dijawab)
+        const m = ex.length, feas = m === 1 ? [1] : (m === 2 ? [0, 2] : [0, 1, 2]);
+        const w = feas.map(function (t) { return Math.max(0.2, (k + 1) * mix[t] - cnt[t] + 1); });      // sepertiga yang masih kurang lebih mungkin dipilih (menjaga sebaran seimbang per stage)
+        let r = rng() * w.reduce(function (a, b) { return a + b; }, 0), tier = feas[feas.length - 1]; for (let i = 0; i < feas.length; i++) { r -= w[i]; if (r <= 0) { tier = feas[i]; break; } }
+        let cand = ex.filter(function (p, i) { return p < Ev && thirdOf(i, m) === tier; });
+        if (!cand.length) cand = ex.filter(function (p) { return p < Ev; });
+        const p = cand[Math.floor(rng() * cand.length)]; pos[k] = p; used[p] = true; cnt[thirdOf(ex.indexOf(p), m)]++;
       }
+      const perm = new Array(n); for (let k = 0; k < n; k++) perm[pos[k]] = k;
       let ok = true, runA = 1, runD = 1;
-      for (let p = 1; p < n && ok; p++) {
-        runA = perm[p] === perm[p - 1] + 1 ? runA + 1 : 1; runD = perm[p] === perm[p - 1] - 1 ? runD + 1 : 1;
+      for (let k = 1; k < n && ok; k++) {
+        runA = pos[k] === pos[k - 1] + 1 ? runA + 1 : 1; runD = pos[k] === pos[k - 1] - 1 ? runD + 1 : 1;
         if (runA > maxRun || runD > maxRun) ok = false;
       }
-      if (ok) break;
+      best = perm; if (ok) break;
     }
-    return perm;
+    return best;
   }
 
   class QuestionManager {
@@ -152,5 +164,5 @@
     }
   }
 
-  GA.QM = { arrange: arrange, Manager: QuestionManager, REASONS: REASONS, STATE: STATE, prng: prng, seedFor: seedFor, shuffle: shuffle, strict: /[?&]test(=|&|$)/.test(location.search) || /debug=[^&]*(question|sim)/.test(location.search), verbose: /debug=[^&]*question/.test(location.search) };
+  GA.QM = { arrange: arrange, emitted: emitted, thirdOf: thirdOf, Manager: QuestionManager, REASONS: REASONS, STATE: STATE, prng: prng, seedFor: seedFor, shuffle: shuffle, strict: /[?&]test(=|&|$)/.test(location.search) || /debug=[^&]*(question|sim)/.test(location.search), verbose: /debug=[^&]*question/.test(location.search) };
 })(window.GA = window.GA || {});

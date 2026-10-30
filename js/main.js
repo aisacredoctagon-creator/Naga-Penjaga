@@ -148,12 +148,17 @@
     const dx = b.x - tmpM.x, dy = b.y - tmpM.y, dist = Math.hypot(dx, dy) || 1, ux = dx / dist, uy = dy / dist;
     const hzb = run.haz.blocksLine(tmpM.x, tmpM.y, b.x, b.y, 0);
     if (hzb) return { haz: hzb };
-    const rad = run.R * 0.92 + Bullets.r;
+    // sama dengan fisika peluru (Chain.hit): bola yang tersentuh lebih dulu menghalangi; bola yang SUDAH menempel pada peluru saat lahir (mulut naga dekat jalur) dipilih menurut pusat terdekat,
+    // jadi bola tujuan yang pusatnya paling dekat tidak dianggap terhalang oleh bola bertetangga yang ikut menempel
+    const rad = run.R * 0.92 + Bullets.r, sb = rayCircle(tmpM.x, tmpM.y, ux, uy, b.x, b.y, rad);
     let best = null, bd = Infinity;
     for (const c of allBalls()) {
       if (c === b || !c.ch.visible(c)) continue;
       const d = rayCircle(tmpM.x, tmpM.y, ux, uy, c.x, c.y, rad);
-      if (d < dist - run.R * 0.4 && d < bd) { bd = d; best = c; }
+      let blocks;
+      if (sb <= 0) blocks = d <= 0 && Math.hypot(c.x - tmpM.x, c.y - tmpM.y) < dist;      // keduanya menempel saat lahir: pusat terdekat menang
+      else blocks = d < sb - run.R * 0.4;
+      if (blocks && d < bd) { bd = d; best = c; }
     }
     return best ? { ball: best } : null;
   }
@@ -388,7 +393,7 @@
     run.playing = true;
     const order = run.qm.order;
     // posisi bola jawaban di rantai: pengacakan ber-seed (seed per stage per percobaan) dengan batas keadilan (QM.arrange); urutan antrean SOAL tidak berubah
-    const gpS = run.gp, perm = GA.QM.arrange(order.length, function () { return run.qm.rand(); }, { early: gpS.SHUFFLE_EARLY, late: gpS.SHUFFLE_LATE, first: gpS.SHUFFLE_FIRST, maxRun: gpS.SHUFFLE_MAXRUN });
+    const gpS = run.gp, perm = GA.QM.arrange(order.length, function () { return run.qm.rand(); }, { first: gpS.SHUFFLE_FIRST, maxRun: gpS.SHUFFLE_MAXRUN, lead: gpS.SHUFFLE_LEAD, emit: gpS.SHUFFLE_EMIT, tLead: gpS.SHUFFLE_TLEAD, cons: gpS.SHUFFLE_CONS, tEmit: gpS.SHUFFLE_TEMIT });
     const ids = perm.map(function (k) { return order[k]; });
     const c = new Chain.Chain(run.path, { r: run.R, gp: run.gp, labeler: labelBall });     // kecepatan = gp.CHAIN_BASE_SPEED (diameter/dtk), sama di semua layar
     c.idx = 0; c.hcd = 0; c.entryD = GA.Effects.entryD();

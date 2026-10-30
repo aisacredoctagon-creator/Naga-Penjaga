@@ -10,6 +10,17 @@
   const mulberry = function (a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; };
   const gauss = function (rnd) { let u = 0, v = 0; while (!u) u = rnd(); v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
 
+  /** Posisi bola jawaban soal yang BARU aktif: % indeks di antara bola yang terlihat (0 = depan/dekat sarang, 100 = ekor/dekat portal), % jarak jalur, dan belum keluar dari portal. */
+  function record(st, r, G) {
+    const b = G.allBalls().find(function (x) { return x.kind === 'num' && x.qid === r.qid; });
+    { const k = r.correct, nv = G.allBalls().filter(function (x) { return x.kind === 'num' && x.ch.visible(x); }).length; if (k < 20) { (st.emitSum || (st.emitSum = [])); st.emitSum[k] = (st.emitSum[k] || 0) + nv + k; st.emitN = st.emitN || []; st.emitN[k] = (st.emitN[k] || 0) + 1; } }
+    if (st.trace) st.trace(r, G, b);
+    st.n++; if (!b || !b.ch.visible(b)) { st.hidden++; return; }
+    const vis = G.allBalls().filter(function (x) { return x.ch.visible(x); }), i = vis.indexOf(b), cp = 100 * (i + 0.5) / vis.length, pp = 100 * b.d / r.path.length;
+    st.chain[Math.min(2, Math.floor(cp / (100 / 3)))]++; { const bk = (st.byK || (st.byK = [])), kk = Math.min(19, r.correct); (bk[kk] || (bk[kk] = [0, 0, 0, 0, 0]))[Math.min(2, Math.floor(cp / (100 / 3)))]++; bk[kk][3] += vis.length; bk[kk][4]++; } st.path[Math.min(2, Math.floor(pp / (100 / 3)))]++; { const va = vis.filter(function (x) { return x.kind === 'num' && x.qid != null && !r.qm.isSolved(x.qid); }), ia = va.indexOf(b), ca = 100 * (ia + 0.5) / va.length; (st.chainA || (st.chainA = [0, 0, 0]))[Math.min(2, Math.floor(ca / (100 / 3)))]++; st.extra = (st.extra || 0) + vis.length - va.length; }
+    if (pp > 88) st.endGuard++; st.pathMax = Math.max(st.pathMax, pp);
+  }
+
   /** Satu putaran stage. Kembalikan { win, lost (telur hilang), causes, t, answered, wrongShots }. */
   function play(stage, diff, seed, o) {
     const G = GA.game, rnd = mulberry(seed * 2654435761 >>> 0), realRandom = Math.random; Math.random = rnd;
@@ -25,7 +36,7 @@
         if (r.lives < lives) { const k = r.reason || '?'; causes[k] = (causes[k] || 0) + (lives - r.lives); if (o.log) o.log.push({ t: +t.toFixed(1), reason: k, qid: r.qid, solved: r.correct, think: +think.toFixed(1), wantWrong: wantWrong, since: +(t - qStart).toFixed(1), nballs: r.chain.balls.length, canFire: sh.canFire() }); }
         lives = r.lives;
         if (G.state !== 'playing' || !r.q) continue;
-        if (r.qid !== lastQ) { lastQ = r.qid; qStart = t; think = Math.max(o.minThink || 1.5, o.think[0] + o.think[1] * gauss(rnd)); wantWrong = rnd() >= o.acc; }
+        if (r.qid !== lastQ) { lastQ = r.qid; qStart = t; if (o.stat) record(o.stat, r, G); think = Math.max(o.minThink || 1.5, o.think[0] + o.think[1] * gauss(rnd)); wantWrong = rnd() >= o.acc; }
         think -= DT; if (think > 0 || cool > 0 || !sh.canFire() || G.anySettling() || r.chain.balls.some(function (b) { return b.sw; })) continue;
         // bidik dulu (mulut naga bergeser mengikuti sudut), baru uji garis tembak: bola benar bila terbuka; bila ingin salah, coba bola angka lain satu per satu
         const tryAim = function (b) {
@@ -67,5 +78,5 @@
     GA.Pace.rows = rows; GA.Pace.sec = (performance.now() - t0) / 1000;
     return rows;
   }
-  GA.Pace = { run: run, play: play, rows: [], sec: 0 };
+  GA.Pace = { run: run, play: play, newStat: function () { return { n: 0, hidden: 0, chain: [0, 0, 0], path: [0, 0, 0], endGuard: 0, pathMax: 0 }; }, rows: [], sec: 0 };
 })(window.GA = window.GA || {});
