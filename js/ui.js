@@ -1,11 +1,11 @@
-/* ui.js — layar (DOM) dan HUD (digambar di canvas). Menu pilih kategori ada di menu.js, cerita di story.js.
+/* ui.js — layar (DOM) dan HUD (digambar di canvas). Halaman awal (kategori + kesulitan + Mulai Main) ada di ui/start.js, cerita di story.js.
  * Teks antarmuka: Bahasa Indonesia. */
 (function (GA) {
   'use strict';
-  const Theme = GA.Theme, Storage = GA.Storage, MT = GA.MathText, T = GA.T;
+  const Theme = GA.Theme, MT = GA.MathText, T = GA.T;
 
   const I = function (n, c) { return GA.Icons.html(n, c); };
-  let root = null, H = null, countdownTimer = null, hudBtn = null, pauseOpen = false, toastTimer = 0, mascotRaf = 0;
+  let root = null, H = null, rootClick = null, countdownTimer = null, hudBtn = null, pauseOpen = false, toastTimer = 0, mascotRaf = 0;
   const screens = {};
 
   function el(html) { const d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstChild; }
@@ -73,35 +73,6 @@
   /* ---------- template layar (dibangun dari UI kit: js/ui/kit.js) ---------- */
   const K = GA.Kit;
   const TPL = {
-    title: '<section class="screen" id="s-title">' + K.panel({ cls: 'k-titlecard', body:
-      '<div class="k-logo"><span class="l1">Naga</span><span class="l2">Penjaga</span></div>' +
-      '<p class="k-text">' + T('title.tag') + '</p>' +
-      K.button({ act: 'play', icon: 'play', label: T('title.play'), size: 'big' }) +
-      '<div class="k-row">' + K.button({ act: 'howto', icon: 'help', label: T('title.howto'), variant: 'secondary', size: 'small' }) +
-      K.button({ act: 'settings', icon: 'gear', label: T('title.settings'), variant: 'secondary', size: 'small' }) + '</div>' +
-      '<div id="t-res" style="display:flex;justify-content:center"></div>' }) + '</section>',
-
-    settings: '<section class="screen dim scroll" id="s-settings">' + K.panel({ title: T('set.title'), back: 'back', body:
-      K.toggle({ act: 'sound', icon: 'sound', label: T('set.sound'), sync: 'sound' }) +
-      K.toggle({ act: 'music', icon: 'music', label: T('set.music'), sync: 'music' }) +
-      '<p class="k-eyebrow">' + T('set.quality') + '</p><div id="q-seg"></div>' +
-      K.button({ act: 'replay-story', icon: 'book', label: T('set.story'), variant: 'secondary' }) +
-      K.button({ act: 'reset', icon: 'restart', label: T('set.reset'), variant: 'danger', size: 'small' }) }) + '</section>',
-
-    howto: '<section class="screen scroll dim" id="s-howto">' + K.panel({ title: T('how.title'), back: 'back', cls: 'k-wide', body:
-      '<div class="k-how">' +
-        '<div class="k-howc"><span class="k-pic">' + I('target') + '</span><div><b>' + T('how.aim') + '</b><br><small>' + T('how.aim2') + '</small></div></div>' +
-        '<div class="k-howc"><span class="k-pic">' + I('flame') + '</span><div><b>' + T('how.hit') + '</b><br><small>' + T('how.hit2') + '</small></div></div>' +
-        '<div class="k-howc"><span class="k-pic">' + I('egg') + '</span><div><b>' + T('how.egg') + '</b><br><small>' + T('how.egg2') + '</small></div></div>' +
-      '</div>' +
-      '<div class="k-fmts">' +
-        '<div class="k-fmtc"><b>' + T('how.f1') + '</b><span class="k-extext">' + MT.html('2 + 1 = ▢') + '</span></div>' +
-        '<div class="k-fmtc"><b>' + T('how.f2') + '</b><span class="k-extext">' + MT.html('▢ + 3 = 18') + '</span></div>' +
-        '<div class="k-fmtc"><b>' + T('how.f3') + '</b><span class="k-extext">' + MT.html('2 + 1 = ▢') + ' <i>+</i> ' + MT.html('▢ + 3 = 18') + '</span></div>' +
-      '</div>' +
-      '<div class="k-chips">' + K.chip(T('how.goal'), { icon: 'target' }) + '</div>' +
-      '<div class="k-legend"><span class="k-leg"><span data-icon="frost"></span>' + T('sp.frost') + '</span><span class="k-leg"><span data-icon="egg"></span>' + T('sp.egg') + '</span></div>' }) + '</section>',
-
     story: '<section class="screen dim scroll" id="s-story">' + K.panel({ cls: 'k-story', role: 'dialog', body:
       '<canvas id="st-art" class="k-story-art" width="480" height="300" aria-hidden="true"></canvas>' +
       '<h2 class="k-title" id="st-title"></h2><p class="k-text k-story-text" id="st-text"></p><div class="k-dots" id="st-dots" aria-hidden="true"></div>' +
@@ -118,11 +89,11 @@
   /* ---------- API UI (DOM) ---------- */
   const UI = {
     init: function (handlers) {
-      H = handlers; if (GA.Skin) GA.Skin.apply();
+      H = handlers;
       root = document.getElementById('ui');
       Object.keys(TPL).forEach(function (k) { const n = el(TPL[k]); root.appendChild(n); screens[k] = n; });
       root.appendChild(el('<div id="countdown" class="countdown" aria-live="assertive"></div>'));
-      GA.Kit.mount(root);
+      GA.Kit.mount(root);      // sudah dipasang halaman awal (idempoten)
       // tombol jeda sungguhan (fokus & papan ketik) di atas tombol yang digambar di canvas HUD
       hudBtn = el('<button type="button" id="pause-hud" aria-label="Jeda permainan"></button>');
       root.appendChild(hudBtn);
@@ -142,42 +113,29 @@
         else if (e.shiftKey && a === first) { e.preventDefault(); last.focus(); }
         else if (!e.shiftKey && a === last) { e.preventDefault(); first.focus(); }
       });
-      root.addEventListener('click', function (e) {
+      rootClick = function (e) {
         const b = e.target.closest('[data-act]');
         if (!b || b.disabled) return;
         const act = b.getAttribute('data-act');
         GA.Audio.unlock(); GA.Audio.play(uiSound(act));
         UI.act(act, b);
-      });
-      // ikon bola khusus di halaman "Cara Bermain"
-      root.querySelectorAll('[data-icon]').forEach(function (n) { n.appendChild(UI.specialIcon(n.getAttribute('data-icon'), 44)); });
-      this.syncSound(); this.refreshTitle();
+      }; root.addEventListener('click', rootClick);
+      this.syncSound();
     },
 
-    /** Daftarkan layar tambahan (mis. menu pilih kategori dari menu.js). */
-    addScreen: function (name, node) { root.appendChild(node); screens[name] = node; },
-    /** Penangan tindakan data-act yang tidak dikenal UI (diisi menu.js). */
-    extra: null,
-
-    specialIcon: function (kind, size) {
-      const c = document.createElement('canvas'), d = window.devicePixelRatio || 1;
-      c.width = c.height = size * d; c.style.width = c.style.height = size + 'px';
-      const g = c.getContext('2d'); g.scale(d, d);
-      GA.Chain.drawSpecial(g, kind, size / 2, size / 2 + 1, size / 2 - 5, 0);
-      return c;
+    /** Bongkar layar permainan (story, intro, jeda, hasil), tombol jeda HUD, hitung mundur, dan listener — dipanggil saat kembali ke halaman awal. */
+    destroy: function () {
+      clearTimeout(countdownTimer); clearTimeout(toastTimer); cancelAnimationFrame(mascotRaf); this.stopStoryAnim();
+      pauseOpen = false; this._story = null; this._ov = null; this._confirmFn = null; this._opener = null; this._confirmOpener = null;
+      window.removeEventListener('resize', this._onPauseResize);
+      if (root && rootClick) root.removeEventListener('click', rootClick); rootClick = null;
+      Object.keys(screens).forEach(function (k) { if (screens[k].parentNode) screens[k].parentNode.removeChild(screens[k]); delete screens[k]; });
+      const cd = document.getElementById('countdown'); if (cd && cd.parentNode) cd.parentNode.removeChild(cd);
+      if (hudBtn && hudBtn.parentNode) hudBtn.parentNode.removeChild(hudBtn); hudBtn = null; H = null;
     },
 
     act: function (a, b) {
       switch (a) {
-        case 'play': GA.Menu.open(); break;
-        case 'settings': this.syncSound(); this.show('settings'); break;
-        case 'howto': this.show('howto'); break;
-        case 'back': this.refreshTitle(); this.show('title'); break;
-        case 'sound': H.toggleSound(); break;
-        case 'music': H.toggleMusic(); break;
-        case 'quality-set': H.setQuality(b.dataset.id); break;
-        case 'replay-story': H.replayStory(); break;
-        case 'reset': GA.Kit.confirm({ title: T('set.resetq'), text: T('set.resetx'), yes: T('set.resetyes'), onYes: function () { Storage.reset(); UI.refreshTitle(); GA.Kit.toast(T('set.resetdone')); } }); break;
         case 'story-next': this.storyNext(); break;
         case 'story-skip': this.storyEnd(); break;
         case 'go': H.introGo(); break;
@@ -191,12 +149,9 @@
         case 'ov-next': case 'next-step': H.nextStep(); break;
         case 'ov-retry': H.restart(); break;
         case 'ov-menu': H.quit(); break;
-        case 'ov-back': GA.Menu.openSteps(); break;
         case 'ov-chip': this.ovCard(+b.dataset.i); break;
         case 'again': H.again(); break;
-        case 'to-menu': H.toMenu(); break;
         case 'quit': H.quit(); break;
-        default: if (this.extra) this.extra(a, b);
       }
     },
 
@@ -205,6 +160,7 @@
       if (name !== 'story') this.stopStoryAnim();
       Object.keys(screens).forEach(function (k) { screens[k].classList.toggle('show', k === name); });
       const s = screens[name]; if (s) s.scrollTop = 0;
+      if (GA.Start && GA.Start.isShown()) GA.Start.hide();      // layar permainan tampil = halaman awal (dan layar pemuatan) tersembunyi
     },
     hide: function () {
       if (pauseOpen) this.leavePause(false);
@@ -212,23 +168,12 @@
       Object.keys(screens).forEach(function (k) { screens[k].classList.remove('show'); });
     },
     isOpen: function () { return Object.keys(screens).some(function (k) { return screens[k].classList.contains('show'); }); },
+    /** Sakelar suara di popup Jeda mengikuti keadaan audio. */
     syncSound: function () {
-      const on = GA.Audio.isEnabled(), mu = GA.Audio.isMusic(), K = GA.Kit;
-      [['sound', on], ['music', mu]].forEach(function (p) {
-        root.querySelectorAll('[data-sync="' + p[0] + '"]').forEach(function (n) { n.classList.toggle('on', p[1]); n.setAttribute('aria-checked', p[1] ? 'true' : 'false'); });
-      });
-      const seg = document.getElementById('q-seg');
-      if (seg) seg.innerHTML = K.segmented({ act: 'quality-set', label: T('set.quality'), items: ['auto', 'tinggi', 'sedang', 'rendah'].map(function (m) {
-        return { id: m, label: T({ auto: 'set.auto', tinggi: 'set.high', sedang: 'set.mid', rendah: 'set.low' }[m]), on: GA.Quality.mode === m };
-      }) });
-      const sw = root.querySelector('.pz-toggle');
+      const on = GA.Audio.isEnabled(), sw = root.querySelector('.pz-toggle');
       if (sw) { sw.setAttribute('aria-checked', on ? 'true' : 'false'); document.getElementById('pz-state').textContent = on ? 'NYALA' : 'MATI'; }
     },
 
-    refreshTitle: function () {
-      const el2 = document.getElementById('t-res');
-      if (el2) el2.innerHTML = GA.Kit.resbar({ eggs: GA.Gameplay.DEFAULTS.EGGS_MAX, stars: Storage.totalStars(), score: Storage.data.highScore });
-    },
     /* ---------- cerita (panel bergambar) ---------- */
     /** list: Story.intro / win / lose. opts: { onDone, skippable }. */
     showStory: function (list, opts) {
@@ -326,7 +271,7 @@
       this._opener = document.activeElement;
       this.show('pause'); pauseOpen = true;
       this.fitPause();
-      document.getElementById('game').inert = true; hudBtn.inert = true;
+      const cvx = document.getElementById('game'); if (cvx) cvx.inert = true; hudBtn.inert = true;
       window.addEventListener('resize', this._onPauseResize);
       // naga tidur bernapas pelan (animasi DOM; permainan di belakang tetap beku)
       const t0 = performance.now(), self = this;
@@ -344,7 +289,7 @@
       this.closeConfirm(false);
       clearTimeout(toastTimer); document.getElementById('pz-toast').classList.remove('show');
       window.removeEventListener('resize', this._onPauseResize);
-      document.getElementById('game').inert = false; hudBtn.inert = false;
+      const cvy = document.getElementById('game'); if (cvy) cvy.inert = false; if (hudBtn) hudBtn.inert = false;
       if (focusBack) {
         const t = hudBtn.classList.contains('on') ? hudBtn : this._opener;
         if (t && t.focus) t.focus({ preventScroll: true });
@@ -401,10 +346,10 @@
       hudBtn.style.left = (L.ox + (m.x - pad) * L.scale) + 'px'; hudBtn.style.top = (L.oy + (m.y - pad) * L.scale) + 'px';
       hudBtn.style.width = ((m.w + 2 * pad) * L.scale) + 'px'; hudBtn.style.height = ((m.h + 2 * pad) * L.scale) + 'px';
     },
-    setHudButton: function (on) { hudBtn.classList.toggle('on', !!on); },
+    setHudButton: function (on) { if (hudBtn) hudBtn.classList.toggle('on', !!on); },
 
-    /** Overview jawaban sebuah stage (menang maupun Game Over). r = hasil stageResult() (main.js) / Storage.lastResult.
-     * opts: { next: tombol Lanjut, from: 'steps' = dibuka dari layar Pilih Stage (tombol kembali, tanpa Ulangi) }.
+    /** Overview jawaban sebuah stage (menang maupun Game Over). r = hasil stageResult() (main.js); r.newBest = "Rekor baru!" (Game Over yang melampaui rekor).
+     * opts: { next: tombol Lanjut }.
      * Grid 20 chip bernomor: benar langsung (✓, lingkaran), benar setelah salah (✓ + titik, kotak), belum terjawab (strip, garis putus). Ketuk chip = kartu soal. */
     showOverview: function (r, opts) {
       opts = opts || {}; const K = GA.Kit;
@@ -421,10 +366,10 @@
           '<span class="ov-pct" title="' + esc(T('ov.first')) + '">' + I('check') + '<b>' + Math.round(r.pct * 100) + '%</b></span>' + (r.win ? K.stars(r.stars, 3) : '') + '</div>' +
         '<div class="ov-grid" role="group" aria-label="' + esc(T('res.stats', { c: r.items.filter(function (i) { return i.solved; }).length, w: r.wrong, k: r.combo })) + '">' + chips + '</div>' +
         '<div class="ov-card" id="ov-card" aria-live="polite"><span class="ov-hint">' + esc(T('ov.tap')) + '</span></div>' +
-        '<div class="ov-btns">' + (opts.from === 'steps' ? K.button({ act: 'ov-back', icon: 'back', label: T('common.back'), variant: 'wood', size: 'small' })
-          : K.button({ act: 'ov-retry', icon: 'restart', label: T('common.retry'), variant: 'secondary', size: 'small' }) +
-            (opts.next ? K.button({ act: 'ov-next', icon: 'play', label: T('common.next'), size: 'big' }) : '') +
-            K.button({ act: 'ov-menu', icon: 'home', label: T('common.menu'), variant: 'wood', size: 'small' })) + '</div>' });
+        (r.newBest ? '<div class="ov-best">' + K.badge(T('res.best'), { tone: 'buff', icon: 'trophy' }) + '</div>' : '') +
+        '<div class="ov-btns">' + K.button({ act: 'ov-retry', icon: 'restart', label: T('common.retry'), variant: 'secondary', size: 'small' }) +
+          (opts.next ? K.button({ act: 'ov-next', icon: 'play', label: T('common.next'), size: 'big' }) : '') +
+          K.button({ act: 'ov-menu', icon: 'home', label: T('common.menu'), variant: 'wood', size: 'small' }) + '</div>' });
       this.show('result');
     },
 
@@ -447,7 +392,7 @@
         '<p class="k-stat">' + T('res.hi') + ' <b>' + r.high + '</b></p>' + (r.newBest ? '<div style="text-align:center">' + K.badge(T('res.best'), { tone: 'buff', icon: 'star' }) + '</div>' : '') +
         '<p class="k-stat">' + esc(T('res.stats', { c: r.correct, w: r.wrong, k: r.combo })) + '</p>' +
         K.button({ act: 'again', icon: 'restart', label: T('common.again'), size: 'big' }) +
-        '<div class="k-row">' + K.button({ act: 'to-menu', icon: 'mix', label: T('menu.cat'), variant: 'secondary', size: 'small' }) + K.button({ act: 'quit', icon: 'home', label: T('common.menu'), variant: 'wood', size: 'small' }) + '</div>' });
+        '<div class="k-row">' + K.button({ act: 'quit', icon: 'home', label: T('common.menu'), variant: 'wood', size: 'small' }) + '</div>' });
       this.show('result');
     },
 
@@ -466,10 +411,9 @@
 
   /** Bunyi UI menurut jenis tindakan: pilih (kartu/slot/kesulitan), kembali, konfirmasi (mulai/lanjut), klik biasa. */
   function uiSound(a) {
-    if (a === 'back' || a === 'm-back' || a === 's-back' || a === 'c-no' || a === 'story-skip' || a === 'ov-back') return 'back';
-    if (a === 's-go') return 'confirm';
-    if (a === 'm-cat' || a === 'm-slot' || a === 'm-diff' || a === 'm-same' || a === 'm-random' || a === 'sound' || a === 'music' || a === 'quality' || a === 'p-sound') return 'select';
-    if (a === 'play' || a === 'm-start' || a === 'go' || a === 'next-step' || a === 'ov-next' || a === 'again' || a === 'c-yes' || a === 'p-resume') return 'confirm';
+    if (a === 'c-no' || a === 'story-skip') return 'back';
+    if (a === 'st-cat' || a === 'st-diff' || a === 'st-sound' || a === 'st-music' || a === 'st-quality' || a === 'p-sound') return 'select';
+    if (a === 'st-play' || a === 'go' || a === 'next-step' || a === 'ov-next' || a === 'again' || a === 'c-yes' || a === 'p-resume') return 'confirm';
     return 'click';
   }
 

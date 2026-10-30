@@ -6,7 +6,7 @@
  * (3 bila kalah), penyebab telur hilang (jawaban salah / bola sampai sarang / rintangan / waktu habis), lama stage. Mekanik tidak diubah oleh bot. */
 (function (GA) {
   'use strict';
-  const DT = 1 / 30, SEL = function (diff) { return { slots: ['add', 'sub', 'mul'], same: false, random: false, diff: diff }; };
+  const DT = 1 / 30, SEL = function (diff) { return { cat: 'add', diff: diff }; };
   const mulberry = function (a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; };
   const gauss = function (rnd) { let u = 0, v = 0; while (!u) u = rnd(); v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
 

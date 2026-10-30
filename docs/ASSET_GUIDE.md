@@ -52,6 +52,24 @@ untuk sprite, tanpa tulisan/logo, gaya fantasi kartun-realistis hangat (kayu, ba
 
 ---
 
+### Splash art halaman awal (revisi 9; tersambung lewat nama berkas, bukan manifest)
+
+Latar halaman awal = **gambar statis** (tanpa animasi). `index.html` memuatnya lewat `<picture>`: potret memakai `splash-portrait.webp`, selain itu `splash-landscape.webp` (`object-fit: cover`, jadi tepi bisa terpotong; tempatkan hal penting di tengah-bawah).
+
+| Berkas | Ukuran | Format | Berat | Catatan |
+|---|---|---|---|---|
+| `assets/splash/splash-landscape.webp` | 1920×1080 (16:9) | WebP | idealnya < 250 KB (bawaan ±80 KB) | desktop / HP lanskap |
+| `assets/splash/splash-portrait.webp` | 1080×1920 (9:16) | WebP | idealnya < 250 KB (bawaan ±80 KB) | HP potret |
+
+- **Gelap-terang sudah "dibakar":** tengah gambar digelapkan (papan menu ±960 px menutupinya) dan tepi diberi vinyet, supaya kartu dan teks terbaca tanpa overlay CSS tambahan. Hindari bagian terang di belakang papan.
+- Tanpa teks, logo gim, atau karakter milik pihak lain. Isi bawaan (ORIGINAL): hutan gelap bercahaya, naga penjaga di depan sarang telur, portal ungu dengan siluet penyihir di kejauhan, daun dan kunang-kunang sebagai hiasan diam.
+- Bila berkas **tidak ada / gagal dimuat**, `js/splash-art.js` menggambarnya sekali lewat Canvas (tanpa loop) sebagai cadangan. Buat ulang aset bawaan: buka `index.html?debug=splash`, jalankan `await GA.SplashGen.run()` di konsol (server dev `/__save/…` menyimpan `gen-splash-*.png` di `docs/screenshots`; berkasnya sebenarnya WebP, pindahkan dan ganti nama ke `assets/splash/*.webp`).
+- Dengan `prefers-reduced-motion` atau Save-Data tidak ada pra-pemuatan tambahan; gambar splash sendiri dimuat berprioritas rendah sehingga tombol bisa diklik lebih dulu.
+
+**Contoh deskripsi untuk generator gambar:**
+- **splash-landscape.webp:** "Dark glowing fantasy forest at night, a guardian dragon standing protectively in front of a nest of glowing eggs on the left, distant purple magic portal with a small wizard silhouette on the right, moonlight shafts through tall pines, drifting leaves and fireflies, painterly storybook style, deep teal and violet palette, dark vignette, empty darker center, no text, no logo, no characters from existing franchises, 1920x1080, 16:9."
+- **splash-portrait.webp:** "Same scene composed vertically: purple portal and wizard silhouette near the top, dragon curled protectively around glowing eggs near the bottom, dark pine forest in between, fireflies, painterly storybook style, dark vignette, no text, no logo, 1080x1920, 9:16."
+
 ## B. Belum tersambung (usulan; perlu kait kode)
 
 Aset berikut paling berdampak bila diganti ilustrasi buatan sendiri, tetapi **belum ada pembaca di kode**. Beri tahu saya bila ingin disambungkan.

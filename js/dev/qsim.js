@@ -10,8 +10,8 @@
   function ok(name, cond, info) { results.push((cond ? 'PASS  ' : 'FAIL  ') + name + (info ? '  — ' + info : '')); if (!cond) fails++; return cond; }
   const sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
   const DT = 1 / 30;
-  const SEL = function (diff) { return { slots: ['add', 'sub', 'mul'], same: false, random: false, diff: diff || 'sedang' }; };
-  const FRACSEL = { slots: ['frac', 'dec', 'int'], same: false, random: false, diff: 'sulit' };
+  const SEL = function (diff) { return { cat: 'add', diff: diff || 'sedang' }; };
+  const FRACSEL = { cat: 'frac', diff: 'sulit' };
 
   /** Pemain bot: menembak bola jawaban soal aktif bila garis tembak aman (sama dengan bot di tests.js, disederhanakan). mode: 'bot' | 'wrong' | 'none'. */
   function Bot(mode, thinkSec) {
@@ -176,12 +176,10 @@
     U.showOverview(mk(false, 6), { next: false });
     const none2 = document.querySelectorAll('#s-result .ov-none').length, btns2 = [].map.call(document.querySelectorAll('#s-result .ov-btns [data-act]'), function (b) { return b.getAttribute('data-act'); }).join();
     ok('overview Game Over: soal belum terjawab bertanda strip; tanpa tombol Lanjut', none2 === 14 && btns2 === 'ov-retry,ov-menu', none2 + ' strip; ' + btns2);
-    // simpanan: hasil terakhir tersimpan dan bisa dibuka dari Pilih Stage
-    const saved = JSON.stringify(S.data.last), keep = S.data.prog;
-    S.saveLast('sedang', 0, mk(true, 20));
-    const lr = S.lastResult('sedang', 0);
-    ok('hasil terakhir tersimpan di localStorage dan bisa dibuka lagi (kartu stage)', !!lr && lr.items.length === 20 && lr.items[1].wrong === 2 && lr.items[1].wrongVals.join() === '99,7' && lr.stars === 2, lr ? lr.items.length + ' soal' : 'null');
-    S.data.last = JSON.parse(saved); S.data.prog = keep; S.save();
+    // lencana "Rekor baru!" di overview Game Over hanya bila rekor terlampaui
+    U.showOverview(Object.assign(mk(false, 6), { newBest: true }), { next: false }); const nb1 = !!document.querySelector('#s-result .ov-best');
+    U.showOverview(mk(false, 6), { next: false }); const nb2 = !!document.querySelector('#s-result .ov-best');
+    ok('overview Game Over: lencana "Rekor baru!" hanya bila rekor terlampaui', nb1 && !nb2, nb1 + ',' + nb2);
     G().handlers.quit();
   }
 

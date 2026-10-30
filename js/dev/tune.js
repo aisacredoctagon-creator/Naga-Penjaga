@@ -62,7 +62,7 @@
   root.querySelector('#tune-redo').addEventListener('click', function () { if (G() && G().adv) G().handlers.restart(); });
   function startFromPanel() {
     const step = +root.querySelector('#tune-step').value, diff = root.querySelector('#tune-diff').value;
-    G().startAdventure({ slots: ['add', 'sub', 'mul'], same: false, random: false, diff: diff }, true, step);
+    G().startAdventure({ cat: 'add', diff: diff }, true, step);
     G().handlers.introGo();
   }
   root.querySelector('#tune-go').addEventListener('click', startFromPanel);

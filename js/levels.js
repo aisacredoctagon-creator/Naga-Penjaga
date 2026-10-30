@@ -15,7 +15,7 @@
   'use strict';
 
   const TOTAL_Q = 20;
-  const DIFFS = ['mudah', 'sedang', 'sulit'];
+  const DIFFS = GA.Categories.DIFFS;
   const DIFF_NAMES = { mudah: 'Mudah', sedang: 'Sedang', sulit: 'Sulit' };
   const DIFF_NOTES = {
     mudah: 'Angka kecil, rantai lambat.',
@@ -61,23 +61,18 @@
   // pilihan acak jalur (id arketipe di maps/paths.js) & peta (id di GA.Maps) per stage
   function pick(stage) { const p = STAGES[stage].pool; return { path: p.paths[Math.floor(Math.random() * p.paths.length)], map: p.maps[Math.floor(Math.random() * p.maps.length)] }; }
 
-  /** Pecah pilihan menu jadi kategori tiap stage (panjang = jumlah stage). sel = { slots, same, random, diff } */
+  /** Kategori tiap stage (panjang = jumlah stage): pilihan halaman awal { cat, diff } berlaku untuk ketiga stage ("Campuran" = mix, semua kategori). */
   function resolveCats(sel) {
-    const ids = GA.Questions.CATEGORIES.map(function (c) { return c.id; });
-    const n = STAGES.length, out = [];
-    for (let i = 0; i < n; i++) {
-      let c = sel.same ? sel.slots[0] : (sel.slots[i] || sel.slots[0]);
-      if (sel.random) c = ids[Math.floor(Math.random() * ids.length)];
-      out.push(c || 'add');
-    }
-    if (sel.random && sel.same) { for (let i = 1; i < n; i++) out[i] = out[0]; }
+    const c = GA.Categories.has(sel && sel.cat) ? sel.cat : GA.Categories.DEFAULT_CAT, out = [];
+    for (let i = 0; i < STAGES.length; i++) out.push(c);
     return out;
   }
 
   function ballScaleFor(cat) { return cat === 'frac' || cat === 'dec' ? 1.12 : (cat === 'mix' ? 1.08 : 1); }
 
-  /** Konfigurasi satu stage. cats = kategori tiap stage (hasil resolveCats). */
+  /** Konfigurasi satu stage. sel = { cat, diff }; cats = kategori tiap stage (hasil resolveCats; bawaan: dari sel). */
   function build(stage, sel, cats) {
+    cats = cats || resolveCats(sel);
     const S = STAGES[stage], T = TUNE[sel.diff] || TUNE.sedang, cat = cats[stage];
     const uniq = cats.filter(function (c, i, a) { return a.indexOf(c) === i; });
     const topicCats = S.boss ? uniq : cat;   // Stage 3 mencampur kategori yang dipilih

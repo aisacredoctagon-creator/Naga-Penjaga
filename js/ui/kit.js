@@ -1,4 +1,4 @@
-/* kit.js — UI kit tunggal. SEMUA layar (judul, menu, pilih step, cerita, pembuka step, hasil, pengaturan, konfirmasi) dibangun dari komponen ini;
+/* kit.js — UI kit tunggal. SEMUA layar (halaman awal, cerita, pembuka stage, hasil, pengaturan, konfirmasi) dibangun dari komponen ini;
  * gayanya ada di css/kit.css, token warna/tekstur di Theme.ui (js/theme.js) → CSS variables (js/ui/skin.js), tekstur di js/render/textures.js,
  * ikon SVG di js/ui/icons.js, teks di js/strings.js. Popup Jeda (Figma) tetap di css/pause.css dengan warna yang selaras.
  *
@@ -9,8 +9,8 @@
  *   Kit.toggle({ act, label, icon, on, chip, sync })     sakelar (role=switch)
  *   Kit.segmented({ act, label, items:[{ id, label, icon, on, tone }] })     pilihan tunggal (role=radiogroup)
  *   Kit.progress({ value, max, kind, label })            bilah api / energi
- *   Kit.card({ kind:'cat'|'step', ... })                 kartu kategori (warna per kategori) & kartu stage
- *   Kit.stars(n, total)   Kit.eggs(have, max)   Kit.resbar({ eggs, stars, score })
+ *   Kit.card({ id, name, color, icon, ex, on, act })     kartu kategori (warna per kategori; terpilih = bingkai emas + centang)
+ *   Kit.stars(n, total)   Kit.eggs(have, max)   Kit.record(value, label)
  *   Kit.tip(html, text)                                  tooltip (hover/fokus; di sentuh lewat fokus)
  * DOM (satu instans): Kit.toast(text, ms)   Kit.confirm({ title, text, yes, onYes}) */
 (function (GA) {
@@ -68,7 +68,7 @@
 
     segmented: function (o) {
       return '<div class="k-seg" role="radiogroup" aria-label="' + esc(o.label || '') + '"' + (o.id ? ' id="' + o.id + '"' : '') + '>' + o.items.map(function (it) {
-        return '<button type="button" class="k-seg-i' + (it.tone ? ' k-tone-' + it.tone : '') + (it.on ? ' on' : '') + '" role="radio" aria-checked="' + (it.on ? 'true' : 'false') + '" data-act="' + o.act + '" data-id="' + it.id + '">' +
+        return '<button type="button" class="k-seg-i' + (it.tone ? ' k-tone-' + it.tone : '') + (it.on ? ' on' : '') + '" role="radio" aria-checked="' + (it.on ? 'true' : 'false') + '" tabindex="' + (it.on ? 0 : -1) + '" data-act="' + o.act + '" data-id="' + it.id + '">' +
           (it.icon ? I(it.icon) : '') + '<span>' + esc(it.label) + '</span></button>';
       }).join('') + '</div>';
     },
@@ -91,23 +91,16 @@
       return '<span class="k-eggs" role="img" aria-label="' + have + '/' + max + '">' + s + '</span>';
     },
 
-    /** Bilah sumber daya berikon (telur awal, bintang, rekor) di atas layar menu/pilih step. */
-    resbar: function (o) {
-      const it = function (ic, v, tone) { return '<span class="k-res-i k-tone-' + tone + '">' + I(ic) + '<b>' + esc(v) + '</b></span>'; };
-      return '<div class="k-res">' + it('egg', o.eggs, 'egg') + it('star', o.stars, 'star') + it('flame', o.score, 'fire') + '</div>';
+    /** Chip rekor: ikon piala + angka (rekor skor tertinggi satu petualangan). */
+    record: function (value, label) {
+      return '<span class="k-rec" role="img" aria-label="' + esc(label + ' ' + value) + '">' + I('trophy') + '<b>' + esc(value) + '</b></span>';
     },
 
+    /** Kartu kategori (pilihan tunggal, role=radio): ikon, nama, satu contoh soal kecil; yang terpilih = bingkai emas + ikon centang (bukan hanya warna). */
     card: function (o) {
-      if (o.kind === 'cat') {
-        return '<button type="button" class="k-card k-cat' + (o.on ? ' on' : '') + '" role="radio" aria-checked="' + (o.on ? 'true' : 'false') + '" data-act="' + o.act + '" data-id="' + o.id + '" style="--c:' + o.color + '"' + (o.disabled ? ' disabled' : '') + '>' +
-          '<span class="k-medal">' + I(o.icon) + '</span><span class="k-cname">' + esc(o.name) + '</span><span class="k-cex">' + (o.ex || '') + '</span></button>';
-      }
-      // kartu step
-      const cls = 'k-card k-step' + (o.locked ? ' locked' : '') + (o.done ? ' done' : '') + (o.cur ? ' cur' : '') + (o.boss ? ' boss' : '');
-      return '<li class="k-step-li">' + (o.hasResult ? '<button type="button" class="k-resbtn" data-act="s-result" data-i="' + o.i + '" aria-label="' + esc(T('steps.result')) + '">' + I('list') + '</button>' : '') + '<button type="button" class="' + cls + '" data-act="' + o.act + '" data-i="' + o.i + '"' + (o.locked ? ' disabled aria-label="' + esc(T('steps.locked')) + '"' : '') + '>' +
-        '<span class="k-num">' + (o.locked ? I('lock') : o.n) + '</span>' +
-        '<span class="k-sbody"><span class="k-stag">' + esc(o.tag) + '</span><b class="k-sname">' + esc(o.name) + '</b>' +
-        '<span class="k-smeta">' + I(o.icon, 'ic-inline') + ' ' + esc(o.meta) + '</span>' + Kit.stars(o.stars, 3) + (o.best ? '<span class="k-sbest">' + I('star', 'ic-inline') + ' ' + o.best + '</span>' : '') + '</span></button></li>';
+      return '<button type="button" class="k-card k-cat' + (o.on ? ' on' : '') + '" role="radio" aria-checked="' + (o.on ? 'true' : 'false') + '" tabindex="' + (o.on ? 0 : -1) + '" data-act="' + o.act + '" data-id="' + o.id + '" style="--c:' + o.color + '"' + (o.disabled ? ' disabled' : '') + '>' +
+        '<span class="k-tick" aria-hidden="true">' + I('check') + '</span>' +
+        '<span class="k-medal">' + I(o.icon) + '</span><span class="k-cname">' + esc(o.name) + '</span><span class="k-cex">' + (o.ex || '') + '</span></button>';
     },
 
     tip: function (html, text) { return '<span class="k-tip" tabindex="0" data-tip="' + esc(text) + '">' + html + '</span>'; },
@@ -115,6 +108,7 @@
     /* ---------- DOM: toast, konfirmasi (coachmark pindah ke zona informasi HUD) ---------- */
     _toastT: 0,
     mount: function (root) {
+      if (document.getElementById('k-modal')) return;      // satu instans (dipasang halaman awal; mesin game memakainya juga)
       this.root = root;
       root.insertAdjacentHTML('beforeend',
         '<div class="k-toast" id="k-toast" role="status" aria-live="polite"></div>' +

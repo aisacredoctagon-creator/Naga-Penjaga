@@ -1,0 +1,60 @@
+/* start.css — tata letak HALAMAN AWAL (js/ui/start.js): satu papan kayu di atas splash art statis. Komponennya dari UI kit (kit.css).
+ * Mobile potret: kartu 2 kolom × 4 baris, kesulitan satu baris, "Mulai Main" menempel di bawah (hanya area kartu yang digulir bila konten lebih tinggi).
+ * Mobile lanskap (tinggi ≤ 520px): dua kolom — kiri logo, rekor, kesulitan, Mulai; kanan kartu 4 × 2 ringkas. Desktop: papan di tengah, lebar maks. 960px, kartu 4 × 2.
+ * Tidak ada animasi berkelanjutan: hanya transisi masuk papan sekali (.screen.show, base.css) dan umpan balik tekan tombol. */
+
+/* latar: gambar statis; gelap polos sebagai pengganti selama memuat */
+#splash { position: absolute; inset: 0; margin: 0; background: #0b0716; overflow: hidden; pointer-events: none; }
+#splash picture, #splash img { display: block; width: 100%; height: 100%; }
+#splash img { object-fit: cover; object-position: 50% 60%; }
+body:not(.st-on) #splash { display: none; }
+
+.screen.st { align-items: center; justify-content: center; }
+.st-board { width: min(96vw, 960px); max-height: 100%; display: flex; flex-direction: column; }
+.st-board > .k-body { flex: 1 1 auto; min-height: 0; padding: 12px 16px 16px; gap: 12px; }
+.st-corner { position: absolute; top: 8px; z-index: 3; }
+.st-corner.l { left: 8px; } .st-corner.r { right: 8px; }
+.st-corner .k-btn { min-width: 46px; min-height: 46px; padding: 0; }
+.st-head { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.st-head .k-logo { margin: 0; }
+.st-catwrap { display: flex; flex-direction: column; gap: 6px; min-height: 0; flex: 1 1 auto; }
+.st-cats { min-height: 0; overflow-y: auto; padding: 5px 5px 8px; overscroll-behavior: contain; touch-action: pan-y; }
+.st-cats .k-cat { min-height: 96px; }
+.st-diff .k-seg-i { min-height: 48px; font-size: 18px; }
+.st-go { display: flex; }
+.st-go .k-btn { flex: 1; }
+
+/* mobile potret / layar sempit: kartu 2 kolom, ikon di kiri, nama + contoh di kanan */
+@media (max-width: 560px) {
+  .st-board > .k-body { padding: 10px 10px 12px; gap: 8px; }
+  .st-head { gap: 6px; }
+  .st-head .k-logo .l1 { font-size: 15px; } .st-head .k-logo .l2 { font-size: 30px; }
+  .st-cats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .st-cats .k-cat { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; align-content: center; column-gap: 8px; row-gap: 0; text-align: left; min-height: 66px; padding: 6px 6px 6px 8px; }
+  .st-cats .k-medal { grid-row: 1 / 3; width: 38px; height: 38px; }
+  .st-cats .k-cname { align-self: end; font-size: 13.5px; letter-spacing: -.01em; }
+  .st-cats .k-cex { display: block; align-self: start; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: clip; }
+  .st-cats .k-tick { top: auto; bottom: 4px; right: 5px; width: 22px; height: 22px; }
+  .st-diff .k-seg-i { min-height: 46px; font-size: 16px; }
+  .st-go .k-big { min-height: 58px; }
+}
+@media (max-width: 360px) { .st-diff .k-seg { grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: minmax(0, 1fr); } .st-diff .k-seg-i { font-size: 14px; padding: 4px 2px; } }
+
+/* mobile lanskap / layar pendek: dua kolom tanpa gulir */
+@media (max-height: 520px) and (orientation: landscape) {
+  .screen.st { padding-top: calc(max(8px, env(safe-area-inset-top)) + 22px); padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  .st-board { width: min(98vw, 960px); }
+  .st-board > .k-body { display: grid; grid-template-columns: minmax(230px, .8fr) minmax(0, 1.7fr); grid-template-areas: "head cats" "diff cats" "go cats"; grid-template-rows: auto auto 1fr; align-items: center; gap: 8px 14px; padding: 46px 12px 10px; }      /* ruang atas untuk tombol ? dan gerigi di sudut papan (tidak menimpa kartu) */
+  .st-board > .k-body > .st-head { grid-area: head; } .st-board > .k-body > .st-catwrap { grid-area: cats; align-self: stretch; }
+  .st-board > .k-body > .st-diff { grid-area: diff; } .st-board > .k-body > .st-go { grid-area: go; align-self: end; }
+  .st-corner { top: 4px; } .st-corner .k-btn { min-width: 44px; min-height: 44px; }
+  .st-head .k-logo .l1 { font-size: 13px; } .st-head .k-logo .l2 { font-size: 26px; } .st-head { gap: 4px; }
+  .k-rec { min-height: 34px; font-size: 17px; } .k-rec .ic { width: 26px; height: 26px; }
+  .st-cats { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 4px; height: 100%; }
+  .st-cats .k-cat { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 2px; min-height: 0; padding: 4px 3px; text-align: center; }
+  .st-cats .k-cex { display: block; font-size: 11px; white-space: nowrap; } .st-cats .k-cname { font-size: 13px; letter-spacing: -.01em; } .st-cats .k-medal { width: 34px; height: 34px; flex: none; }
+  .st-cats .k-tick { top: 3px; right: 3px; width: 18px; height: 18px; } .st-cats .k-tick .ic { width: 12px; height: 12px; }
+  .st-diff .k-seg-i { min-height: 44px; font-size: 15px; } .st-diff .k-seg { padding: 4px; }
+  .st-go .k-big { min-height: 50px; font-size: 22px; }
+  .st-catwrap .k-eyebrow { display: none; }
+}

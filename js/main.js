@@ -1,6 +1,6 @@
 /* main.js — loop game, layout responsif, input (Pointer Events), alur petualangan.
  *
- * Alur: Judul → Main Menu (kategori & kesulitan) → Pilih Stage → cerita (sekali) → Stage 1 → Stage 2 → Stage 3 (Final Boss) → hasil.
+ * Alur: Halaman awal (kategori + kesulitan, ui/start.js) → Mulai Main → cerita (sekali) → Stage 1 → Stage 2 → Stage 3 (Final Boss) → hasil → halaman awal.
  * State: menu | story | intro | countdown | playing | cine | paused | clearing | stepdone | dying | result
  * Telur (nyawa) selalu 3/3 di awal setiap stage (juga saat Ulangi). Konfigurasi stage ada di levels.js, angka gameplay di config/gameplay.js,
  * soal di questions.js + qmanager.js, rintangan zona di hazards.js, boss di boss.js, cerita di story.js.
@@ -9,9 +9,7 @@
   'use strict';
   const T = GA.T, Theme = GA.Theme, FX = GA.FX, Path = GA.Path, Chain = GA.Chain, Shooter = GA.Shooter, Bullets = GA.Shooter.Bullets,
     Questions = GA.Questions, Levels = GA.Levels, Bosses = GA.Bosses, UI = GA.UI, Audio = GA.Audio, Storage = GA.Storage, Story = GA.Story, Gameplay = GA.Gameplay;
-
-  const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d');
+  let canvas = null, ctx = null;      // dibuat oleh boot() dan dilepas oleh destroy() (mesin tidak berjalan di halaman awal)
 
   let L = null;                // layout logis
   let state = 'menu';
@@ -83,6 +81,7 @@
   function chainZones(path) { return (path.zones || []).slice(); }
 
   function relayout() {
+    if (!booted) return;      // mesin sudah dibongkar (rotasi saat kembali ke halaman awal)
     const wasPortrait = L ? L.portrait : null;
     computeLayout();
     if (wasPortrait !== null && wasPortrait !== L.portrait) {
@@ -357,7 +356,7 @@
     first = first || 0;
     const cats = Levels.resolveCats(sel), n = Levels.count;
     const picks = []; for (let i = 0; i < n; i++) picks.push(Levels.pick(i));
-    adv = { picks: picks, sel: sel, cats: cats, first: first, step: first, score: 0,
+    adv = { picks: picks, sel: sel, cats: cats, first: first, step: first, score: 0, best0: Storage.highScore, announced: 0,
       seed: (Math.random() * 4294967296) >>> 0, attempts: {}, stars: new Array(n).fill(0), results: new Array(n).fill(null), correct: 0, wrong: 0, maxCombo: 0, snap: { score: 0 } };
     run = null; if (!attract) buildAttract();
     if (!skipStory && !Storage.introSeen) {
@@ -424,7 +423,6 @@
     state = 'dying'; run.dyingT = 0; run.swap = null; Bullets.clear(); run.shooter.react('sad');
     Audio.play('lose');
     syncAdv();
-    Storage.noteScore(run.score);
   }
 
   /* ================= sinematik pindah fase boss (bisa dilewati) ================= */
@@ -608,17 +606,24 @@
     const cfg = run.cfg, res = stageResult(true);
     adv.stars[cfg.step] = res.stars; adv.results[cfg.step] = res;
     syncAdv(); Storage.noteScore(adv.score);
-    Storage.recordStep(cfg.diff, cfg.step, res.stars, adv.score, res);
     state = 'stepdone';
     UI.showOverview(res, { next: true });      // Stage 3: Lanjut = cerita akhir + ringkasan petualangan
   }
 
+  /** Rekor skor dicatat di akhir permainan (menang Stage 3 / Game Over). true = melampaui rekor sebelumnya ("Rekor baru!"). Pembanding = rekor saat petualangan dimulai
+   *  atau skor yang sudah diumumkan di petualangan ini (Ulangi setelah Game Over tidak mengumumkan rekor yang sama dua kali). */
+  function recordEnd() {
+    const nb = adv.score > 0 && adv.score > Math.max(adv.best0, adv.announced);
+    Storage.noteScore(adv.score); if (nb) adv.announced = adv.score;
+    return nb;
+  }
+
   /** Setelah overview Stage 3: cerita akhir, lalu ringkasan petualangan. */
   function finishAdventure(win) {
-    const rec = Storage.recordRun(adv.score);
+    const nb = recordEnd();
     const res = {
       win: win, steps: Levels.STAGES.map(function (s, i) { return { name: (i + 1) + " · " + s.place, stars: adv.stars[i], i: i }; }).filter(function (s) { return s.i >= (adv.first || 0); }),
-      score: adv.score, newBest: rec.newHigh, high: Storage.data.highScore, correct: adv.correct, wrong: adv.wrong, combo: adv.maxCombo
+      score: adv.score, newBest: nb, high: Storage.highScore, correct: adv.correct, wrong: adv.wrong, combo: adv.maxCombo
     };
     state = 'story';
     UI.showStory([Story.win], { skippable: false, onDone: function () { state = 'result'; UI.showResult(res); } });
@@ -627,6 +632,7 @@
   /** Game Over: cerita singkat lalu overview jawaban stage ini. */
   function afterGameOver() {
     const res = stageResult(false);
+    res.newBest = recordEnd();
     adv.results[run.cfg.step] = res;
     state = 'story';
     UI.showStory([Story.lose], { skippable: false, onDone: function () { state = 'stepdone'; UI.showOverview(res, { next: false }); } });
@@ -889,7 +895,7 @@
     const raw = (now - last) / 1000, dt = Math.min(0.05, raw || 0.016); last = now;
     GA.Quality.sample(raw, state === 'playing' && !document.hidden);
     tick(dt);
-    requestAnimationFrame(frame);
+    if (running) rafId = requestAnimationFrame(frame);
   }
 
   /* ================= input ================= */
@@ -904,7 +910,9 @@
     ptr.type = e.pointerType === 'touch' || e.pointerType === 'pen' ? 'touch' : 'mouse';
     return ptr.type === 'touch' ? { x: p.x, y: p.y - run.gp.TOUCH_OFFSET_PX / L.scale } : p;
   }
-  canvas.addEventListener('pointerdown', function (e) {
+  /** Pasang semua listener input + jendela (dicatat di `listeners` agar bisa dilepas saat kembali ke halaman awal). */
+  function bindInput() {
+  on(canvas, 'pointerdown', function (e) {
     e.preventDefault(); Audio.unlock();
     if (state === 'cine') { skipCine(); return; }
     if (state !== 'playing') return;
@@ -915,7 +923,7 @@
     ptr.onShooter = run.shooter.hitsSwap(p.x, p.y, swapMin());
     const q = aimPointOf(e, p); if (!ptr.onShooter) run.shooter.aimAt(q.x, q.y);
   });
-  canvas.addEventListener('pointermove', function (e) {
+  on(canvas, 'pointermove', function (e) {
     if (state !== 'playing') return;
     if (!(ptr.down || e.pointerType === 'mouse')) return;
     if (ptr.down && ptr.onShooter) return;
@@ -930,11 +938,11 @@
     const q = aimPointOf(e, p); run.shooter.aimAt(q.x, q.y); updateLock(run, 0);
     fire();
   }
-  canvas.addEventListener('pointerup', function (e) { e.preventDefault(); release(e); });
-  canvas.addEventListener('pointercancel', function () { ptr.down = false; });
-  canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  on(canvas, 'pointerup', function (e) { e.preventDefault(); release(e); });
+  on(canvas, 'pointercancel', function () { ptr.down = false; });
+  on(canvas, 'contextmenu', function (e) { e.preventDefault(); });
 
-  window.addEventListener('keydown', function (e) {
+  on(window, 'keydown', function (e) {
     keys[e.key] = true;
     if (state === 'cine' && (e.key === ' ' || e.key === 'Enter' || e.key === 'Escape')) { e.preventDefault(); skipCine(); return; }
     if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
@@ -946,17 +954,18 @@
     if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); GA.lastFireKey = performance.now(); fire(); }
     if (e.key === 'q' || e.key === 'Q' || e.key === 'Shift') swapAmmo();
   });
-  window.addEventListener('keyup', function (e) { keys[e.key] = false; });
-  window.addEventListener('blur', function () { for (const k in keys) keys[k] = false; if (state === 'playing') pauseGame(); });
-  document.addEventListener('visibilitychange', function () { if (document.hidden && state === 'playing') pauseGame(); });
+  on(window, 'keyup', function (e) { keys[e.key] = false; });
+  on(window, 'blur', function () { for (const k in keys) keys[k] = false; if (state === 'playing') pauseGame(); });
+  on(document, 'visibilitychange', function () { if (document.hidden && state === 'playing') pauseGame(); });
   let rz = 0;
   function onResize() { cancelAnimationFrame(rz); rz = requestAnimationFrame(relayout); }
-  window.addEventListener('resize', onResize);
-  window.addEventListener('orientationchange', onResize);
-  if (window.visualViewport) window.visualViewport.addEventListener('resize', onResize);
+  on(window, 'resize', onResize);
+  on(window, 'orientationchange', onResize);
+  if (window.visualViewport) on(window.visualViewport, 'resize', onResize);
   // cegah zoom cubit / gestur yang tidak sengaja
-  document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
-  document.addEventListener('touchmove', function (e) { if (e.target === canvas) e.preventDefault(); }, { passive: false });
+  on(document, 'gesturestart', function (e) { e.preventDefault(); });
+  on(document, 'touchmove', function (e) { if (e.target === canvas) e.preventDefault(); }, { passive: false });
+  }
 
   /* ================= alur menu ================= */
   /** Teks lencana popup jeda: stage dan nama tempatnya. */
@@ -976,15 +985,6 @@
     UI.hidePause();
   }
 
-  function toTitle() {
-    UI.cancelCountdown(); Audio.resume(); run = null; adv = null; state = 'menu'; Bullets.clear(); FX.reset();
-    Theme.setScene('menu'); Audio.music('menu'); Audio.ambient('menu');
-    buildAttract(); renderBg(); GA.Effects.resetPortal(true); UI.refreshTitle(); UI.show('title');
-  }
-  function toMenu() {
-    toTitle(); GA.Menu.open();
-  }
-
   const handlers = {
     start: function (sel, first) { startAdventure(sel, false, first || 0); },
     introGo: function () { state = 'countdown'; GA.Effects.openPortal(); Audio.play('portal'); UI.countdown(beginPlay); },
@@ -993,43 +993,70 @@
     hasProgress: hasProgress,
     // ulangi stage ini dari awal: telur kembali 3/3, skor seperti saat stage dimulai
     restart: function () { adv.score = adv.snap.score; startStep(adv.step, true); UI.hide(); },
-    quit: toTitle,
+    quit: exit,
     nextStep: function () { if (run && run.cfg.isBoss) finishAdventure(true); else startStep(adv.step + 1, false); },
     again: function () { startAdventure(adv.sel, true, adv.first || 0); },
-    toMenu: toMenu,
-    openResult: function (diff, stage) { const r = Storage.lastResult(diff, stage); if (r) UI.showOverview(r, { from: 'steps' }); },
-    toggleSound: function () { const on = !Audio.isEnabled(); Audio.setEnabled(on); Storage.sound = on; UI.syncSound(); if (on) Audio.play('click'); },
-    setQuality: function (m) { GA.Quality.setMode(m); Storage.quality = GA.Quality.mode; UI.syncSound(); },
-    toggleMusic: function () { const on = !Audio.isMusic(); Audio.setMusic(on); Storage.music = on; UI.syncSound(); },
-    replayStory: function () { UI.showStory(Story.intro, { onDone: function () { UI.show('settings'); } }); }
+    toggleSound: function () { const on = !Audio.isEnabled(); Audio.setEnabled(on); Storage.sound = on; UI.syncSound(); if (on) Audio.play('click'); }
   };
 
-  /* ================= mulai ================= */
-  GA.Dragon.Dragon.onFlap = function () { if (state === 'playing') Audio.play('flap'); };     // bunyi kepakan sinkron dengan animasi sayap
-  Theme.loadSprites();
-  GA.Assets.onReady = function () { GA.Background.invalidate(); renderBg(); };
-  GA.Background.onArtReady = function () { renderBg(); };
-  GA.Assets.load();
-  // prefers-reduced-motion: kurangi getar, kilatan, goyangan dedaunan, dan efek atmosfer berat
-  (function () {
-    const rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
-    const apply = function () { const on = !!(rm && rm.matches); FX.reduce = on; GA.Background.reduceMotion = on; if (on) GA.Effects.setQuality(Math.min(GA.Effects.quality, 1)); };
-    apply(); if (rm && rm.addEventListener) rm.addEventListener('change', apply);
-  })();
-  Audio.setEnabled(Storage.sound); Audio.setMusic(Storage.music);
-  UI.init(handlers);
-  GA.Quality.init(Storage.quality, function () { computeLayout(); GA.Background.invalidate(); renderBg(); UI.syncSound(); });
-  GA.Menu.init(handlers);
-  Theme.setScene('menu');
-  computeLayout();
-  buildAttract();
-  renderBg();
-  GA.Effects.resetPortal(true);
-  UI.refreshTitle();
-  UI.show('title');
-  Audio.music('menu'); Audio.ambient('menu');
-  requestAnimationFrame(function (n) { last = n; frame(n); });
+  /* ================= siklus hidup mesin: boot (Mulai Main) dan destroy (kembali ke halaman awal) ================= */
+  // Mesin tidak berjalan di halaman awal. boot() membuat canvas + listener + loop; destroy() melepas semuanya (loop, canvas, listener, audio) agar halaman awal kembali ringan.
+  let booted = false, running = false, rafId = 0, listeners = [], rmq = null, rmFn = null;
+  function on(target, type, fn, opts) { target.addEventListener(type, fn, opts); listeners.push([target, type, fn, opts]); }
+  const slice = function () { return new Promise(function (r) { setTimeout(r, 0); }); };      // beri browser kesempatan menggambar di antara pekerjaan berat (time slicing; setTimeout agar jalan juga saat tab tersembunyi)
+
+  /** Inisialisasi berat dipecah per bagian; progress(0..1) untuk bar layar pemuatan. */
+  async function boot(progress) {
+    if (booted) return; progress = progress || function () {};
+    const cv = document.createElement('canvas'); cv.id = 'game'; cv.setAttribute('aria-label', 'Area permainan Naga Penjaga');
+    document.getElementById('app').insertBefore(cv, document.getElementById('ui')); canvas = cv; ctx = cv.getContext('2d');
+    GA.Dragon.Dragon.onFlap = function () { if (state === 'playing') Audio.play('flap'); };     // bunyi kepakan sinkron dengan animasi sayap
+    Theme.loadSprites();
+    GA.Assets.onReady = function () { GA.Background.invalidate(); renderBg(); };
+    GA.Background.onArtReady = function () { renderBg(); };
+    GA.Assets.load();
+    // prefers-reduced-motion: kurangi getar, kilatan, goyangan dedaunan, dan efek atmosfer berat
+    rmq = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+    rmFn = function () { const on2 = !!(rmq && rmq.matches); FX.reduce = on2; GA.Background.reduceMotion = on2; if (on2) GA.Effects.setQuality(Math.min(GA.Effects.quality, 1)); };
+    rmFn(); if (rmq && rmq.addEventListener) rmq.addEventListener('change', rmFn);
+    Audio.setEnabled(Storage.sound); Audio.setMusic(Storage.music);
+    progress(0.2); await slice();
+    UI.init(handlers); bindInput();
+    GA.Quality.init(Storage.quality, function () { if (booted) { computeLayout(); GA.Background.invalidate(); renderBg(); } });
+    progress(0.45); await slice();
+    Theme.setScene('menu'); computeLayout(); state = 'menu'; t = 0; hudShown = false; booted = true;
+    progress(0.65); await slice();
+    buildAttract(); renderBg(); GA.Effects.resetPortal(true);      // adegan latar untuk cerita pembuka (bukan di halaman awal)
+    progress(0.95); await slice();
+    running = true; rafId = requestAnimationFrame(function (n) { last = n; frame(n); });
+    progress(1);
+  }
+
+  /** Bongkar mesin: hentikan loop, lepas listener, UI permainan, audio, dan canvas. Skrip tetap ada di memori (tidak bisa dilepas), tetapi tidak ada yang berjalan. */
+  function destroy() {
+    if (!booted) return;
+    booted = running = false; cancelAnimationFrame(rafId); rafId = 0;
+    listeners.forEach(function (l) { try { l[0].removeEventListener(l[1], l[2], l[3]); } catch (e) { /* abaikan */ } }); listeners = [];
+    if (rmq && rmFn && rmq.removeEventListener) rmq.removeEventListener('change', rmFn); rmq = rmFn = null;
+    GA.Quality.onChange = null; GA.Assets.onReady = null; GA.Background.onArtReady = null; GA.Dragon.Dragon.onFlap = null;
+    UI.destroy(); Audio.shutdown(); Bullets.clear(); FX.reset();
+    run = null; adv = null; attract = null; L = null; state = 'menu'; hudShown = false; ptr.down = false; for (const k in keys) keys[k] = false;
+    if (canvas) { canvas.width = canvas.height = 1; if (canvas.parentNode) canvas.parentNode.removeChild(canvas); }
+    canvas = ctx = null;
+  }
+
+  /** Kembali ke halaman awal (Menu di Jeda / Game Over / hasil akhir). Mode dev (?test, ?debug, ?resp) mempertahankan mesin supaya alat uji tetap bisa memakainya. */
+  function exit() {
+    if (GA.keepEngine) {
+      UI.cancelCountdown(); Audio.resume(); run = null; adv = null; state = 'menu'; Bullets.clear(); FX.reset();
+      Theme.setScene('menu'); buildAttract(); renderBg(); GA.Effects.resetPortal(true); UI.hide(); GA.Start.show(); return;
+    }
+    destroy(); GA.Start.show();
+  }
+
+  GA.Game = { boot: boot, destroy: destroy, exit: exit, start: function (sel) { startAdventure(sel, false, 0); }, get booted() { return booted; } };
+
 
   // untuk uji coba / debugging
-  GA.game = { lockTarget: function () { return run ? run.lock : null; }, pickTarget: function (x, y, m) { return pickTarget(x, y, m == null ? lockMult() : m); }, aimAtBall: function (b) { run.shooter.aimAt(b.x, b.y); updateLock(run, 0); return run.lock; }, aimAtPoint: function (x, y) { run.shooter.aimAt(x, y); updateLock(run, 0); return run.lock; }, setPointerType: function (k) { ptr.type = k; }, skipCountdown: function () { if (state === 'countdown' || state === 'intro') { UI.cancelCountdown(); UI.hide(); GA.Effects.openPortal(); beginPlay(); } }, get state() { return state; }, relayout: function () { relayout(); }, get run() { return run; }, get adv() { return adv; }, get layout() { return L; }, tick: tick, startAdventure: startAdventure, startStep: startStep, fire: fire, handlers: handlers, validateActive: validateActive, openLine: openLine, pendingVisible: pendingVisible, buildStream: buildStream, allBalls: allBalls, anySettling: anySettling, loseEgg: loseEgg, healEgg: healEgg };
+  GA.game = { lockTarget: function () { return run ? run.lock : null; }, pickTarget: function (x, y, m) { return pickTarget(x, y, m == null ? lockMult() : m); }, aimAtBall: function (b) { run.shooter.aimAt(b.x, b.y); updateLock(run, 0); return run.lock; }, aimAtPoint: function (x, y) { run.shooter.aimAt(x, y); updateLock(run, 0); return run.lock; }, setPointerType: function (k) { ptr.type = k; }, skipCountdown: function () { if (state === 'countdown' || state === 'intro') { UI.cancelCountdown(); UI.hide(); GA.Effects.openPortal(); beginPlay(); } }, get state() { return state; }, relayout: function () { relayout(); }, get run() { return run; }, get adv() { return adv; }, get layout() { return L; }, tick: tick, startAdventure: startAdventure, startStep: startStep, fire: fire, handlers: handlers, validateActive: validateActive, openLine: openLine, pendingVisible: pendingVisible, buildStream: buildStream, allBalls: allBalls, anySettling: anySettling, loseEgg: loseEgg, healEgg: healEgg, winStage: function () { if (state === 'playing') startClearing(!!run.cfg.isBoss); } };
 })(window.GA = window.GA || {});

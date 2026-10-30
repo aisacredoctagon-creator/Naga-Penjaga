@@ -10,17 +10,17 @@
     // umum
     'common.back': 'Kembali', 'common.go': 'Mulai!', 'common.next': 'Lanjut', 'common.skip': 'Lewati', 'common.menu': 'Menu',
     'common.again': 'Main Lagi', 'common.yes': 'Ya', 'common.no': 'Batal', 'common.ok': 'Oke',
-    'common.score': 'Skor', 'common.example': 'Contoh', 'common.questions': 'soal', 'common.boss': 'Boss', 'common.stage': 'Stage', 'common.retry': 'Ulangi',
+    'common.score': 'Skor', 'common.example': 'Contoh', 'common.questions': 'soal', 'common.retry': 'Ulangi',
 
-    // judul
-    'title.play': 'Main', 'title.howto': 'Cara Main', 'title.settings': 'Atur',
-    'title.tag': 'Selamatkan telur naga!', 'title.best': 'Rekor',
+    // halaman awal (satu layar: kategori + kesulitan + Mulai Main)
+    'game.title': 'Naga Penjaga', 'start.play': 'Mulai Main', 'start.cat': 'Pilih Kategori', 'start.diff': 'Kesulitan', 'start.rec': 'Rekor',
+    'start.howto': 'Cara Main', 'start.settings': 'Atur', 'start.loading': 'Memuat…', 'start.fail': 'Gagal memuat', 'start.retry': 'Coba lagi',
 
     // pengaturan
     'set.title': 'Atur', 'set.sound': 'Suara', 'set.music': 'Musik', 'set.quality': 'Grafik',
     'set.auto': 'Otomatis', 'set.high': 'Tinggi', 'set.mid': 'Sedang', 'set.low': 'Rendah',
-    'set.story': 'Cerita', 'set.reset': 'Hapus Data', 'set.resetq': 'Hapus semua progres?', 'set.resetx': 'Bintang dan skor akan hilang.',
-    'set.resetyes': 'Hapus', 'set.resetdone': 'Progres dihapus',
+    'set.story': 'Cerita', 'set.storyok': 'Cerita diputar saat main', 'set.reset': 'Hapus Data', 'set.resetq': 'Hapus rekor?', 'set.resetx': 'Rekor dan petunjuk akan hilang.',
+    'set.resetyes': 'Hapus', 'set.resetdone': 'Data dihapus',
 
     // cara main: 3 kartu bergambar
     'how.title': 'Cara Main',
@@ -29,12 +29,8 @@
     'how.f1': 'Hitung hasil', 'how.f2': 'Cari angka hilang', 'how.f3': 'Gabungan',
     'how.goal': '20 soal per stage',
 
-    // menu & pilih step
-    'menu.title': 'Petualangan', 'menu.same': 'Satu kategori', 'menu.random': 'Acak', 'menu.pick': 'Pilih Stage',
-    'menu.cat': 'Kategori', 'menu.diff': 'Kesulitan', 'menu.boss': 'Boss',
+    // kesulitan
     'diff.mudah': 'Mudah', 'diff.sedang': 'Sedang', 'diff.sulit': 'Sulit',
-    'menu.hint.same': 'Semua stage sama', 'menu.hint.per': 'Pilih tiap stage', 'menu.hint.random': 'Kategori diacak',
-    'steps.title': 'Pilih Stage', 'steps.locked': 'Terkunci', 'steps.mix': 'Campuran', 'steps.result': 'Hasil',
 
     // layar awal stage + bola khusus
     'sp.frost': 'Beku', 'sp.egg': 'Emas',
@@ -44,7 +40,7 @@
 
     // hasil
     'step.done': 'Stage {n} Selesai!', 'step.next': 'Stage {n}', 'ov.first': 'Benar pertama', 'ov.eggs': 'Telur', 'ov.wrong': 'Salah', 'ov.unanswered': 'Belum terjawab', 'ov.lose': 'Telur Habis', 'ov.tap': 'Ketuk nomor soal',
-    'res.win': 'Menang!', 'res.lose': 'Telur Dicuri', 'res.best': 'Rekor Baru!', 'res.stats': '✓ {c}   ✗ {w}   ×{k}',
+    'res.win': 'Menang!', 'res.lose': 'Telur Dicuri', 'res.best': 'Rekor baru!', 'res.stats': '✓ {c}   ✗ {w}   ×{k}',
     'res.hi': 'Rekor',
 
     // pesan singkat di ZONA INFORMASI HUD

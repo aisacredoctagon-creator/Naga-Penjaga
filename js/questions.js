@@ -387,17 +387,8 @@
   /* ---------- kategori & tingkat kesulitan (Main Menu) ----------
    * Tiap kategori + kesulitan menghasilkan daftar topik untuk generator di atas.
    * Parameter: rentang angka (min/max), jumlah digit (digits), jenis operasi (op/ops), dan kerumitan (mode pecahan, desimal, pembulatan).
-   * Untuk menambah kategori: tambahkan ke CATEGORIES dan isi TABLE-nya untuk tiga kesulitan. */
-  const CATEGORIES = [
-    { id: 'add', name: 'Penjumlahan', icon: '+', color: '#ff9a3c' },
-    { id: 'sub', name: 'Pengurangan', icon: '−', color: '#ff6b8a' },
-    { id: 'mul', name: 'Perkalian', icon: '×', color: '#8b5cf6' },
-    { id: 'div', name: 'Pembagian', icon: '÷', color: '#3b82f6' },
-    { id: 'int', name: 'Bilangan Bulat', icon: '±', color: '#14b8a6' },
-    { id: 'frac', name: 'Pecahan', icon: '½', color: '#ec4899' },
-    { id: 'dec', name: 'Desimal', icon: '0,5', color: '#22c55e' },
-    { id: 'mix', name: 'Campuran', icon: '✦', color: '#eab308' }
-  ];
+   * Untuk menambah kategori: tambahkan ke GA.Categories.LIST (config/categories.js) dan isi TABLE-nya untuk tiga kesulitan. */
+  const CATEGORIES = GA.Categories.LIST;      // daftar kategori ada di config/categories.js (dimuat di halaman awal)
   const INT = function (op, min, max) { return { type: 'int', op: op, min: min, max: max }; };
   const DEC = function (op, places, min, max, round) { return { type: 'dec', op: op, places: places, min: min, max: max, round: round || 0 }; };
   const TABLE = {
@@ -411,7 +402,7 @@
   };
   const CHOICES = { mudah: 4, sedang: 6, sulit: 8 };
 
-  function categoryById(id) { for (const c of CATEGORIES) if (c.id === id) return c; return CATEGORIES[0]; }
+  function categoryById(id) { return GA.Categories.byId(id); }
 
   /** Daftar topik untuk satu kategori dan kesulitan ('mix' = semua kategori). Boleh juga array kategori (campur beberapa slot). */
   function topicsFor(cat, diff) {

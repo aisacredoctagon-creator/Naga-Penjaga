@@ -5,81 +5,65 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#2a1d5e">
   <title>Naga Penjaga</title>
+  <!-- Halaman awal ringan: hanya CSS inti + UI kit + skrip halaman awal. Mesin game (js/boot.js → ENGINE) baru dimuat saat "Mulai Main". -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Cinzel+Decorative:wght@700&family=Cinzel:wght@700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Cinzel+Decorative:wght@700&family=Cinzel:wght@700&display=swap" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Cinzel+Decorative:wght@700&family=Cinzel:wght@700&display=swap"></noscript>
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/kit.css">
-  <link rel="stylesheet" href="css/pause.css">
+  <link rel="stylesheet" href="css/start.css">
 </head>
-<body>
+<body class="st-on">
   <div id="app">
-    <canvas id="game" aria-label="Area permainan Naga Penjaga"></canvas>
+    <!-- Splash art STATIS (tanpa animasi): assets/splash/splash-*.webp. Bila berkas belum ada, js/splash-art.js menggambarnya sekali lewat Canvas. Lihat docs/ASSET_GUIDE.md. -->
+    <div id="splash" aria-hidden="true"><picture>
+      <source media="(orientation: portrait)" srcset="assets/splash/splash-portrait.webp" type="image/webp">
+      <img id="splash-img" src="assets/splash/splash-landscape.webp" alt="" width="1920" height="1080" decoding="async" fetchpriority="low" draggable="false">
+    </picture></div>
     <div id="ui"></div>
   </div>
 
   <script src="js/strings.js"></script>
-  <script src="js/config/gameplay.js"></script>
+  <script src="js/config/categories.js"></script>
   <script src="js/theme.js"></script>
   <script src="js/ui/icons.js"></script>
   <script src="js/storage.js"></script>
-  <script src="js/audio.js"></script>
   <script src="js/quality.js"></script>
-  <script src="js/assets.js"></script>
-  <script src="js/fx.js"></script>
   <script src="js/render/noise.js"></script>
   <script src="js/render/textures.js"></script>
-  <script src="js/render/eggs.js"></script>
-  <script src="js/render/birds.js"></script>
-  <script src="js/render/decor.js"></script>
-  <script src="js/render/decor2.js"></script>
-  <script src="js/maps/forest.js"></script>
-  <script src="js/maps/volcano.js"></script>
-  <script src="js/maps/tower.js"></script>
-  <script src="js/maps/variants.js"></script>
-  <script src="js/render/effects.js"></script>
-  <script src="js/render/background.js"></script>
-  <script src="js/scenery.js"></script>
-  <script src="js/path.js"></script>
-  <script src="js/maps/paths.js"></script>
-  <script src="js/mathtext.js"></script>
-  <script src="js/render/balls.js"></script>
-  <script src="js/chain.js"></script>
-  <script src="js/render/fire.js"></script>
-  <script src="js/dragon.js"></script>
-  <script src="js/shooter.js"></script>
-  <script src="js/questions.js"></script>
-  <script src="js/qmanager.js"></script>
-  <script src="js/hazards.js"></script>
-  <script src="js/levels.js"></script>
-  <script src="js/render/wizard.js"></script>
-  <script src="js/boss.js"></script>
-  <script src="js/swap.js"></script>
-  <script src="js/story.js"></script>
   <script src="js/ui/skin.js"></script>
+  <script src="js/mathtext.js"></script>
   <script src="js/ui/kit.js"></script>
-  <script src="js/ui/hud.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/menu.js"></script>
-  <script src="js/main.js"></script>
+  <script src="js/ui/start.js"></script>
+  <script src="js/boot.js"></script>
   <script>
-    // Alat dev (hanya dimuat dengan parameter URL; pemain biasa tidak pernah melihatnya):
-    //   ?test=1 js/dev/tests.js (uji otomatis)   ?debug=orbs js/dev/orbs.js (keterbacaan)   ?resp=1 js/dev/resp.js (responsif)
+    GA.Start.show();
+    // Alat dev (hanya dimuat dengan parameter URL; pemain biasa tidak pernah melihatnya). Mesin game dimuat dulu (GA.Boot.ready), lalu skrip dev:
+    //   ?test=1 js/dev/tests.js (uji otomatis)   ?debug=orbs js/dev/orbs.js (keterbacaan)   ?resp=1 js/dev/resp.js (responsif)   ?debug=splash js/dev/splashgen.js (buat ulang splash art)
     //   ?debug=tune js/dev/tune.js (panel penyetelan)   ?debug=sim js/dev/chainsim.js (simulasi kerapatan rantai)   ?debug=chain overlay celah   ?debug=question overlay + log soal aktif   ?debug=layers tanda merah bola yang tertimpa   ?debug=swap tombol pemicu penukaran   ?debug=sim juga js/dev/qsim.js (uji soal aktif)   ?debug=pace js/dev/pacing.js (bot kecepatan)
     (function () {
       var q = location.search, t = /[?&]test(=|&|$)/.test(q), o = /[?&]debug=orbs/.test(q), rs = /[?&]resp(=|&|$)/.test(q);
       var dbg = (/[?&]debug=([^&#]*)/.exec(q) || [0, ""])[1].split(","), tune = dbg.indexOf("tune") >= 0, sim = dbg.indexOf("sim") >= 0, qdbg = dbg.indexOf("question") >= 0, lay = dbg.indexOf("layers") >= 0, swp = dbg.indexOf("swap") >= 0;
+      var spl = dbg.indexOf("splash") >= 0;
+      var dev = t || o || rs || tune || sim || qdbg || lay || swp || spl || dbg.indexOf("aim") >= 0 || dbg.indexOf("pace") >= 0 || dbg.indexOf("pathprev") >= 0 || dbg.indexOf("chain") >= 0;
+      if (!dev) return;
+      GA.keepEngine = true;      // alat dev memakai mesin terus-menerus: "Menu" tidak membongkarnya
       function load(src, next) { var s = document.createElement("script"); s.src = src; if (next) s.onload = next; document.body.appendChild(s); }
-      if (t) load("js/dev/orbs.js", function () { load("js/dev/tests.js"); }); else if (o) load("js/dev/orbs.js"); else if (rs) load("js/dev/resp.js");
-      if (tune) load("js/dev/tune.js");
-      if (sim || t) load("js/dev/chainsim.js");
-      if (qdbg) load("js/dev/qdebug.js");
-      if (lay || t) load("js/dev/layers.js");
-      if (swp || t) load("js/dev/swapdbg.js");
-      if (sim || t) load("js/dev/qsim.js");
-      if (dbg.indexOf("aim") >= 0 || t) load("js/dev/aimsweep.js");
-      if (dbg.indexOf("pace") >= 0 || t) load("js/dev/pacing.js");
-      if (dbg.indexOf("pathprev") >= 0) load("js/dev/pathprev.js");
+      function go() {
+        if (t) load("js/dev/orbs.js", function () { load("js/dev/tests.js"); }); else if (o) load("js/dev/orbs.js"); else if (rs) load("js/dev/resp.js");
+        if (tune) load("js/dev/tune.js");
+        if (sim || t) load("js/dev/chainsim.js");
+        if (qdbg) load("js/dev/qdebug.js");
+        if (lay || t) load("js/dev/layers.js");
+        if (swp || t) load("js/dev/swapdbg.js");
+        if (sim || t) load("js/dev/qsim.js");
+        if (dbg.indexOf("aim") >= 0 || t) load("js/dev/aimsweep.js");
+        if (dbg.indexOf("pace") >= 0 || t) load("js/dev/pacing.js");
+        if (dbg.indexOf("pathprev") >= 0) load("js/dev/pathprev.js");
+        if (spl) load("js/splash-art.js", function () { load("js/dev/splashgen.js"); });
+      }
+      GA.Boot.ready().then(go);
     })();
   </script>
 </body>

@@ -14,7 +14,7 @@
   function ok(name, cond, info) { results.push((cond ? 'PASS  ' : 'FAIL  ') + name + (info ? '  — ' + info : '')); if (!cond) fails++; return cond; }
   const sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
   const VIEWS = [[390, 844], [844, 390], [1440, 900]];
-  const SEL = { slots: ['add', 'sub', 'mul'], same: false, random: false, diff: 'sedang' };
+  const SEL = { cat: 'add', diff: 'sedang' };
   const fin = function (v) { return typeof v === 'number' && isFinite(v); };
 
   /** Satu skenario: kembalikan daftar masalah (string). */

@@ -16,10 +16,10 @@ jalan lewat `file://`. Lewat server lokal (opsional): `python -m http.server 800
 
 ## Alur permainan
 
-Judul → **Main Menu** (kategori & kesulitan) → **Pilih Stage** (3 simpul: kunci, bintang, skor terbaik, hasil terakhir) → cerita pembuka (sekali, bisa dilewati) →
-layar pembuka stage (nama + ikon, **contoh soal bergambar** sesuai format stage) → hitung mundur 3-2-1 → stage → **overview jawaban** → … → Stage 3 (final boss) → cerita akhir.
+**Halaman awal** (satu layar: kategori + kesulitan + **Mulai Main**) → cerita pembuka (sekali, bisa dilewati) → layar pembuka **Stage 1** (nama + ikon, **contoh soal bergambar**) →
+hitung mundur 3-2-1 → stage → **overview jawaban** → **Lanjut** Stage 2 → **Lanjut** Stage 3 (final boss) → cerita akhir → hasil → kembali ke halaman awal.
 
-Stage terbuka berurutan per kesulitan (stage n+1 terbuka setelah stage n selesai). `?unlock=1` membuka semuanya (untuk uji coba).
+Tidak ada pilihan stage: **Mulai Main selalu dari Stage 1** dan kategori + kesulitan terpilih berlaku untuk ketiga stage ("Campuran" mencampur semua kategori). Game Over → **Ulangi** (stage itu, telur 3/3) atau **Menu**.
 
 ### Aturan 20 soal (inti)
 
@@ -64,12 +64,25 @@ Flag lain (boleh digabung, mis. `?debug=tune,chain`): `chain` = overlay garis hi
 
 **Simulasi kerapatan** (`js/dev/chainsim.js`, `?debug=sim`, juga bagian `?test=1`): semua arketipe jalur × 2 orientasi × 3 radius × 3 kesulitan × 45 dtk dengan pemain acak (hancur, sisip, mundur, dt bergetar + lonjakan 500 ms); jarak bola bersebelahan harus tetap 0,96–1,05 diameter kecuali celah sementara < 400 ms; juga uji penutupan celah, penyisipan halus, fase masuk.
 
-### Main Menu
+### Halaman awal (`js/ui/start.js`, gaya `css/start.css`)
 
-- **8 kategori:** Penjumlahan, Pengurangan, Perkalian, Pembagian, Bilangan Bulat, Pecahan, Desimal, Campuran.
-- **3 slot:** Stage 1, Stage 2, Stage 3 (Boss). Default **Satu kategori untuk semua stage**; matikan untuk **atur per stage** (3 slot); atau **Acak**. Stage 3 mencampur kategori yang dipilih.
-- **Kesulitan:** Mudah / Sedang / Sulit (rentang angka, kerumitan soal, kecepatan rantai, kerapatan rintangan).
-- Pilihan terakhir, bintang & skor terbaik per stage, **hasil terakhir tiap stage** (untuk overview), skor tertinggi, dan pengaturan disimpan di `localStorage` (skema berversi, lihat "Simpanan").
+Satu papan di atas **splash art statis** (tanpa adegan permainan, tanpa animasi): logo, chip **Rekor** (piala + angka), kartu **kategori**, **kesulitan**, tombol hijau **Mulai Main**, dan dua tombol sudut: **?** (Cara Main, 3 kartu bergambar) dan **gerigi** (Atur: suara, musik, grafik, cerita, hapus data).
+- **8 kategori** (daftar di `js/config/categories.js`): Penjumlahan, Pengurangan, Perkalian, Pembagian, Bilangan Bulat, Pecahan, Desimal, Campuran; tiap kartu = ikon, nama, satu contoh soal kecil; yang terpilih berbingkai emas + ikon centang. **Kesulitan:** Mudah / Sedang / Sulit (rentang angka, kerumitan soal, kecepatan rantai, kerapatan rintangan).
+- Kategori + kesulitan terakhir tersimpan dan otomatis terpilih lagi; pertama kali **Penjumlahan + Sedang** (`DEFAULT_CAT`/`DEFAULT_DIFF` di `config/categories.js`). Selalu ada pilihan aktif.
+- Papan ketik: panah memindah pilihan (radiogroup ARIA), Enter/Spasi memilih, Enter pada Mulai Main memulai, Esc menutup dialog. Mobile potret: kartu 2 × 4 + tombol Mulai di bawah (hanya area kartu yang bisa digulir); lanskap pendek: dua kolom tanpa gulir; desktop: papan ≤ 960 px.
+- **Rekor** = skor tertinggi satu petualangan (global, `Storage.highScore`); naik di akhir permainan (menang Stage 3 atau Game Over) dan "**Rekor baru!**" tampil di layar hasil / overview Game Over. Telur dan bintang tidak lagi ditampilkan di menu (telur 3/3 tetap di HUD, bintang per stage tetap di layar hasil).
+
+### Memuat malas (`js/boot.js`)
+
+Halaman awal hanya memuat HTML, CSS inti (`base`, `kit`, `start`), UI kit, strings, theme token, storage, dan `ui/start.js` (±76 KB JS). **Mesin game** (render, entitas, peta, tekstur prosedural, audio sintesis, soal, HUD, popup Jeda + `css/pause.css`) diunduh dan dijalankan baru saat **Mulai Main**
+(daftar urutan di `ENGINE`, `js/boot.js`): layar pemuatan statis dengan bar progres, inisialisasi berat dipecah per bagian (`GA.Game.boot`, jeda `setTimeout` antar-bagian), AudioContext dibuat pada ketukan itu, musik baru mulai bersama permainan.
+Pra-muat senyap (`<link rel=prefetch>`) hanya setelah interaksi pertama dan saat idle; **dilewati** bila Save-Data, koneksi 2G, atau `prefers-reduced-motion`. Kembali ke halaman awal (Menu / Game Over / hasil akhir) **membongkar mesin** (`GA.Game.destroy`): loop rAF dihentikan, canvas dan semua listener dilepas, UI permainan dan AudioContext ditutup; "Mulai Main" berikutnya memakai skrip yang sudah ada di cache.
+Alat dev (`?test=1`, `?debug=…`, `?resp=1`) memuat mesin lebih dulu dan mempertahankannya (`GA.keepEngine`).
+
+### Splash art
+
+Latar halaman awal = gambar statis `assets/splash/splash-landscape.webp` (1920×1080) dan `splash-portrait.webp` (1080×1920) lewat `<picture>`, ±80 KB masing-masing, gelap-terang sudah "dibakar" agar papan terbaca. Bila berkas hilang, `js/splash-art.js` menggambarnya sekali lewat Canvas sebagai cadangan.
+Ganti dengan gambar sendiri: taruh berkas bernama sama (lihat contoh prompt di `docs/ASSET_GUIDE.md`); buat ulang aset bawaan lewat `index.html?debug=splash` → `await GA.SplashGen.run()`.
 
 ### Telur, bintang, kontrol
 
@@ -209,9 +222,12 @@ Juga diuji: arketipe jalur (semua radius, dua orientasi), rintangan zona, fase b
 
 ```
 index.html          halaman tunggal
-css/base.css + kit.css  dasar halaman + komponen UI kit   css/pause.css   popup Jeda (desain Figma)
+css/base.css + kit.css + start.css  dasar halaman + komponen UI kit + halaman awal   css/pause.css   popup Jeda (desain Figma; dimuat bersama mesin)
 js/theme.js         warna, ukuran bola, naga, latar tiap stage (satu-satunya tempat untuk ganti tampilan)
-js/storage.js       localStorage (pilihan, bintang, rekor, pengaturan)
+js/storage.js       localStorage v3 (pilihan kategori + kesulitan, rekor, pengaturan; data lama dibawa tapi diabaikan)
+js/boot.js          pemuat malas: unduh + jalankan mesin saat Mulai Main, pra-muat senyap
+js/ui/start.js      halaman awal      js/config/categories.js  kategori + pilihan awal      css/start.css  tata letak halaman awal
+js/splash-art.js    splash art cadangan (Canvas, sekali)   assets/splash/  splash art statis (.webp)
 js/audio.js         efek suara, ambient & musik per zona (Web Audio, tanpa berkas)
 js/qmanager.js      QuestionManager: soal aktif, urutan, pemicu sah (lihat bagian Soal aktif)
 js/fx.js            partikel, getar layar          js/scenery.js   latar parallax + partikel ambient
@@ -228,13 +244,13 @@ js/levels.js        3 stage + tabel kesulitan (data)
 js/boss.js          Penyihir Jahat (modul terpisah, bisa diganti)
 js/render/wizard.js rig & gambar Penyihir (kain verlet, IK lengan, tekstur prosedural, hancur jadi abu)
 js/story.js         cerita & akhir (nama tokoh bisa diatur)
-js/ui.js            layar (DOM) + HUD (canvas)     js/menu.js   Main Menu
+js/ui.js            layar permainan (cerita, pembuka stage, Jeda, hasil) + HUD (canvas)
 js/main.js          loop, layout responsif, input, alur petualangan
 ```
 
 ## Menambah / mengubah
 
-- **Kategori soal:** tambahkan ke `CATEGORIES` dan isi `TABLE` (tiga kesulitan) di `js/questions.js`. Generator baru ditambahkan ke `GEN`
+- **Kategori soal:** tambahkan ke `LIST` di `js/config/categories.js` (id, nama, warna, contoh kartu; ikon di `Icons.cat`) dan isi `TABLE` (tiga kesulitan) di `js/questions.js`. Generator baru ditambahkan ke `GEN`
   (kembalikan lewat `make({ expr, answer, answerText, cands, ... })`; jawaban dinilai dari **teks**).
 - **Kesulitan / jumlah soal:** `TUNE` di `js/levels.js`. **Kecepatan, kerapatan, fase masuk, tekanan rantai:** `js/config/gameplay.js` (satuan diameter bola/detik).
 - **Stage atau rintangan baru:** ubah `STAGES` di `js/levels.js` (`pool.paths`, `pool.maps`, `format`, `specials`). Preset jalur baru
@@ -265,18 +281,18 @@ Aksesibilitas: `role="dialog"`, fokus terkunci, Esc menutup konfirmasi dulu lalu
 
 ## Uji coba
 
-`GA.game` terbuka di konsol: `GA.game.startAdventure({slots:['add','mul','frac'],same:false,random:false,diff:'sedang'}, true)`,
+`GA.game` terbuka di konsol (setelah mesin dimuat; di halaman biasa lewat `await GA.Boot.ready()`): `GA.game.startAdventure({cat:'mul',diff:'sedang'}, true)`,
 `GA.game.startStep(n, true)` (n = 0..2), `GA.game.skipCountdown()`, dan `GA.game.tick(dt, noRender)` untuk menjalankan waktu game secara manual
 (berguna di panel yang tidak menjalankan `requestAnimationFrame`).
 
 ### UI kit tunggal
 
-Semua layar (judul, pengaturan, cara main, cerita, menu, pilih step, pembuka step, hasil, konfirmasi) dibangun dari **satu UI kit**; popup Jeda tetap desain Figma (`css/pause.css`) dengan warna selaras.
+Semua layar (halaman awal, pengaturan, cara main, cerita, pembuka stage, hasil, konfirmasi) dibangun dari **satu UI kit**; popup Jeda tetap desain Figma (`css/pause.css`) dengan warna selaras.
 
 - `js/ui/kit.js`: komponen yang menghasilkan HTML — `Kit.panel` (papan kayu + perkamen, paku emas, kepala naga ORIGINAL yang mengintip), `button` (hijau utama / oranye sekunder / merah bahaya / kayu; mengilap, tebal, beroutline; keadaan tekan & nonaktif), `badge`, `chip`, `toggle`, `segmented`, `progress` (api/energi), `card` (kategori berwarna & step), `stars`, `eggs`, `resbar` (bilah sumber daya berikon), `tip` (tooltip), plus `toast`, `confirm` (modal), `coach` (coachmark ≤ 6 kata, hanya pertama kali). Ikon di `js/ui/icons.js` (satu gaya SVG).
 - `css/kit.css` (komponen), `css/base.css` (reset, lapisan layar, hitung mundur). Token warna/tekstur: `Theme.ui` (`js/theme.js`) → CSS variables (`js/ui/skin.js`); tekstur prosedural kayu/batu/perkamen dari `js/render/textures.js`. Bevel/bayangan sama di semua elemen. Target sentuh ≥ 44 px, fokus keyboard terlihat, `prefers-reduced-motion` dihormati.
 - **Kebijakan teks** (`js/strings.js`): semua teks UI di satu tempat (`GA.T('kunci')`); label ≤ 2 kata, keterangan ≤ ~5 kata; "Cara Main" = 3 kartu bergambar; cerita 4 panel satu kalimat. Lint: tes "teks UI ringkas" di `?test=1` atau `powershell -File tools/lint-strings.ps1`.
-- Cara menambah layar: bangun HTML dengan `GA.Kit.*`, daftarkan lewat `UI.addScreen(nama, node)`, tombol memakai `data-act` yang ditangani `UI.act`/`Menu.act`.
+- Cara menambah layar permainan: bangun HTML dengan `GA.Kit.*` di `TPL` (`js/ui.js`), tombol memakai `data-act` yang ditangani `UI.act`; layar halaman awal di `js/ui/start.js` (`data-act="st-…"`).
 
 ## UI & tema visual
 

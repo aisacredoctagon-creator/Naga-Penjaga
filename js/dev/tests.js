@@ -75,7 +75,7 @@
     // Stage 3: gabungan, pola pada urutan main
     let patOk = true, halves = [], runs = 0;
     for (let s = 0; s < 40; s++) {
-      const cfg = L.build(2, { slots: ['add', 'sub', 'mul'], same: false, random: false, diff: 'sedang' }, ['add', 'sub', 'mul']);
+      const cfg = L.build(2, { cat: 'add', diff: 'sedang' });
       const qm = new QM.Manager({ topics: cfg.topics, total: 20, seed: 500 + s * 13, format: 'mixed' });
       const seq = qm.order.map(function (id) { return /▢$/.test(qm.questions[id].text) ? 'R' : 'M'; }), nR = seq.filter(function (x) { return x === 'R'; }).length;
       halves.push(nR);
@@ -97,7 +97,7 @@
   }
 
   function testWaves() {
-    const LV = GA.Levels, sel = { slots: ['add', 'add', 'add', 'add', 'add'], same: true, random: false, diff: 'sedang' };
+    const LV = GA.Levels, sel = { cat: 'add', diff: 'sedang' };
     let allOk = true;
     LV.DIFFS.forEach(function (d) {
       sel.diff = d;
@@ -146,17 +146,21 @@
   }
 
   function testStorage() {
-    const S = GA.Storage, saved = JSON.stringify(S.data.prog || {}), un = S.unlockAll;
-    S.unlockAll = false; S.data.prog = {};
-    const a = S.unlocked('sedang'); S.recordStep('sedang', 0, 2, 500); const b = S.unlocked('sedang'); S.recordStep('sedang', 3, 3, 900); const c = S.unlocked('sedang');
-    ok('penyimpanan: step terbuka berurutan', a === 1 && b === 2 && c === 2, [a, b, c].join(','));
-    S.data.prog = JSON.parse(saved); S.unlockAll = un; S.save();
+    const S = GA.Storage, C = GA.Categories, saved = JSON.stringify(S.data), M = S.migrate;
+    S.data = M(null); const fresh = S.data, pf = S.pick;
+    ok('simpanan: pertama kali = Penjumlahan + Sedang (konstanta di config), selalu ada pilihan aktif', fresh.pick === null && pf.cat === 'add' && pf.diff === 'sedang' && C.DEFAULT_CAT === 'add' && C.DEFAULT_DIFF === 'sedang', JSON.stringify(pf));
+    S.data = M(null); const p0 = S.pick; S.pick = { cat: 'frac', diff: 'sulit' }; const raw = JSON.parse(JSON.stringify(S.data));
+    S.data = M(raw); const p1 = S.pick; S.pick = { cat: 'zzz', diff: 'ultra' }; const p2 = S.pick;
+    ok('simpanan: pilihan terakhir tersimpan dan terbaca ulang; nilai asing diganti bawaan', p0.cat === 'add' && p0.diff === 'sedang' && p1.cat === 'frac' && p1.diff === 'sulit' && p2.cat === 'add' && p2.diff === 'sedang', JSON.stringify([p0, p1, p2]));
+    S.data = M(null); S.data.highScore = 100; const up = S.noteScore(150), same = S.noteScore(150), low = S.noteScore(40);
+    ok('rekor: naik hanya bila terlampaui (noteScore mengembalikan true sekali), tidak turun', up === true && same === false && low === false && S.highScore === 150, up + ',' + same + ',' + low + ' → ' + S.highScore);
+    S.data = JSON.parse(saved); S.save();
   }
 
   /** Bot sempurna: menjawab soal aktif dengan menembak bola targetnya (hanya bila garis tembak terbuka). */
   async function simStep(step, diff) {
     const G = GA.game, LV = GA.Levels, tag = 'stage ' + (step + 1) + '/' + diff;
-    const sel = { slots: ['add', 'sub', 'mul'], same: false, random: false, diff: diff };
+    const sel = { cat: 'add', diff: diff };
     G.startAdventure(sel, true, step);
     G.handlers.introGo();
     for (let i = 0; i < 60 && G.state !== 'playing'; i++) await sleep(150);
@@ -198,7 +202,7 @@
 
   /** Bola target lolos ke sarang: soalnya harus keluar lagi dari portal, progres jawaban benar tetap. */
   async function testSteal() {
-    const G = GA.game, sel = { slots: ['add', 'add', 'add', 'add', 'add'], same: true, random: false, diff: 'mudah' };
+    const G = GA.game, sel = { cat: 'add', diff: 'mudah' };
     G.startAdventure(sel, true, 0); G.handlers.introGo();
     for (let i = 0; i < 60 && G.state !== 'playing'; i++) await sleep(150);
     for (let i = 0; i < 3000 && !G.run.chain.balls.some(function (b) { return b.kind === 'num' && G.run.chain.visible(b); }); i++) G.tick(1 / 30, true);
@@ -214,7 +218,7 @@
 
   /** Tiga stage, telur 3/3 (refresh tiap stage + Ulangi), WRONG_ANSWERS_PER_EGG, batas telur 0..3, satu portal/sarang/rantai, tanpa buff/nerf/kutukan. */
   async function testStages() {
-    const G = GA.game, LV = GA.Levels, GP = GA.Gameplay.DEFAULTS, sel = { slots: ['add', 'sub', 'mul'], same: false, random: false, diff: 'sedang' };
+    const G = GA.game, LV = GA.Levels, GP = GA.Gameplay.DEFAULTS, sel = { cat: 'add', diff: 'sedang' };
     ok('3 stage: Stage 3 = boss, tiap stage 20 soal, format hasil/hilang/gabungan', LV.count === 3 && LV.STAGES[2].boss && LV.STAGES.map(function (s) { return s.format; }).join() === 'result,missing,mixed' && LV.TOTAL_Q === 20);
     ok('rintangan serentak maks. 2/3/4 dan jenis kumulatif', GA.Gameplay.HAZ_MAX.join() === '2,3,4' && LV.hazFor(0, 0.6).length === 2 && LV.hazFor(1, 0.6).length === 4 && LV.hazFor(2, 0.6).length > 4);
     G.startAdventure(sel, true, 0); G.handlers.introGo();
@@ -231,12 +235,15 @@
     G.handlers.quit();
   }
 
-  /** Migrasi simpanan lama (5 step, kunci hilang/rusak) tidak crash dan dipotong ke 3 stage. */
+  /** Migrasi simpanan (v1 lima step, v2 tiga stage + pilihan per stage, v3) tidak crash; data lama dibawa, rekor tetap terbaca, pilihan lama jadi pilihan awal. */
   function testMigrate() {
-    const M = GA.Storage.migrate, legacy = { sel: { slots: ['add', 'sub', 'mul', 'div', 'int'], same: false, diff: 'sulit' }, prog: { sedang: { stars: [3, 2, 1, 3, 3], best: [100, 200, 300, 400, 500] } }, highScore: 999, introSeen: true };
-    let threw = false, a, b, c, d;
-    try { a = M(legacy); b = M(null); c = M({ sel: 7, prog: [1], highScore: 'x', last: 5, settings: 3 }); d = M(JSON.parse('{"v":1,"prog":{"mudah":{"stars":null}}}')); } catch (e) { threw = true; }
-    ok('migrasi simpanan lama: dipotong ke 3 stage, kunci rusak/hilang aman', !threw && a.v === 2 && a.sel.slots.length === 3 && a.prog.sedang.stars.join() === '3,2,1' && a.prog.sedang.best.length === 3 && a.highScore === 999 && a.introSeen === true && b.sel === null && c.highScore === 0 && d.prog.mudah.stars.join() === '0,0,0', threw ? 'melempar galat' : 'v' + a.v + ' ' + a.prog.sedang.stars.join('/'));
+    const M = GA.Storage.migrate, v1 = { sel: { slots: ['mul', 'sub', 'mul', 'div', 'int'], same: false, diff: 'sulit' }, prog: { sedang: { stars: [3, 2, 1, 3, 3], best: [100, 200, 300, 400, 500] } }, highScore: 999, introSeen: true };
+    const v2 = { v: 2, sel: { slots: ['div', 'add', 'add'], same: true, random: true, diff: 'mudah' }, prog: { mudah: { stars: [3, 0, 0], best: [10, 0, 0] } }, last: { mudah: [{ win: true, items: [] }] }, highScore: 28975, swapSeen: true };
+    let threw = false, a, b, c, d, e, f, g;
+    try { a = M(v1); b = M(null); c = M({ sel: 7, prog: [1], highScore: 'x', last: 5, settings: 3 }); d = M(JSON.parse('{"v":1,"prog":{"mudah":{"stars":null}}}')); e = M(v2); f = M(JSON.parse(JSON.stringify(M(v2)))); g = M({ v: 3, pick: { cat: 'mix', diff: 'sulit' }, highScore: -5, sel: { slots: ['int'] } }); } catch (x) { threw = true; }
+    ok('migrasi simpanan lama (v1/v2) → v3: tidak crash, rekor + data lama dibawa, pilihan lama menjadi pilihan awal', !threw && a.v === 3 && a.pick.cat === 'mul' && a.pick.diff === 'sulit' && a.highScore === 999 && a.introSeen === true && a.prog.sedang.stars.length === 5 &&
+      b.pick === null && c.highScore === 0 && c.sel === null && d.v === 3 && e.pick.cat === 'div' && e.pick.diff === 'mudah' && e.highScore === 28975 && e.swapSeen === true && e.last.mudah.length === 1 && e.prog.mudah.best[0] === 10 &&
+      f.pick.cat === 'div' && f.highScore === 28975 && g.pick.cat === 'mix' && g.pick.diff === 'sulit' && g.highScore === 0, threw ? 'melempar galat' : JSON.stringify([a.pick, e.pick, g.pick, e.highScore]));
   }
 
   /** Audio: semua suara berbunyi tanpa galat; tiap jenis rintangan, mekanik, dan zona punya suara/ambient/musik. */
@@ -258,7 +265,7 @@
    *  dan setelah bermain sebentar tidak ada bola yang tertimpa elemen lain (?debug=layers: DEPAN/PORTAL/SARANG/BOSS/NAGA/RINTANGAN). */
   async function testLayers() {
     const G = GA.game, LV = GA.Levels, sizes = [[390, 844], [844, 390], [1440, 900]], bad = [], dyn = []; let n = 0, worst = 0;
-    const sel = { slots: ['add', 'add', 'add', 'add', 'add'], same: true, random: false, diff: 'sedang' };
+    const sel = { cat: 'add', diff: 'sedang' };
     for (const sz of sizes) {
       GA.devViewport = { w: sz[0], h: sz[1] }; G.relayout();
       for (let s = 0; s < LV.count; s++) {
@@ -284,7 +291,7 @@
     for (const sz of sizes) {
       GA.devViewport = { w: sz[0], h: sz[1] }; G.relayout();
       for (const stage of [1, 2]) {
-        G.startAdventure({ slots: ['add', 'add', 'add', 'add', 'add'], same: true, random: false, diff: 'sedang' }, true, stage); G.startStep(stage, false); G.handlers.introGo();
+        G.startAdventure({ cat: 'add', diff: 'sedang' }, true, stage); G.startStep(stage, false); G.handlers.introGo();
         for (let i = 0; i < 80 && G.state !== 'playing'; i++) await sleep(100);
         const r = G.run, V = GA.view;
         for (let i = 0; i < 700; i++) { r.lives = 3; G.tick(1 / 30, true); }
@@ -389,7 +396,7 @@
    *  (3) tidak ada penukaran terjadwal dalam 4 dtk pertama atau 3 dtk setelah soal aktif berganti; (4) eksekusi ditahan selama peluru terbang; (5) bola hancur selama telegraf membatalkan pasangan; (6) jeda layar membekukan hitung mundur;
    *  (7) rotasi layar di tengah telegraf tidak mengulang / memotong hitung mundur; (8) dua pasangan (Stage 3 fase 2) berwarna dan berikon beda; (9) prefers-reduced-motion: gambar statis tanpa galat, jeda tetap. */
   async function testSwapTiming() {
-    const G = GA.game, sizes = [[390, 844], [844, 390], [1440, 900]], bad = [], iv = [], DT = 1 / 30, SEL = { slots: ['add', 'sub', 'mul'], same: false, random: false, diff: 'sedang' };
+    const G = GA.game, sizes = [[390, 844], [844, 390], [1440, 900]], bad = [], iv = [], DT = 1 / 30, SEL = { cat: 'add', diff: 'sedang' };
     let early = 0, schedN = 0, holdOk = true, cancelOk = true, pauseOk = true, rotOk = true, rotN = 0, rotSurv = 0, rotFizz = 0, motionOk = true, pairsOk = true, startBad = [];
     const tick = function (r, sec, render) { for (let i = 0, n = Math.round(sec / DT); i < n; i++) { if (G.state === 'paused') G.handlers.resume(); r.lives = 3; G.tick(DT, !render); } };
     const begin = function (stage) { G.startAdventure(SEL, true, stage); G.startStep(stage, true); G.skipCountdown(); return G.run; };
@@ -460,7 +467,7 @@
     for (const sz of [[390, 844], [844, 390], [1440, 900]]) {
       GA.devViewport = { w: sz[0], h: sz[1] }; G.relayout();
       for (const step of [0, 1, 2]) {
-        G.startAdventure({ slots: ['add', 'sub', 'mul'], same: false, random: false, diff: 'sedang' }, true, step); G.handlers.introGo();
+        G.startAdventure({ cat: 'add', diff: 'sedang' }, true, step); G.handlers.introGo();
         for (let i = 0; i < 60 && G.state !== 'playing'; i++) await sleep(100);
         const r = G.run; if (!r) { bad.push('tidak ada run'); continue; }
         for (let i = 0; i < 90; i++) G.tick(1 / 30, true);      // rantai sudah keluar dari portal
@@ -493,6 +500,102 @@
     ok('rintangan (tahap e): bola jawaban soal aktif tetap punya garis terbuka sesudah rintangan pemblokir muncul', activeBlocked === 0, activeBlocked + ' terhalang dari ' + activeN + ' pengamatan');
   }
 
+  /* ================= revisi 9: halaman awal, alur tanpa pilih stage, siklus hidup mesin ================= */
+  const $ = function (id) { return document.getElementById(id); };
+  const dispatchKey = function (el, key) { el.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true, cancelable: true })); };
+  const frames = async function (G, n) { for (let i = 0; i < n; i++) G.tick(1 / 30, true); };
+  const until = async function (fn, ms) { const t = performance.now(); while (performance.now() - t < (ms || 6000)) { if (fn()) return true; await sleep(50); } return !!fn(); };
+  const rafCount = async function (ms) { let n = 0; const o = window.requestAnimationFrame; window.requestAnimationFrame = function (cb) { return o.call(window, function (t) { n++; cb(t); }); }; await sleep(ms); window.requestAnimationFrame = o; return n; };
+
+  /** Halaman awal: satu layar, hanya kategori + kesulitan + Mulai Main; ARIA radiogroup; papan ketik; pilihan tersimpan; tanpa animasi/canvas. */
+  async function testStart() {
+    const S = GA.Storage, C = GA.Categories, saved = JSON.stringify(S.data), M = S.migrate;
+    S.data = M({ v: 2, sel: { slots: ['div', 'add', 'add'], same: true, diff: 'mudah' }, highScore: 28975, prog: { mudah: { stars: [3, 3, 3], best: [1, 2, 3] } } });
+    GA.Start.show(); await sleep(60);
+    const st = $('s-start'), cards = [].slice.call(st.querySelectorAll('#st-cats [role="radio"]')), segs = [].slice.call(st.querySelectorAll('#st-diff [role="radio"]'));
+    ok('halaman awal: 8 kartu kategori + 3 kesulitan, tiap grup role=radiogroup dengan tepat satu terpilih', cards.length === 8 && segs.length === 3 && $('st-cats').getAttribute('role') === 'radiogroup' && st.querySelector('#st-diff [role="radiogroup"]') &&
+      cards.filter(function (c) { return c.getAttribute('aria-checked') === 'true'; }).length === 1 && segs.filter(function (c) { return c.getAttribute('aria-checked') === 'true'; }).length === 1, cards.length + ' kartu, ' + segs.length + ' kesulitan');
+    const sel = cards.filter(function (c) { return c.classList.contains('on'); })[0], tick = sel && sel.querySelector('.k-tick');
+    ok('halaman awal: simpanan lama (v2) → kategori + kesulitan terakhir otomatis terpilih; kartu terpilih bertanda centang (bukan hanya warna); rekor lama terbaca', sel && sel.dataset.id === 'div' && segs[0].classList.contains('on') && tick && getComputedStyle(tick).display !== 'none' && !!tick.querySelector('svg') && /28\.975/.test($('st-rec').textContent), sel ? sel.dataset.id + ' ' + $('st-rec').textContent.trim() : 'tidak ada');
+    const txt = st.textContent;
+    ok('halaman awal: tanpa tab stage / Satu kategori / Acak / Pilih Stage / jumlah telur & bintang; tombol "Mulai Main" dengan ikon play; tombol ? dan gerigi', !/Pilih Stage|Satu kategori|Acak|Boss/i.test(txt) && !$('s-steps') && !$('s-menu') && !$('s-title') && !st.querySelector('.k-res, [data-act="m-slot"], [data-act="m-same"], [data-act="m-random"], .k-stars') &&
+      /Mulai Main/.test($('st-play').textContent) && !!$('st-play').querySelector('.ic-play') && !!$('st-howto') && !!$('st-settings') && !st.querySelector('[data-act="back"], [data-act="m-back"]'), txt.replace(/\s+/g, ' ').slice(0, 80));
+    const anim = document.getAnimations().filter(function (a) { const t = a.effect && a.effect.getComputedTiming(); return t && t.iterations === Infinity && a.effect.target && st.contains(a.effect.target); }).length;
+    ok('halaman awal: tanpa animasi CSS berkelanjutan dan tanpa canvas di papan', anim === 0 && st.querySelectorAll('canvas').length === 0, 'animasi tak hingga ' + anim);
+    // pilih dengan klik + papan ketik; pilihan tersimpan
+    cards[3].click(); segs[2].click();
+    const p = S.pick, clickOk = p.cat === 'div' && p.diff === 'sulit' && cards[3].getAttribute('aria-checked') === 'true' && cards[0].getAttribute('aria-checked') === 'false';
+    cards[3].focus(); dispatchKey(cards[3], 'ArrowRight'); const afterRight = S.pick.cat, focusMove = document.activeElement === cards[4];
+    const cols = getComputedStyle($('st-cats')).gridTemplateColumns.split(' ').length, expDown = 4 + cols < 8 ? C.LIST[4 + cols].id : 'int', expUp = C.LIST[4 - cols].id;
+    dispatchKey(cards[4], 'ArrowDown'); const afterDown = S.pick.cat;      // satu baris ke bawah (kolom sama) bila ada; tidak ada → tetap
+    cards[4].focus(); dispatchKey(cards[4], 'ArrowUp'); const afterUp = S.pick.cat;      // satu baris ke atas (kolom sama)
+    segs[2].focus(); dispatchKey(segs[2], 'ArrowLeft'); const dAfter = S.pick.diff;
+    ok('halaman awal: klik memilih dan menyimpan; panah memindah pilihan dan fokus (radiogroup)', clickOk && afterRight === 'int' && focusMove && afterDown === expDown && afterUp === expUp && dAfter === 'sedang', JSON.stringify([clickOk, afterRight, afterDown + '/' + expDown, afterUp + '/' + expUp, dAfter]));
+    // tanpa simpanan: Penjumlahan + Sedang
+    S.data = M(null); GA.Start.show(); await sleep(60);
+    ok('halaman awal: tanpa simpanan → Penjumlahan + Sedang (selalu ada pilihan aktif), rekor 0', $('st-cats').querySelector('.on').dataset.id === C.DEFAULT_CAT && $('st-diff').querySelector('.on').dataset.id === C.DEFAULT_DIFF && /^0$/.test($('st-rec').textContent.trim()), $('st-cats').querySelector('.on').dataset.id + '/' + $('st-diff').querySelector('.on').dataset.id);
+    // Cara Main + Atur
+    $('st-howto').click(); await sleep(40); const how = $('s-howto').classList.contains('show') && $('s-howto').querySelectorAll('.k-howc').length === 3; $('s-howto').querySelector('[data-act="st-back"]').click(); await sleep(40);
+    $('st-settings').click(); await sleep(40); const set = $('s-settings').classList.contains('show') && !!$('q-seg').querySelector('[role="radio"]') && $('s-settings').querySelectorAll('[data-sync]').length === 2; dispatchKey($('s-settings'), 'Escape'); await sleep(40);
+    ok('halaman awal: ? membuka Cara Main (3 kartu bergambar), gerigi membuka Atur (suara, musik, grafik); Esc kembali ke halaman awal', how && set && $('s-start').classList.contains('show'), how + ',' + set);
+    S.data = JSON.parse(saved); S.save(); GA.Start.show();
+  }
+
+  /** Alur penuh: kategori + kesulitan → Mulai Main → Stage 1 → Lanjut Stage 2 → Stage 3 (boss) → hasil → halaman awal (mesin dibongkar); Game Over → Ulangi / Menu; Menu dari popup Jeda. */
+  async function testFlow() {
+    const G = GA.game, S = GA.Storage, saved = JSON.stringify(S.data), kept = GA.keepEngine, U = GA.UI;
+    GA.keepEngine = false; S.data = S.migrate(null); S.data.introSeen = true; S.data.highScore = 100;
+    const bad = [];
+    GA.Start.show(); await sleep(50);
+    $('st-cats').querySelector('[data-id="mul"]').click(); $('st-diff').querySelector('[data-id="sulit"]').click();
+    $('st-play').click();
+    ok('Mulai Main memuat mesin, menampilkan layar pemuatan lalu langsung ke Stage 1 (tanpa pilih stage)', await until(function () { return G.state === 'intro'; }, 15000) && G.adv.step === 0 && G.adv.sel.cat === 'mul' && G.adv.sel.diff === 'sulit' && G.adv.cats.join() === 'mul,mul,mul' && !GA.Start.isShown(), G.state + ' langkah ' + (G.adv && G.adv.step));
+    for (let i = 0; i < 3; i++) {
+      const r = G.run; if (r.cfg.step !== i || r.cfg.cat !== 'mul' || r.cfg.diff !== 'sulit' || r.cfg.isBoss !== (i === 2) || r.total !== 20) bad.push('stage ' + (i + 1) + ' salah konfigurasi');
+      G.handlers.introGo(); await until(function () { return G.state === 'countdown'; }, 3000); G.skipCountdown(); await until(function () { return G.state === 'playing'; }, 3000);
+      if (G.run.lives !== 3 || G.run.maxLives !== 3) bad.push('telur stage ' + (i + 1) + ' = ' + G.run.lives);
+      G.run.score += 1000 * (i + 1); G.winStage(); await frames(G, 400);
+      if (G.state !== 'stepdone' || document.querySelectorAll('#s-result .ov-chip').length !== 20) { bad.push('overview stage ' + (i + 1) + ' (' + G.state + ')'); break; }
+      const btns = [].map.call(document.querySelectorAll('#s-result .ov-btns [data-act]'), function (b) { return b.dataset.act; }).join();
+      if (btns !== 'ov-retry,ov-next,ov-menu') bad.push('tombol overview ' + btns);
+      document.querySelector('#s-result [data-act="ov-next"]').click(); await sleep(80);
+      if (i < 2 && (G.state !== 'intro' || G.adv.step !== i + 1)) bad.push('Lanjut dari stage ' + (i + 1) + ' → ' + G.state + '/' + G.adv.step);
+    }
+    if (G.state === 'story') { U.storyEnd(); await sleep(80); }
+    const resBtns = [].map.call(document.querySelectorAll('#s-result [data-act]'), function (b) { return b.dataset.act; }).join(), badge = !!document.querySelector('#s-result .k-badge'), hi = S.highScore;
+    ok('alur: Stage 1 → Lanjut Stage 2 → Lanjut Stage 3 (boss) → ending cerita → hasil akhir; kategori + kesulitan sama; telur 3/3; 20 soal; tiap overview 20 chip', bad.length === 0 && G.state === 'result', bad.join('; ') + ' state ' + G.state);
+    ok('hasil akhir: "Rekor baru!" bila rekor lama terlampaui; rekor tersimpan; tombol kembali ke halaman awal (tanpa tombol pilih kategori)', badge && hi >= 6000 && /^again,quit$/.test(resBtns), 'badge ' + badge + ', rekor ' + hi + ', tombol ' + resBtns);
+    document.querySelector('#s-result [data-act="quit"]').click(); await sleep(150);
+    ok('kembali ke halaman awal: mesin dibongkar (tanpa canvas permainan, tombol jeda, loop rAF, audio); halaman awal tampil dengan pilihan terakhir', !GA.Game.booted && !$('game') && !$('pause-hud') && !$('s-pause') && !GA.Audio.isOpen() && GA.Start.isShown() && $('s-start').classList.contains('show') && $('st-cats').querySelector('.on').dataset.id === 'mul' && (await rafCount(700)) === 0, 'booted ' + GA.Game.booted + ', audio ' + GA.Audio.isOpen());
+    try { window.dispatchEvent(new Event('resize')); window.dispatchEvent(new Event('blur')); document.dispatchEvent(new Event('visibilitychange')); await sleep(100); ok('setelah dibongkar: resize / blur / visibilitychange tidak menimbulkan galat', true); } catch (e) { ok('setelah dibongkar: resize / blur tidak menimbulkan galat', false, e.message); }
+
+    // Game Over → Ulangi → Game Over → Menu (rekor baru hanya sekali)
+    S.data.highScore = 100; S.save();
+    $('st-play').click(); await until(function () { return G.state === 'intro'; }, 15000);
+    G.handlers.introGo(); await until(function () { return G.state === 'countdown'; }, 3000); G.skipCountdown(); await until(function () { return G.state === 'playing'; }, 3000);
+    G.run.score = 5000; for (let i = 0; i < 3; i++) G.loseEgg('uji'); await frames(G, 40); await until(function () { return G.state === 'story'; }, 3000); U.storyEnd(); await sleep(80);
+    const b1 = [].map.call(document.querySelectorAll('#s-result .ov-btns [data-act]'), function (b) { return b.dataset.act; }).join(), best1 = !!document.querySelector('#s-result .ov-best');
+    document.querySelector('#s-result [data-act="ov-retry"]').click(); await sleep(80); await until(function () { return G.state === 'countdown'; }, 3000); G.skipCountdown(); await until(function () { return G.state === 'playing'; }, 3000);
+    const eggsAgain = G.run.lives;
+    G.run.score = 4000; for (let i = 0; i < 3; i++) G.loseEgg('uji'); await frames(G, 40); await until(function () { return G.state === 'story'; }, 3000); U.storyEnd(); await sleep(80);
+    const best2 = !!document.querySelector('#s-result .ov-best'); document.querySelector('#s-result [data-act="ov-menu"]').click(); await sleep(150);
+    ok('Game Over: overview dengan Ulangi + Menu (tanpa Lanjut); "Rekor baru!" muncul sekali; Ulangi → telur 3/3; Menu → halaman awal', b1 === 'ov-retry,ov-menu' && best1 && !best2 && eggsAgain === 3 && S.highScore === 5000 && !GA.Game.booted && GA.Start.isShown(), b1 + ' rekor ' + best1 + '/' + best2 + ' telur ' + eggsAgain + ' tinggi ' + S.highScore);
+
+    // Menu dari popup Jeda (dengan konfirmasi bila ada progres)
+    $('st-play').click(); await until(function () { return G.state === 'intro'; }, 15000); G.handlers.introGo(); await until(function () { return G.state === 'countdown'; }, 3000); G.skipCountdown(); await until(function () { return G.state === 'playing'; }, 3000);
+    G.run.correct = 2; G.handlers.pause(); await sleep(80);
+    document.querySelector('#s-pause [data-act="p-quit"]').click(); await sleep(80); const confirmShown = U.confirmOpen();
+    document.querySelector('#s-pause [data-act="c-yes"]').click(); await sleep(150);
+    ok('Menu di popup Jeda: konfirmasi bila ada progres, lalu kembali ke halaman awal', confirmShown && !GA.Game.booted && GA.Start.isShown(), 'konfirmasi ' + confirmShown);
+
+    // main lagi setelah dibongkar: mesin dimuat ulang dari cache dan bisa dimainkan
+    $('st-play').click(); const again = await until(function () { return G.state === 'intro'; }, 15000);
+    ok('Mulai Main lagi setelah dibongkar: mesin menyala kembali dan Stage 1 siap', again && GA.Game.booted && !!$('game') && G.run.cfg.step === 0, G.state);
+    G.handlers.quit(); await sleep(100);
+    GA.keepEngine = kept; S.data = JSON.parse(saved); S.save();
+    await GA.Boot.ready(); GA.Start.show();
+  }
+
   async function runAll() {
 
 
@@ -505,6 +608,8 @@
     await testHazardPlacement();
     await testSteal();
     await testAudio();
+    await testStart();
+    await testFlow();
     await testLayers();
     await testSwapVisible();
     await testSwapTiming();

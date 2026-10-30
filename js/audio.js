@@ -19,7 +19,7 @@
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return null;
       try {
-        ctx = new AC();
+        ctx = GA.preCtx || new AC(); GA.preCtx = null;      // AudioContext yang sudah dibuat saat ketukan "Mulai Main" (js/boot.js) dipakai dulu
         master = ctx.createGain(); master.gain.value = 0.5;
         if (ctx.createDynamicsCompressor) {
           const cp = ctx.createDynamicsCompressor(); cp.threshold.value = -18; cp.knee.value = 14; cp.ratio.value = 4; cp.attack.value = 0.004; cp.release.value = 0.2;
@@ -300,6 +300,13 @@
     /** Lapisan ambient + kejadian acak untuk zona. */
     ambient: function (id) { if (id === ambId && bed) return; startAmbient(id); },
     stopAmbient: function () { clearInterval(ambTimer); ambTimer = 0; ambId = ''; stopBed(); },
+    /** Bongkar audio saat kembali ke halaman awal: hentikan musik + ambient, tutup AudioContext (dibuat lagi saat main berikutnya). */
+    shutdown: function () {
+      GA.Audio.stopMusic(); GA.Audio.stopAmbient(); const c = ctx;
+      ctx = master = sfxBus = ambBus = musBus = revSend = noiseBuf = curBus = null; bed = null; active = 0;
+      if (c && c.close) { try { c.close(); } catch (e) { /* abaikan */ } }
+    },
+    isOpen: function () { return !!ctx && ctx.state !== 'closed'; },
     /** Efek: arg diteruskan ke fungsi suara, pan −1..1 (posisi di layar), wet = kirim gema 0..1. */
     play: function (name, arg, pan, wet) {
       if (!enabled) return false;
