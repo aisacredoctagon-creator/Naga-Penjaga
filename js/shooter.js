@@ -20,7 +20,7 @@
       this.r = 46; this.ammoR = 32; this.nextR = 26;
       this.cur = makeAmmo(); this.nxt = makeAmmo();
       this.reload = 0; this.swapT = 0;
-      this.guideLen = 400;
+      this.guideLen = 400; this.aimPt = { x: 0, y: -100 }; this.aimDist = 220;      // titik bidik P (posisi pointer): target-lock memilih bola terdekat dari P
       this.dragon = new GA.Dragon.Dragon();
     }
     /** ballR = radius bola. Semua ukuran turunan dari konstanta di Theme. */
@@ -29,18 +29,19 @@
       this.ammoR = Theme.shooterBallRadius(ballR);          // bola api siap tembak = bola rantai (SHOOTER_BALL_SCALE = 1.0)
       this.nextR = Theme.nextBallRadius(ballR);             // bola preview (NEXT_BALL_SCALE)
     }
-    setPos(x, y) { this.x = x; this.y = y; }
+    setPos(x, y) { this.x = x; this.y = y; this.aimPt.x = x + Math.cos(this.angle) * this.aimDist; this.aimPt.y = y + Math.sin(this.angle) * this.aimDist; }
     reset() { this.cur = makeAmmo(); this.nxt = makeAmmo(); this.reload = 0; this.swapT = 0; this.dragon.reset(); }
     react(kind) { this.dragon.react(kind); }
     freeze(sec) { this.dragon.freeze(sec); }
     get frozen() { return this.dragon.frozen > 0; }
     aimAt(px, py) {
-      if (Math.hypot(px - this.x, py - this.y) < 20) return;
+      const d = Math.hypot(px - this.x, py - this.y); if (d < 20) return;
       const a = Math.atan2(py - this.y, px - this.x);
-      this.angle = a;
+      this.angle = a; this.aimPt.x = px; this.aimPt.y = py; this.aimDist = d;
       this.dragon.setAim(this.aim);
     }
-    setAngle(a) { this.angle = a; this.dragon.setAim(this.aim); }
+    /** Putar bidikan tanpa pointer (papan ketik, uji): titik bidik tetap pada jarak aimDist dari naga. */
+    setAngle(a) { this.angle = a; this.aimPt.x = this.x + Math.cos(a) * this.aimDist; this.aimPt.y = this.y + Math.sin(a) * this.aimDist; this.dragon.setAim(this.aim); }
     /** Sudut tembak sebenarnya = sudut bidik. */
     get aim() { return this.angle; }
     canFire() { return this.reload <= 0 && this.dragon.frozen <= 0; }
@@ -142,11 +143,34 @@
       return b;
     },
     clear: function () { for (const b of this.list) b.on = false; },
-    /** onStep(b) -> true jika peluru habis dipakai. */
-    update: function (dt, W, H, onStep) {
+    /** LONTARAN (revisi 8): bola api terbang melengkung di atas rantai selama `dur` dtk (tetap, berapa pun jaraknya) dari (x,y) ke bola target `tgt` (mengikuti posisinya) atau ke titik (tx,ty) bila tidak ada target.
+     *  Tidak bertabrakan dengan bola di sepanjang jalan; mendarat → onLand(b). Tinggi `peak` px (× ukuran), pembesaran `grow` di puncak. */
+    lob: function (x, y, tgt, tx, ty, ammo, dur, peak, grow) {
+      let b = null;
+      for (let i = 0; i < this.list.length; i++) if (!this.list[i].on) { b = this.list[i]; break; }
+      if (!b) { b = { on: false }; this.list.push(b); }
+      b.on = true; b.lob = true; b.sx = x; b.sy = y; b.x = x; b.y = y; b.px = x; b.py = y; b.tgt = tgt || null; b.tx = tx; b.ty = ty; b.u = 0; b.dur = dur; b.peak = peak; b.grow = grow;
+      b.ammo = ammo; b.age = 0; b.vx = b.vy = 0; b.bounces = 0; b.hgt = 0; b.scl = 1; b.hz = null;
+      return b;
+    },
+    /** onStep(b) -> true jika peluru lurus habis; onLobStep(b, sd) -> true bila lontaran habis di jalan (rintangan tinggi); onLand(b) saat lontaran mendarat. */
+    update: function (dt, W, H, onStep, onLobStep, onLand) {
       for (let i = 0; i < this.list.length; i++) {
         const b = this.list[i]; if (!b.on) continue;
         b.age += dt;
+        if (b.lob) {
+          const ex = b.tgt ? b.tgt.x : b.tx, ey = b.tgt ? b.tgt.y : b.ty, du = dt / b.dur, steps = Math.max(1, Math.ceil(Math.hypot(ex - b.sx, ey - b.sy) * du / 9)), sd = dt / steps;
+          for (let s = 0; s < steps; s++) {
+            b.px = b.x; b.py = b.y; b.u = Math.min(1, b.u + du / steps);
+            const tx = b.tgt ? b.tgt.x : b.tx, ty = b.tgt ? b.tgt.y : b.ty;
+            b.x = b.sx + (tx - b.sx) * b.u; b.y = b.sy + (ty - b.sy) * b.u;
+            const k = Math.sin(Math.PI * b.u); b.hgt = b.peak * k; b.scl = 1 + b.grow * k;
+            if ((b.trail = (b.trail || 0) + sd) > 0.012) { b.trail = 0; GA.FX.embers(b.x, b.y - b.hgt, (b.sx - b.x) * 0.1, (b.sy - b.y) * 0.1 - 20, 1, this.chainR * 0.5); }
+            if (onLobStep && onLobStep(b, sd)) { b.on = false; break; }
+            if (b.u >= 1) { if (onLand) onLand(b); b.on = false; break; }
+          }
+          continue;
+        }
         const dist = this.speed * dt, steps = Math.max(1, Math.ceil(dist / 9)), sd = dt / steps;
         for (let s = 0; s < steps; s++) {
           b.px = b.x; b.py = b.y;
@@ -160,6 +184,13 @@
     draw: function (ctx, px, t) {
       for (let i = 0; i < this.list.length; i++) {
         const b = this.list[i]; if (!b.on) continue;
+        if (b.lob) {      // bayangan di tanah (tertinggal) + bola api membesar dan terangkat di atas bola lain
+          const rad = this.chainR, sh = Math.max(0.55, 1 - 0.35 * Math.sin(Math.PI * b.u)), a = Math.atan2((b.tgt ? b.tgt.y : b.ty) - b.sy, (b.tgt ? b.tgt.x : b.tx) - b.sx);
+          ctx.save(); ctx.fillStyle = 'rgba(0,0,0,' + (0.38 * sh).toFixed(2) + ')'; ctx.beginPath(); ctx.ellipse(b.x, b.y + rad * 0.15, rad * 0.95 * sh, rad * 0.55 * sh, 0, 0, 6.283); ctx.fill(); ctx.restore();
+          GA.Fire.drawTrail(ctx, b.x, b.y - b.hgt, rad * b.scl, a, t + i, 1);
+          drawAmmo(ctx, b.x, b.y - b.hgt, rad * b.scl, b.ammo, px, t, a);
+          continue;
+        }
         const rad = this.chainR, a = Math.atan2(b.vy, b.vx);
         GA.Fire.drawTrail(ctx, b.x, b.y, rad, a, t + i, 1);
         drawAmmo(ctx, b.x, b.y, rad, b.ammo, px, t, a);

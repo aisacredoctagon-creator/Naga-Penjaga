@@ -96,7 +96,7 @@
         const p = this.pend; p.t += dt;
         p.pairs = p.pairs.filter(function (pr) {      // salah satu bola hancur / jadi terlarang selama indikator: batal dengan efek kecil
           const bad = !stillOk(ch, pr[0], gp, o.qm) || !stillOk(ch, pr[1], gp, o.qm);
-          if (bad) { this.stats.fizzled++; if (o.hooks && o.hooks.fizzle) o.hooks.fizzle(pr); }
+          if (bad) { this.stats.fizzled++; const rs = this.stats.why || (this.stats.why = {}), w = [pr[0], pr[1]].map(function (b) { return ch.balls.indexOf(b) < 0 ? 'hilang' : !ch.visible(b) ? 'tak-terlihat' : b.d > ch.path.length * (1 - gp.SWAP_END_GUARD) ? 'ujung' : 'terjawab'; }).filter(function (x, i) { return !stillOk(ch, pr[i], gp, o.qm); }); rs[w.join('+')] = (rs[w.join('+')] || 0) + 1; if (o.hooks && o.hooks.fizzle) o.hooks.fizzle(pr); }
           return !bad;
         }, this);
         if (!p.pairs.length) { this.finish(); return; }

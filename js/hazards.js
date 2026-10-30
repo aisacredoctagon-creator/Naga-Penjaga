@@ -1,6 +1,8 @@
 /* hazards.js — RINTANGAN per zona di sekitar naga penembak (tahap f). Setiap rintangan bersifat SEMENTARA dan diberi PERINGATAN ±1 detik.
  *
  * Mekanik (satu jenis perilaku, banyak tampilan):
+ * REVISI 8 (tembakan lontar): bola api terbang di atas rantai, jadi hanya rintangan TINGGI (blocks: true: kristal, stalaktit, lahar, batu panas, pilar petir rune) yang memblokir garis naga → target;
+ *   rintangan rendah (thorn, lily, wave) dilewati lontaran (hanya hiasan sementara). Peluru lontar yang kena rintangan tinggi: strike = hancur + telur hilang, kristal = diserap tanpa hukuman.
  *   slow     memperlambat peluru, tidak memblokir           thorn (semak berduri tipis)
  *   deflect  membelokkan peluru yang melintas               wave (arus/ombak)
  *   reflect  memantulkan peluru satu kali                   lily (teratai/batu licin), crystal (kristal pemantul)
@@ -21,9 +23,9 @@
 
   /** Definisi jenis. r = radius (px logis, dikali skala bola), warn = detik peringatan, on = detik aktif (persisten: umur), base = jeda muncul dasar (dtk). */
   const KINDS = {
-    thorn:      { mech: 'slow',    r: [24, 30], warn: 1.0, on: [10, 14], base: 15, max: 2, blocks: true },
+    thorn:      { mech: 'slow',    r: [24, 30], warn: 1.0, on: [10, 14], base: 15, max: 2, blocks: false },      // rendah: lontaran melewatinya
     wave:       { mech: 'deflect', r: [48, 58], warn: 1.0, on: [7, 10],  base: 18, max: 1, blocks: false },
-    lily:       { mech: 'reflect', r: [20, 24], warn: 1.0, on: [9, 13],  base: 20, max: 1, blocks: true },
+    lily:       { mech: 'reflect', r: [20, 24], warn: 1.0, on: [9, 13],  base: 20, max: 1, blocks: false },      // rendah (batu licin)
     crystal:    { mech: 'reflect', r: [19, 23], warn: 1.0, on: [9, 13],  base: 22, max: 1, blocks: true },
     geyser:     { mech: 'strike',  r: [26, 32], warn: 1.0, on: [1.4, 1.8], base: 9,  max: 1, blocks: true },
     hotrock:    { mech: 'strike',  r: [28, 34], warn: 1.2, on: [0.6, 0.8], base: 12, max: 1, blocks: true },
@@ -136,6 +138,7 @@
       for (let i = 0; i < this.list.length; i++) {
         const e = this.list[i], K = KINDS[e.kind];
         if (e.mech === 'veil' || e.mech === 'blind') continue;
+        if (b.lob && !K.blocks) continue;      // lontaran terbang di atas rintangan rendah
         if (e.mech === 'strike' && !this.isOn(e)) continue;
         if (e.mech !== 'strike' && this.phase(e) !== 'on') continue;
         this.pos(e, p);
@@ -148,7 +151,7 @@
         else if (e.mech === 'deflect') { const a = e.dir * 2.8 * dt, ca = Math.cos(a), sa = Math.sin(a), vx = b.vx * ca - b.vy * sa, vy = b.vx * sa + b.vy * ca; b.vx = vx; b.vy = vy; }
         else if (e.mech === 'reflect') {
           e.hit = 0.25;
-          if (b.bounces >= 1) return 'absorb';
+          if (b.bounces >= 1 || b.lob) return 'absorb';      // lontaran diserap kristal (tanpa hukuman)
           let nx = b.x - p.x, ny = b.y - p.y; const nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl; const dot = b.vx * nx + b.vy * ny;
           if (dot < 0) { b.vx -= 2 * dot * nx; b.vy -= 2 * dot * ny; }
           const away = e.r * 0.95 + rO + 2; b.x = p.x + nx * away; b.y = p.y + ny * away; b.bounces++;

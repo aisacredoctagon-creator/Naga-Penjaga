@@ -151,7 +151,7 @@
 
   function easeOut(t) { return 1 - (1 - t) * (1 - t); }
 
-  function drawPortal(ctx, t, dt) { PS.forEach(function (P) { drawPortalOne(P, ctx, t, dt); }); }
+  function drawPortal(ctx, t, dt) { dt = dt > 0 ? Math.min(dt, 0.25) : 0; PS.forEach(function (P) { drawPortalOne(P, ctx, t, dt); }); }
 
   function drawPortalOne(P, ctx, t, dt) {
     if (!P.has || P.open <= 0.001) { P.open = Math.max(0, P.open + (P.target - P.open) * Math.min(1, dt * 5)); return; }

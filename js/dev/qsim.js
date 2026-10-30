@@ -25,16 +25,7 @@
     if (this.mode === 'wrong') { const vis = G.pendingVisible().filter(function (b) { return b.qid !== r.qid && G.openLine(b); }); tgt = vis[0] || null; }
     else tgt = G.allBalls().find(function (b) { return b.kind === 'num' && b.qid === r.qid && b.ch.visible(b); });
     if (!tgt) return;
-    let m = sh.muzzle({ x: 0, y: 0 }); const B = GA.Shooter.Bullets;
-    for (let it = 0; it < 4; it++) { sh.setAngle(Math.atan2(tgt.y - m.y, tgt.x - m.x)); m = sh.muzzle({ x: 0, y: 0 }); }
-    if (!G.openLine(tgt)) return;
-    if (r.haz.blocksLine(m.x, m.y, tgt.x, tgt.y, Math.hypot(tgt.x - m.x, tgt.y - m.y) / B.speed + 0.15)) return;
-    for (let k = 0; k < r.haz.list.length; k++) { const e = r.haz.list[k]; if (e.mech === 'deflect') { const vx = tgt.x - m.x, vy = tgt.y - m.y, l2 = vx * vx + vy * vy || 1, u = Math.max(0, Math.min(1, ((e.x - m.x) * vx + (e.y - m.y) * vy) / l2)); if (Math.hypot(e.x - (m.x + u * vx), e.y - (m.y + u * vy)) < e.r + 24) return; } }
-    if (this.mode === 'wrong') {      // pastikan bola pertama yang kena memang bola angka salah (bukan jawaban benar)
-      let px = m.x, py = m.y, pred = null; const ux = Math.cos(sh.aim), uy = Math.sin(sh.aim);
-      for (let s = 0; s < 120 && !pred; s++) { px += ux * 9; py += uy * 9; pred = r.chain.hit(px, py, B.r); }
-      if (!pred || pred.kind !== 'num' || pred.qid === r.qid) return;
-    }
+    if (G.aimAtBall(tgt) !== tgt || !G.openLine(tgt)) return;      // target-lock memilih bola itu; garis lurus bebas rintangan tinggi
     G.fire(); this.shots++; this.think = this.mode === 'wrong' ? 2 : 1.6;
   };
 
@@ -148,7 +139,7 @@
     try {
       for (const step of [1, 2]) {
         let mgr = null, badRun = 0, maxBad = 0, minR = 9, maxR = 0, qBefore = null, qChanged = 0;
-        const o = await drive({ step: step, mode: 'bot', secs: 260, immortal: true, think: 5,
+        const o = await drive({ step: step, mode: 'bot', secs: 260, immortal: true, think: 9,      // bot lambat: jawaban benar membatalkan pasangan yang memuat bola soal aktif, jadi jendela penukaran harus cukup panjang
           before: function (t, r) { mgr = r.swap || mgr; },
           after: function (t, r) {
             const c = r.chain; if (!c || c.animating()) { badRun = 0; return; }
@@ -157,7 +148,7 @@
           },
           stop: function (t, r) { return !!mgr && mgr.stats.executed >= 5 && t > 40; } });
         clean(o, ['STEP_START', 'ANSWERED_CORRECT', 'TIMEOUT'], 'penukaran bola stage ' + (step + 1));
-        ok('stage ' + (step + 1) + ': penukaran terjadi berulang (≥ 5; penjaga 4 dtk awal dan 3 dtk setelah soal berganti membatasi jendela) dan jarak bola tetap rapat sesudahnya', !!mgr && mgr.stats.executed >= 5 && maxBad < 30, 'indikator ' + (mgr ? mgr.stats.telegraphs : 0) + ', tukar ' + (mgr ? mgr.stats.executed : 0) + ', batal ' + (mgr ? mgr.stats.fizzled : 0) + ', rasio ' + minR.toFixed(3) + '–' + maxR.toFixed(3));
+        ok('stage ' + (step + 1) + ': penukaran terjadi berulang (≥ 5; penjaga 4 dtk awal dan 3 dtk setelah soal berganti membatasi jendela) dan jarak bola tetap rapat sesudahnya', !!mgr && mgr.stats.executed >= 5 && maxBad < 30, 'indikator ' + (mgr ? mgr.stats.telegraphs : 0) + ', tukar ' + (mgr ? mgr.stats.executed : 0) + ', batal ' + (mgr ? mgr.stats.fizzled : 0) + (mgr && mgr.stats.why ? ' ' + JSON.stringify(mgr.stats.why) : '') + ', rasio ' + minR.toFixed(3) + '–' + maxR.toFixed(3));
         G().handlers.quit();
       }
     } finally { E[1] = save[1]; E[2] = save[2]; }

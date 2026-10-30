@@ -20,7 +20,7 @@
   let attract = null;          // adegan dekoratif di menu
   let t = 0, last = 0, hudShown = false, frameDt = 0;
   const keys = {};
-  const ptr = { down: false, onShooter: false, id: null };
+  const ptr = { down: false, onShooter: false, id: null, type: 'mouse' };      // type: 'mouse' | 'touch' | 'key' (radius target-lock dan offset titik bidik)
   const tmpM = { x: 0, y: 0 }, shk = { x: 0, y: 0 };
 
   /* ================= layout & latar ================= */
@@ -142,40 +142,37 @@
   const batsFacade = { balls: null, visible: function (b) { return b.ch.visible(b); } };
   function batsView() { batsFacade.balls = allBalls(); return batsFacade; }
 
-  /** Penghalang garis tembak dari mulut naga ke bola b: null (terbuka) | { ball } (bola lain yang lebih dekat) | { haz } (rintangan zona). */
+  /** Penghalang lontaran dari mulut naga ke bola b (revisi 8): null (terbuka) | { haz } = rintangan TINGGI aktif / hampir aktif di garis lurus. Bola lain TIDAK pernah menghalangi (bola api terbang di atasnya). */
   function lineBlocker(b) {
-    const sh = run.shooter; sh.muzzle(tmpM);
-    const dx = b.x - tmpM.x, dy = b.y - tmpM.y, dist = Math.hypot(dx, dy) || 1, ux = dx / dist, uy = dy / dist;
-    const hzb = run.haz.blocksLine(tmpM.x, tmpM.y, b.x, b.y, 0);
-    if (hzb) return { haz: hzb };
-    // sama dengan fisika peluru (Chain.hit): bola yang tersentuh lebih dulu menghalangi; bola yang SUDAH menempel pada peluru saat lahir (mulut naga dekat jalur) dipilih menurut pusat terdekat,
-    // jadi bola tujuan yang pusatnya paling dekat tidak dianggap terhalang oleh bola bertetangga yang ikut menempel
-    const rad = run.R * 0.92 + Bullets.r, sb = rayCircle(tmpM.x, tmpM.y, ux, uy, b.x, b.y, rad);
-    let best = null, bd = Infinity;
-    for (const c of allBalls()) {
-      if (c === b || !c.ch.visible(c)) continue;
-      const d = rayCircle(tmpM.x, tmpM.y, ux, uy, c.x, c.y, rad);
-      let blocks;
-      if (sb <= 0) blocks = d <= 0 && Math.hypot(c.x - tmpM.x, c.y - tmpM.y) < dist;      // keduanya menempel saat lahir: pusat terdekat menang
-      else blocks = d < sb - run.R * 0.4;
-      if (blocks && d < bd) { bd = d; best = c; }
-    }
-    return best ? { ball: best } : null;
+    const sh = run.shooter, a = Math.atan2(b.y - sh.y, b.x - sh.x), d0 = sh.r * Theme.dragon.mouthDist, mx = sh.x + Math.cos(a) * d0, my = sh.y + Math.sin(a) * d0;
+    const hzb = run.haz.blocksLine(mx, my, b.x, b.y, run.gp.LOB_TIME);
+    return hzb ? { haz: hzb } : null;
   }
   function openLine(b) { return !lineBlocker(b); }
 
-  /** Anti-macet: bila semua bola target yang terlihat terhalang bola khusus (beku/emas) > 1 dtk, penghalangnya lenyap sendiri. */
+  /** Anti-macet: bila bola target terhalang rintangan tinggi > 1 dtk, rintangan itu menyingkir. */
   function clearBlockers(vis) {
-    let removed = false;
     vis.forEach(function (b) {
       const blk = lineBlocker(b); if (!blk) return;
-      if (blk.haz) { run.haz.remove(blk.haz); FX.ring(blk.haz.x, blk.haz.y, '#ffd27a', 40); return; }      // rintangan zona menyingkir
-      const c = blk.ball;
-      if (removed || c.kind === 'num') return;
-      removed = true;
-      c.ch.remove(c); FX.burst(c.x, c.y, ['#fff', '#c9a0ff', '#ffd27a'], 16); FX.ring(c.x, c.y, '#c9a0ff', 40);
-      if (c.kind === 'egg') { healEgg(); setInfo({ tone: 'good', icon: 'egg', text: T('fx.egg') }); Audio.play('egg'); } else Audio.play('swap');
+      run.haz.remove(blk.haz); FX.ring(blk.haz.x, blk.haz.y, '#ffd27a', 40);
     });
+  }
+
+  /** TARGET-LOCK: bola terlihat terdekat dengan titik bidik (px,py) dalam radius mult × R, atau null. Pitch jalur ≥ 2,6R dan jarak tetangga rantai 1,96R membuat pilihan tidak ambigu. */
+  function pickTarget(px, py, mult) {
+    let best = null, bd = (mult * run.R) * (mult * run.R);
+    for (const b of allBalls()) {
+      if (!b.ch.visible(b)) continue;
+      const dx = b.x - px, dy = b.y - py, d2 = dx * dx + dy * dy; if (d2 < bd) { bd = d2; best = b; }
+    }
+    return best;
+  }
+  function lockMult() { return ptr.type === 'mouse' ? run.gp.LOCK_RADIUS : run.gp.LOCK_RADIUS_TOUCH; }
+  /** Perbarui target-lock tiap frame dan penonjolan bola yang terkunci. */
+  function updateLock(r, dt) {
+    const sh = r.shooter, tgt = state === 'playing' ? pickTarget(sh.aimPt.x, sh.aimPt.y, lockMult()) : null;
+    r.lock = tgt; r.lockBlocked = tgt ? !!lineBlocker(tgt) : false;
+    allBalls().forEach(function (b) { const k = b.lockK || 0, want = b === tgt ? 1 : 0; b.lockK = Math.abs(want - k) < 0.01 ? want : k + (want - k) * Math.min(1, dt * 14); });
   }
 
   /** Bola target yang soalnya belum selesai dan sudah muncul di jalur. */
@@ -231,15 +228,7 @@
     if (!ab || !ab.ch.visible(ab)) { run.blockedT = 0; return; }       // belum keluar / di belakang portal: tunggu, soal tetap
     if (!lineBlocker(ab)) { run.blockedT = 0; return; }
     run.blockedT += 0.3;
-    if (run.blockedT > 1.0) clearBlockers([ab]);                        // rintangan menyingkir, bola khusus pecah
-    if (run.blockedT > 2.4) {                                           // masih terhalang bola angka lain: tukar TEMPATNYA (soal tetap, bola jawaban pindah ke depan)
-      const blk = lineBlocker(ab);
-      if (blk && blk.ball && blk.ball.kind === 'num') {
-        const o = blk.ball; ab.ch.swapPositions(ab, o, run.gp.SWAP_ANIM);      // soal tetap; bola jawaban tukar tempat dengan penghalang (sumber penukaran yang sama dengan kelelawar/penyihir)
-        FX.ring(ab.x, ab.y, '#c9a0ff', 44); FX.ring(o.x, o.y, '#c9a0ff', 44); Audio.play('swap');
-      }
-      run.blockedT = 0;
-    }
+    if (run.blockedT > 1.0) { clearBlockers([ab]); run.blockedT = 0; }                        // rintangan tinggi menyingkir
   }
 
   function shuffled(a, rng) {
@@ -334,7 +323,7 @@
       score: adv.score, scoreAtStart: adv.score, scoreShown: adv.score, combo: 0, maxCombo: 0, comboPulse: 0,
       correct: 0, wrong: 0, shots: 0, progress: 0, total: cfg.total, qm: qm, deck: qm.questions, attempt: attempt, beacons: [], qTrans: null, qExpire: 0, blockedT: 0, qPop: 0, qTime: 0, qTimeMax: 0,
       info: null, qFlash: 0, coach: [], coachT: 0, swap: null, later: [], lifeLostT: 0, ensureT: 0,
-      playing: false, clearT: 0, clearQ: null, dyingT: 0, reason: '', time: 0, bossDone: false, guide: []
+      playing: false, clearT: 0, clearQ: null, dyingT: 0, reason: '', time: 0, bossDone: false, guide: [], lock: null, lockBlocked: false
     };
     run.haz = makeHaz(run);
     // soal aktif hanya boleh diubah lewat qm.advance(): properti ini hanya-baca (menulis = pelanggaran, dicatat / melempar Error pada mode ketat)
@@ -549,11 +538,29 @@
     const sh = run.shooter;
     if (state !== 'playing' || !sh.canFire() || anySettling()) return; // tunggu rantai selesai bergeser / menutup celah
     sh.muzzle(tmpM);
-    const bl = Bullets.fire(tmpM.x, tmpM.y, sh.aim, sh.takeShot());
+    const gp = run.gp, tgt = run.lock;      // target-lock saat ini (null bila tidak ada bola dalam radius: bola api terbang ke titik bidik lalu padam tanpa hukuman)
+    const bl = Bullets.lob(tmpM.x, tmpM.y, tgt, sh.aimPt.x, sh.aimPt.y, sh.takeShot(), gp.LOB_TIME, gp.LOB_PEAK * run.R, gp.LOB_GROW);
     FX.muzzle(tmpM.x, tmpM.y, sh.aim, run.R); FX.shake(2.5);
     bl.serial = run.qSerial;
     run.shots++;
     Audio.play('fire');
+  }
+
+  /** Lontaran kena rintangan tinggi di jalan (strike = hancur + telur hilang, kristal = diserap tanpa hukuman). */
+  function onLobStep(b, sd) {
+    const hz = run.haz.bullet(b, sd || 0.01);
+    if (hz === 'kill') {
+      FX.burst(b.x, b.y, ['#ffb02e', '#ff5a1a', '#fff'], 14); Audio.play('rock');
+      setInfo({ tone: 'bad', icon: 'warn', text: T('fb.obst') }); loseEgg('Peluru mengenai rintangan'); return true;
+    }
+    if (hz === 'absorb' || hz === 'bounce') { FX.burst(b.x, b.y, ['#7fe3ff', '#fff'], 10); return true; }
+    return false;
+  }
+  /** Lontaran mendarat: hasil memakai mekanik yang sudah ada pada bola TARGET; bila target sudah hilang / tidak ada, bola api padam tanpa hukuman. */
+  function onLobLand(b) {
+    const ball = b.tgt;
+    if (ball && ball.ch.balls.indexOf(ball) >= 0 && ball.ch.visible(ball)) { b.x = ball.x; b.y = ball.y; ballHit(b, ball); return; }
+    FX.burst(b.x, b.y, ['#ffb02e', '#ffe8a0', '#fff'], 8); FX.ring(b.x, b.y, '#ffd27a', run.R * 1.2);
   }
 
   function swapAmmo() { if (state === 'playing') { run.shooter.swap(); Audio.play('swap'); } }
@@ -638,18 +645,13 @@
     return Math.max(0, proj - Math.sqrt(rad * rad - d2));
   }
 
-  /** Garis bidik: satu ruas lurus, berhenti di bola pertama (atau panjang maksimum). */
+  /** Garis bidik (revisi 8): dari mulut naga ke bola target-lock (berhenti di tepi bola) atau ke titik bidik; digambar di BAWAH bola. */
   function computeGuide(r) {
-    const sh = r.shooter, segs = [], rad = r.R * 0.92 + Bullets.r;
-    sh.muzzle(tmpM);
-    const x = tmpM.x, y = tmpM.y, dx = Math.cos(sh.aim), dy = Math.sin(sh.aim);
-    let best = 330;
-    if (r.haz && r.haz.blind > 0.3) best = Math.min(best, 80);      // asap kutukan menutup garis bidik
-    for (const b of allBalls()) {
-      if (!b.ch.visible(b)) continue;
-      const d = rayCircle(x, y, dx, dy, b.x, b.y, rad); if (d < best) best = d;
-    }
-    segs.push({ x0: x, y0: y, x1: x + dx * best, y1: y + dy * best, end: true });
+    const sh = r.shooter, segs = []; sh.muzzle(tmpM);
+    const tx = r.lock ? r.lock.x : sh.aimPt.x, ty = r.lock ? r.lock.y : sh.aimPt.y; let dx = tx - tmpM.x, dy = ty - tmpM.y, len = Math.hypot(dx, dy) || 1; dx /= len; dy /= len;
+    if (r.lock) len = Math.max(0, len - r.R * 1.15);
+    if (r.haz && r.haz.blind > 0.3) len = Math.min(len, 80);      // asap kutukan menutup garis bidik
+    segs.push({ x0: tmpM.x, y0: tmpM.y, x1: tmpM.x + dx * len, y1: tmpM.y + dy * len, end: true });
     r.guide = segs;
   }
 
@@ -661,6 +663,8 @@
     if (state === 'playing') {
       if (keys.ArrowLeft || keys.a) sh.setAngle(sh.angle - 2.4 * dt);
       if (keys.ArrowRight || keys.d) sh.setAngle(sh.angle + 2.4 * dt);
+      if (keys.ArrowUp || keys.w) { sh.aimDist = Math.min(760, sh.aimDist + 360 * dt); sh.setAngle(sh.angle); }      // papan ketik: ↑/↓ memperjauh / mendekatkan titik bidik
+      if (keys.ArrowDown || keys.s) { sh.aimDist = Math.max(70, sh.aimDist - 360 * dt); sh.setAngle(sh.angle); }
     }
     sh.update(dt);
     if (r.boss) r.boss.update(dt);
@@ -679,7 +683,7 @@
       const c = r.chain;
       c.update(dt); r.haz.update(dt); if (r.swap) r.swap.update(dt);
       for (let i = r.later.length - 1; i >= 0; i--) { const q = r.later[i]; q.t -= dt; if (q.t <= 0) { r.later.splice(i, 1); q.fn(); } }
-      Bullets.update(dt, L.W, L.H, onBulletStep);
+      Bullets.update(dt, L.W, L.H, onBulletStep, onLobStep, onLobLand);
       if (state !== 'playing') return;
 
       if (r.boss) { const sp = r.boss.tick(dt); if (sp) castSpell(sp); }
@@ -732,7 +736,7 @@
         if (be.n <= 0 && be.b.ch.visible(be.b)) { be.n = 0.45; FX.ring(be.b.x, be.b.y, '#fff6a0', r.R * 2.3); }
       }
 
-      computeGuide(r);
+      updateLock(r, dt); computeGuide(r);
     } else if (state === 'clearing') {
       r.chain.update(dt);
       updateClearing(dt);
@@ -755,6 +759,26 @@
     const e = segs[segs.length - 1];
     ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(e.x1, e.y1, 9, 0, 6.283); ctx.stroke();
+  }
+
+  /** Cincin target-lock: cincin di sekeliling bola terkunci (merah bila terhalang rintangan tinggi) + penanda kecil di atasnya (di bawah/samping bila dekat HUD); tanpa target: cincin putus-putus di titik bidik
+   *  (tempat bola api akan padam). Hanya garis: angka bola tidak tertutup. Pada layar sentuh titik bidik digeser di atas jari, jadi cincin tetap terlihat. */
+  function drawLock(sc) {
+    if (state !== 'playing' || (sc.haz && sc.haz.blind > 0.3)) return;
+    const R = sc.R, sh = sc.shooter, b = sc.lock, dark = 'rgba(12,4,34,0.9)', pulse = 0.5 + 0.5 * Math.sin(t * 8);
+    ctx.save(); ctx.lineCap = 'round';
+    if (b) {
+      const col = sc.lockBlocked ? '#ff6a5a' : '#fff2a0', rr = R * (1.22 + 0.05 * pulse);
+      ctx.strokeStyle = dark; ctx.lineWidth = Math.max(5, R * 0.2); ctx.beginPath(); ctx.arc(b.x, b.y, rr, 0, 6.283); ctx.stroke();
+      ctx.strokeStyle = col; ctx.lineWidth = Math.max(2.5, R * 0.1); ctx.beginPath(); ctx.arc(b.x, b.y, rr, 0, 6.283); ctx.stroke();
+      let my = b.y - R * 1.95; const down = my - R * 0.35 < L.hud + 4; if (down) my = b.y + R * 1.95;      // penanda kecil (panah ke bola) di atas bola
+      const dir = down ? -1 : 1, s = R * 0.3;
+      ctx.fillStyle = col; ctx.strokeStyle = dark; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(b.x, my + dir * s * 1.25); ctx.lineTo(b.x - s, my - dir * s * 0.7); ctx.lineTo(b.x + s, my - dir * s * 0.7); ctx.closePath(); ctx.stroke(); ctx.fill();
+    } else {
+      const p = sh.aimPt; ctx.setLineDash([5, 5]); ctx.strokeStyle = dark; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(p.x, p.y, R * 0.55, 0, 6.283); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,236,170,0.95)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, R * 0.55, 0, 6.283); ctx.stroke(); ctx.setLineDash([]);
+    }
+    ctx.restore();
   }
 
   /** ?debug=aim: garis bidik mentah (kuning), garis bidik hasil ray test (cyan), hitbox bola (merah, radius tumbukan peluru), titik portal (putih), dan angka. */
@@ -786,6 +810,7 @@
       if (sc === run) Bullets.draw(ctx, L.px, t);
       FX.draw(ctx);
       if (sc.swap) sc.swap.draw(ctx, t, sc.R);      // lapisan 7: indikator penukaran selalu di atas bola
+      if (sc === run) drawLock(sc);      // lapisan 7: cincin target-lock
       if (GA.LayersDebug && sc === run) GA.LayersDebug.draw(ctx, sc, L, t);
       return;
     }
@@ -846,6 +871,7 @@
 
   /** Satu langkah permainan: dt detik. Dipisah dari requestAnimationFrame agar bisa dijalankan manual (uji coba). */
   function tick(dt, noRender) {
+    if (!(dt > 0)) dt = 0;      // selisih waktu negatif / NaN (jam mundur) tidak boleh memutar animasi ke belakang
     if (dt > Gameplay.DEFAULTS.MAX_DT) dt = Gameplay.DEFAULTS.MAX_DT;      // tab di-resume / FPS jatuh: satu langkah tidak pernah lebih dari MAX_DT
     frameDt = state === 'paused' ? 0 : dt;
     const hudOn = state === 'playing' || state === 'paused'; if (hudOn !== hudShown) { hudShown = hudOn; UI.setHudButton(hudOn); }
@@ -873,6 +899,11 @@
   }
   const swapMin = function () { return Math.max(64, 26 / L.scale); };
 
+  /** Titik bidik dari event pointer: mouse = posisi pointer; sentuh = digeser ke atas TOUCH_OFFSET_PX dari ujung jari supaya jari tidak menutupi bola target (cincin target-lock tetap di luar jari). */
+  function aimPointOf(e, p) {
+    ptr.type = e.pointerType === 'touch' || e.pointerType === 'pen' ? 'touch' : 'mouse';
+    return ptr.type === 'touch' ? { x: p.x, y: p.y - run.gp.TOUCH_OFFSET_PX / L.scale } : p;
+  }
   canvas.addEventListener('pointerdown', function (e) {
     e.preventDefault(); Audio.unlock();
     if (state === 'cine') { skipCine(); return; }
@@ -882,13 +913,13 @@
     ptr.down = true; ptr.id = e.pointerId;
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* abaikan */ }
     ptr.onShooter = run.shooter.hitsSwap(p.x, p.y, swapMin());
-    if (!ptr.onShooter) run.shooter.aimAt(p.x, p.y);
+    const q = aimPointOf(e, p); if (!ptr.onShooter) run.shooter.aimAt(q.x, q.y);
   });
   canvas.addEventListener('pointermove', function (e) {
     if (state !== 'playing') return;
     if (!(ptr.down || e.pointerType === 'mouse')) return;
     if (ptr.down && ptr.onShooter) return;
-    const p = toLogical(e); run.shooter.aimAt(p.x, p.y);
+    const q = aimPointOf(e, toLogical(e)); run.shooter.aimAt(q.x, q.y);
   });
   function release(e) {
     if (!ptr.down || (e.pointerId !== undefined && e.pointerId !== ptr.id)) return;
@@ -896,7 +927,7 @@
     if (state !== 'playing') return;
     const p = toLogical(e);
     if (ptr.onShooter && run.shooter.hitsSwap(p.x, p.y, swapMin())) { swapAmmo(); return; }
-    run.shooter.aimAt(p.x, p.y);
+    const q = aimPointOf(e, p); run.shooter.aimAt(q.x, q.y); updateLock(run, 0);
     fire();
   }
   canvas.addEventListener('pointerup', function (e) { e.preventDefault(); release(e); });
@@ -1000,5 +1031,5 @@
   requestAnimationFrame(function (n) { last = n; frame(n); });
 
   // untuk uji coba / debugging
-  GA.game = { skipCountdown: function () { if (state === 'countdown' || state === 'intro') { UI.cancelCountdown(); UI.hide(); GA.Effects.openPortal(); beginPlay(); } }, get state() { return state; }, relayout: function () { relayout(); }, get run() { return run; }, get adv() { return adv; }, get layout() { return L; }, tick: tick, startAdventure: startAdventure, startStep: startStep, fire: fire, handlers: handlers, validateActive: validateActive, openLine: openLine, pendingVisible: pendingVisible, buildStream: buildStream, allBalls: allBalls, anySettling: anySettling, loseEgg: loseEgg, healEgg: healEgg };
+  GA.game = { lockTarget: function () { return run ? run.lock : null; }, pickTarget: function (x, y, m) { return pickTarget(x, y, m == null ? lockMult() : m); }, aimAtBall: function (b) { run.shooter.aimAt(b.x, b.y); updateLock(run, 0); return run.lock; }, aimAtPoint: function (x, y) { run.shooter.aimAt(x, y); updateLock(run, 0); return run.lock; }, setPointerType: function (k) { ptr.type = k; }, skipCountdown: function () { if (state === 'countdown' || state === 'intro') { UI.cancelCountdown(); UI.hide(); GA.Effects.openPortal(); beginPlay(); } }, get state() { return state; }, relayout: function () { relayout(); }, get run() { return run; }, get adv() { return adv; }, get layout() { return L; }, tick: tick, startAdventure: startAdventure, startStep: startStep, fire: fire, handlers: handlers, validateActive: validateActive, openLine: openLine, pendingVisible: pendingVisible, buildStream: buildStream, allBalls: allBalls, anySettling: anySettling, loseEgg: loseEgg, healEgg: healEgg };
 })(window.GA = window.GA || {});

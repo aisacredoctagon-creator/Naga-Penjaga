@@ -180,17 +180,9 @@
       const ab = G.allBalls().find(function (b) { return b.kind === 'num' && b.qid === r.qid; });
       if (!ab) continue;
       const open = G.openLine(ab); if (!open) st.blocked++;
-      let m = sh.muzzle({ x: 0, y: 0 }), want = Math.atan2(ab.y - m.y, ab.x - m.x);
-      for (let it = 0; it < 3; it++) { sh.setAngle(want); m = sh.muzzle({ x: 0, y: 0 }); want = Math.atan2(ab.y - m.y, ab.x - m.x); }      // mulut naga bergeser saat memutar: bidik berulang sampai konvergen
-      sh.setAngle(want);
-      let clear = open;
-      if (clear && r.haz.blocksLine(m.x, m.y, ab.x, ab.y, Math.hypot(ab.x - m.x, ab.y - m.y) / GA.Shooter.Bullets.speed + 0.15)) clear = false;   // tunggu rintangan zona selesai (ray test prediktif)
-      if (clear) for (let k = 0; k < r.haz.list.length; k++) { const e = r.haz.list[k]; if (e.mech === 'deflect' && segDist(e.x, e.y, m.x, m.y, ab.x, ab.y) < e.r + 24) { clear = false; break; } }   // ombak membelokkan api: bot sempurna menunggu (rantai rapat: peluru yang melenceng mengenai bola tetangga)
-      if (clear && think <= 0 && sh.canFire() && !G.anySettling() && !r.chain.balls.some(function (b) { return b.sw; })) {
-        { const B = GA.Shooter.Bullets, m2 = sh.muzzle({ x: 0, y: 0 }), ux = Math.cos(sh.aim), uy = Math.sin(sh.aim); let px = m2.x, py = m2.y, pred = null;   // diagnostik: bola pertama yang akan kena
-          for (let s = 0; s < 120 && !pred; s++) { px += ux * 9; py += uy * 9; pred = r.chain.hit(px, py, B.r); }
-          lastFire = { t: st.t.toFixed(0), path: r.cfg.pathId, tgt: ab.ch.balls.indexOf(ab), hit: pred ? pred.ch.balls.indexOf(pred) : -1, aim: ((Math.atan2(ab.y - m2.y, ab.x - m2.x) - sh.aim) * Math.hypot(ab.x - m2.x, ab.y - m2.y)).toFixed(0) + 'px', haz: r.haz.list.map(function (e) { return e.kind + ':' + e.mech; }).join(',') }; }
-        if (lastFire.hit >= 0 && lastFire.hit !== lastFire.tgt && (st.mis = (st.mis || 0) + dt) < 2.5) { /* bola lain akan kena lebih dulu: tunggu rantai bergeser */ } else { st.mis = 0; G.fire(); think = 1.6; } }
+      const lk = G.aimAtBall(ab); let clear = open && lk === ab;      // lontaran: target-lock di pusat bola; hanya rintangan tinggi yang menghalangi
+      if (clear && r.haz.blocksLine(sh.x, sh.y, ab.x, ab.y, r.gp.LOB_TIME)) clear = false;
+      if (clear && think <= 0 && sh.canFire() && !G.anySettling() && !r.chain.balls.some(function (b) { return b.sw; })) { lastFire = { t: st.t.toFixed(0), path: r.cfg.pathId, tgt: ab.ch.balls.indexOf(ab) }; G.fire(); think = 1.6; }
       if (r.wrong > wrongSeen) { wrongSeen = r.wrong; if (wrongInfo.length < 3) wrongInfo.push(JSON.stringify(lastFire)); }
       if (r.correct !== lastCorrect) { lastCorrect = r.correct; stuckT = 0; } else { stuckT += dt; maxStuck = Math.max(maxStuck, stuckT); }
     }

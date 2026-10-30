@@ -38,14 +38,8 @@
         if (G.state !== 'playing' || !r.q) continue;
         if (r.qid !== lastQ) { lastQ = r.qid; qStart = t; if (o.stat) record(o.stat, r, G); think = Math.max(o.minThink || 1.5, o.think[0] + o.think[1] * gauss(rnd)); wantWrong = rnd() >= o.acc; }
         think -= DT; if (think > 0 || cool > 0 || !sh.canFire() || G.anySettling() || r.chain.balls.some(function (b) { return b.sw; })) continue;
-        // bidik dulu (mulut naga bergeser mengikuti sudut), baru uji garis tembak: bola benar bila terbuka; bila ingin salah, coba bola angka lain satu per satu
-        const tryAim = function (b) {
-          sh.setAngle(Math.atan2(b.y - sh.y, b.x - sh.x)); m = sh.muzzle(m);      // sudut dari pusat naga (seperti pointer pemain): mulut ada di garis pusat → bola, jadi peluru lewat tepat di pusat bola
-          { const ux = Math.cos(sh.aim), uy = Math.sin(sh.aim); let hit = null; for (let d = 0; d < 1400 && !hit; d += 3) hit = r.chain.hit(m.x + ux * d, m.y + uy * d, B.r); if (hit !== b) return false; }      // prediksi fisik: bola pertama yang tersentuh peluru harus bola yang dituju (bukan openLine: mulut naga bisa sudah menempel pada bola bertetangga)
-          if (r.haz.blocksLine(m.x, m.y, b.x, b.y, Math.hypot(b.x - m.x, b.y - m.y) / B.speed + 0.15)) return false;
-          for (let k = 0; k < r.haz.list.length; k++) { const e = r.haz.list[k]; if (e.mech === 'deflect') { const vx = b.x - m.x, vy = b.y - m.y, l2 = vx * vx + vy * vy || 1, u = Math.max(0, Math.min(1, ((e.x - m.x) * vx + (e.y - m.y) * vy) / l2)); if (Math.hypot(e.x - (m.x + u * vx), e.y - (m.y + u * vy)) < e.r + 24) return false; } }
-          return true;
-        };
+        // bidik titik pusat bola (target-lock memilih bola itu) lalu uji garis lurus naga → target dari rintangan tinggi
+        const tryAim = function (b) { return G.aimAtBall(b) === b && G.openLine(b); };
         let aimed = false;
         if (wantWrong) { const vis = G.pendingVisible().filter(function (b) { return b.kind === 'num' && b.qid !== r.qid; }); for (let i = vis.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)), x = vis[i]; vis[i] = vis[j]; vis[j] = x; } for (let i = 0; i < vis.length && !aimed; i++) aimed = tryAim(vis[i]); }
         else { const tgt = G.allBalls().find(function (b) { return b.kind === 'num' && b.qid === r.qid && b.ch.visible(b); }); aimed = !!tgt && tryAim(tgt); }

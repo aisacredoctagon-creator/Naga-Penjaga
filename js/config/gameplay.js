@@ -62,6 +62,15 @@
     SWAP_AFTER: 1.0,                // detik setelah menukar cincin memudar di posisi BARU
     SWAP_MIN_START: 4,              // tidak ada penukaran dalam sekian detik pertama stage
     SWAP_AFTER_QUESTION: 3,         // ...dan dalam sekian detik setelah soal aktif berganti
+
+    /* --- tembakan LONTAR + target-lock (revisi 8): satuan R = radius bola --- */
+    LOCK_RADIUS: 1.0,               // target = bola terdekat dalam sekian × R dari titik bidik (mouse)
+    LOCK_RADIUS_TOUCH: 1.25,        // toleransi sentuh (jari kurang presisi)
+    TOUCH_OFFSET_PX: 56,            // titik bidik sentuh digeser ke atas sekian px layar dari ujung jari agar jari tidak menutupi bola target
+    LOB_TIME: 0.4,                  // detik terbang lontaran: tetap berapa pun jaraknya
+    LOB_PEAK: 0.9,                  // tinggi puncak lontaran (× R) di atas tanah
+    LOB_GROW: 0.25,                 // pembesaran bola api di puncak (1,0 → 1,25 → 1,0)
+    LOCK_BUMP: 0.06,                // bola yang terkunci sedikit menonjol (+6% ukuran)
     SWAP_END_GUARD: 0.1,            // bola di 10% terakhir jalur menuju sarang tidak boleh ditukar
     SWAP_PAIRS_PHASE2: 2,           // Stage 3, fase 2 boss: jumlah pasangan yang bertukar sekaligus
 

@@ -464,13 +464,14 @@
           if (b.out && b.d < len - r * 2 && (!nx || nx.d < b.d - this.D * 1.8) && !this.paused) GA.Balls.drawTrail(ctx, b.x, b.y, r, b.a, t);
         }
       }
-      const aura = this.slowT > 0 ? 'rgba(120,210,255,0.55)' : (this.fastT > 0 ? 'rgba(255,150,50,0.55)' : null);
+      const bump = this.gp.LOCK_BUMP == null ? 0.06 : this.gp.LOCK_BUMP, aura = this.slowT > 0 ? 'rgba(120,210,255,0.55)' : (this.fastT > 0 ? 'rgba(255,150,50,0.55)' : null);
       const one = function (b) {
         let x = b.x, y = b.y, rr = r, alpha = 1;
         const em = Math.max(0, Math.min(1, b.emT / emA));   // animasi keluar portal (berbasis waktu, singkat; HANYA visual: hitbox selalu penuh): sedikit lebih kecil & bercahaya -> ukuran penuh
         if (em < 1) { const k = em * em * (3 - 2 * em); rr = r * (0.84 + 0.16 * k); alpha = 1; }      // tidak pernah mengecil/pudar jauh dari hitbox: garis bidik dan tumbukan tetap sesuai tampilan
         if (b.d > len - r * 0.2) rr = Math.max(0.2, r * (1 - (b.d - (len - r * 0.2)) / (r * 2))); // jatuh ke lubang
         if (b.wob > 0) x += Math.sin(t * 70) * 4 * (b.wob / 0.5);
+        if (b.lockK > 0.01) rr *= 1 + bump * b.lockK;      // bola yang terkunci sedikit menonjol
         if (aura) { ctx.fillStyle = aura; ctx.beginPath(); ctx.arc(x, y, rr + 5, 0, 6.283); ctx.fill(); }
         if (em < 1) {
           const gl = ctx.createRadialGradient(x, y, 0, x, y, rr * 2.1); gl.addColorStop(0, 'rgba(255,235,255,' + (0.85 * (1 - em)).toFixed(2) + ')'); gl.addColorStop(1, 'rgba(180,120,255,0)');
