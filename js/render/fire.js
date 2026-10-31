@@ -1,87 +1,47 @@
-/* fire.js — bola api naga: inti putih-kuning panas, badan oranye-merah bergolak (turbulensi), lidah api, ekor api, cahaya aditif.
- *
- * Badan api dirender sebagai 8 frame sprite (per radius terkuantisasi) lalu diputar-putar urutannya + diputar menurut arah gerak,
- * jadi per frame hanya drawImage. Inti gelap di tengah polos (tanpa label angka); tingkat pengali skor (1-3) hanya terlihat dari panas cahaya api.
- * Ukuran bola api = BALL_RADIUS (sama dengan bola rantai); lidah api tidak mengubah ukuran dasar bola. */
+/* fire.js — bola api naga (revisi 11): INTI bara gelap bercincin oranye-kuning + 2–3 sprite lidah api prarender (bergantian ±12×/dtk) di belakang arah gerak. Tanpa noise/turbulensi,
+ * gradien per frame, atau komposit aditif; ekor = ≤ 6 partikel kecil dari pool FX (dibatasi di shooter.js). Ukuran = radius bola rantai (BALL_RADIUS).
+ * API: Fire.drawBall(ctx, x, y, r, ammo, px, t, dir) · Fire.drawTrail (no-op). dir = arah gerak (radian) atau null (nyala ke atas). */
 (function (GA) {
   'use strict';
-  const TAU = Math.PI * 2, FR = 8;
-  const store = { px: 0, map: Object.create(null), n: 0 };
-  const MULT = { 1: 0.85, 2: 1.0, 3: 1.2 };
+  const TAU = Math.PI * 2, store = { px: 0, n: 0, map: Object.create(null) };
 
-  function frame(qr, f, px) {
-    const pad = qr * 0.95, S = Math.ceil((qr * 2 + pad * 2) * px), c = document.createElement('canvas'); c.width = c.height = S;
-    const g = c.getContext('2d'), o = qr + pad, r = qr, ph = f / FR * TAU;
-    g.scale(px, px); g.translate(o, o);
-    // cahaya luar
-    const gl = g.createRadialGradient(0, 0, r * 0.7, 0, 0, r * 1.9); gl.addColorStop(0, 'rgba(255,150,40,0.55)'); gl.addColorStop(1, 'rgba(255,80,20,0)');
-    g.fillStyle = gl; g.beginPath(); g.arc(0, 0, r * 1.9, 0, TAU); g.fill();
-    // lidah api: bentuk kutub dengan turbulensi; lidah panjang mengarah ke atas (-y)
-    const lobe = function (scale, alpha, stops) {
-      g.beginPath();
-      for (let i = 0; i <= 64; i++) {
-        const a = i / 64 * TAU, up = Math.max(0, Math.sin(-a)), tongue = Math.pow(up, 2.2) * (0.32 + 0.2 * Math.sin(ph * 2 + 1.3)) + Math.pow(Math.max(0, Math.sin(-a + 0.7)), 5) * 0.2 * (0.6 + 0.4 * Math.sin(ph * 3));
-        const rr = r * scale * (0.9 + 0.09 * Math.sin(3 * a + ph) + 0.06 * Math.sin(5 * a - ph * 2) + 0.04 * Math.sin(9 * a + ph * 3) + tongue * 0.9);
-        if (i) g.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); else g.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
-      }
-      g.closePath();
-      const gr = g.createRadialGradient(0, r * 0.1, 0, 0, 0, r * scale * 1.5); stops.forEach(function (s) { gr.addColorStop(s[0], s[1]); });
-      g.globalAlpha = alpha; g.fillStyle = gr; g.fill(); g.globalAlpha = 1;
+  function mk(w) { const c = document.createElement('canvas'); c.width = c.height = w; return c; }
+
+  /** Lidah api datar (3 variasi): dua nada (merah-oranye lalu kuning), menjulur ke atas (-y) dari pusat bola. */
+  function tongue(qr, px, v) {
+    const S = Math.ceil(qr * 4.6 * px), c = mk(S), g = c.getContext('2d'); g.scale(px, px); g.translate(qr * 2.3, qr * 2.3);
+    const len = [1.9, 2.15, 1.75][v], wob = [0.12, -0.1, 0.05][v];
+    const flame = function (k, col) {
+      g.fillStyle = col; g.beginPath(); g.moveTo(-qr * 0.95 * k, qr * 0.1);
+      g.bezierCurveTo(-qr * 1.05 * k, -qr * 0.8 * k, -qr * (0.35 + wob) * k, -qr * 1.2 * k, qr * wob * k, -qr * len * k);
+      g.bezierCurveTo(qr * (0.4 - wob) * k, -qr * 1.1 * k, qr * 1.05 * k, -qr * 0.7 * k, qr * 0.95 * k, qr * 0.1); g.closePath(); g.fill();
     };
-    lobe(1.04, 0.85, [[0, 'rgba(255,120,30,0.95)'], [0.5, 'rgba(230,60,20,0.85)'], [1, 'rgba(160,20,10,0)']]);
-    lobe(1.0, 1, [[0, '#fff6c0'], [0.3, '#ffcf55'], [0.62, '#ff8a22'], [0.92, '#d9341a'], [1, 'rgba(160,20,10,0.8)']]);
-    // pusaran panas di cincin api (di luar inti)
-    g.strokeStyle = 'rgba(255,255,220,0.5)'; g.lineWidth = Math.max(1.2, r * 0.07); g.lineCap = 'round';
-    for (let k = 0; k < 3; k++) { const a = ph + k * 2.1; g.beginPath(); g.arc(0, 0, r * (0.8 + k * 0.07), a, a + 1.3); g.stroke(); }
-    // INTI: cakram bara gelap (arang menyala / segel naga) — tempat angka berada. Api berputar di sekelilingnya, TIDAK di bawah angka.
-    const cr = r * 0.64;
-    const cg = g.createRadialGradient(-cr * 0.2, -cr * 0.25, cr * 0.1, 0, 0, cr); cg.addColorStop(0, '#3a1a0e'); cg.addColorStop(0.7, '#1b0a05'); cg.addColorStop(1, '#0b0402');
-    g.fillStyle = cg; g.beginPath(); g.arc(0, 0, cr, 0, TAU); g.fill();
-    const rnd = GA.Noise.rng(5 + f);
-    g.lineCap = 'round'; g.lineJoin = 'round'; g.strokeStyle = 'rgba(255,110,30,' + (0.45 + 0.2 * Math.sin(ph)).toFixed(2) + ')'; g.lineWidth = Math.max(1, r * 0.035);
-    for (let k = 0; k < 6; k++) { let a = k * TAU / 6 + 0.4, d = cr * 0.78; g.beginPath(); g.moveTo(Math.cos(a) * d, Math.sin(a) * d); for (let s = 0; s < 3; s++) { a += (rnd() - 0.5) * 0.9; d -= cr * 0.18; g.lineTo(Math.cos(a) * d, Math.sin(a) * d); } g.stroke(); }
-    g.strokeStyle = 'rgba(255,236,160,0.85)'; g.lineWidth = Math.max(1.4, r * 0.06); g.beginPath(); g.arc(0, 0, cr, 0, TAU); g.stroke();                       // tepi panas cakram
-    g.strokeStyle = 'rgba(255,120,30,0.7)'; g.lineWidth = Math.max(1.2, r * 0.05); g.beginPath(); g.arc(0, 0, cr + r * 0.06, 0, TAU); g.stroke();
-    g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = Math.max(1, r * 0.04); g.beginPath(); g.arc(0, 0, cr * 0.9, 0.3, 2.8); g.stroke();                          // inner shadow bawah
+    flame(1, '#e8481c'); flame(0.78, '#ff9a2a'); flame(0.5, '#ffe27a');
     return c;
   }
-
-  function get(qr, f, px) {
-    if (store.px !== px || store.n > 200) { store.px = px; store.map = Object.create(null); store.n = 0; }
-    const key = qr + '|' + f;
-    return store.map[key] || (store.n++, store.map[key] = { c: frame(qr, f, px), pad: qr * 0.95 });
+  function body(qr, px) {
+    const pad = 4, S = Math.ceil((qr * 2 + pad * 2) * px), c = mk(S), g = c.getContext('2d'); g.scale(px, px); g.translate(qr + pad, qr + pad);
+    g.fillStyle = '#e8481c'; g.beginPath(); g.arc(0, 0, qr, 0, TAU); g.fill();                                  // cincin api
+    g.fillStyle = '#ffb02e'; g.beginPath(); g.arc(-qr * 0.05, -qr * 0.08, qr * 0.86, 0, TAU); g.fill();
+    g.fillStyle = '#2a0e08'; g.beginPath(); g.arc(0, 0, qr * 0.64, 0, TAU); g.fill();                           // inti bara gelap
+    g.strokeStyle = '#ff7a2a'; g.lineWidth = Math.max(1.4, qr * 0.07); g.lineCap = 'round';
+    for (let k = 0; k < 4; k++) { const a = k * TAU / 4 + 0.5; g.beginPath(); g.moveTo(Math.cos(a) * qr * 0.5, Math.sin(a) * qr * 0.5); g.lineTo(Math.cos(a + 0.25) * qr * 0.3, Math.sin(a + 0.25) * qr * 0.3); g.stroke(); }
+    g.strokeStyle = '#12101f'; g.lineWidth = Math.max(1.5, qr * 0.09); g.beginPath(); g.arc(0, 0, qr - g.lineWidth / 2, 0, TAU); g.stroke();
+    g.fillStyle = 'rgba(255,255,255,0.7)'; g.beginPath(); g.ellipse(-qr * 0.42, -qr * 0.55, qr * 0.18, qr * 0.09, -0.6, 0, TAU); g.fill();
+    return c;
+  }
+  function get(qr, px) {
+    if (store.px !== px || store.n > 12) { store.px = px; store.map = Object.create(null); store.n = 0; }
+    return store.map[qr] || (store.n++, store.map[qr] = { body: body(qr, px), t: [tongue(qr, px, 0), tongue(qr, px, 1), tongue(qr, px, 2)] });
   }
 
-  /** Gambar bola api di (x,y). dir = arah gerak (radian) atau null (diam: lidah api ke atas). ammo.mult hanya mengatur panas cahaya (tanpa label angka). */
   function drawBall(ctx, x, y, r, ammo, px, t, dir) {
-    const qr = Math.max(4, Math.round(r / 2) * 2), f = ((t * 14) | 0) % FR, s = get(qr, f, px), k = r / qr, m = MULT[ammo.mult] || 1;
-    const d = (qr * 2 + s.pad * 2) * k, o = (qr + s.pad) * k;
+    const qr = Math.max(4, Math.round(r / 2) * 2), s = get(qr, px || 1), k = r / qr, v = ((t * 12) | 0) % 3;
     ctx.save(); ctx.translate(x, y); ctx.rotate(dir == null ? 0 : dir + Math.PI * 1.5);
-    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.25 + 0.3 * m; ctx.drawImage(s.c, -o * 1.06, -o * 1.06, d * 1.06, d * 1.06);
-    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; ctx.drawImage(s.c, -o, -o, d, d);
+    const d = qr * 4.6 * k; ctx.drawImage(s.t[v], -d / 2, -d / 2, d, d);
     ctx.restore();
-    ctx.save(); ctx.globalCompositeOperation = 'lighter';      // percikan bara yang mengorbit
-    for (let i = 0; i < 3; i++) { const a = t * 3.2 + i * 2.09, d = r * (1.12 + 0.1 * Math.sin(t * 5 + i)); ctx.fillStyle = 'rgba(255,' + (170 + i * 25) + ',80,0.9)'; ctx.beginPath(); ctx.arc(x + Math.cos(a) * d, y + Math.sin(a) * d, r * 0.06, 0, TAU); ctx.fill(); }
-    ctx.restore();
+    const o = (qr + 4) * k; ctx.drawImage(s.body, x - o, y - o, o * 2, o * 2);
   }
 
-  /** Ekor api + cahaya dinamis untuk peluru yang melesat (additive, memanjang ke belakang). */
-  function drawTrail(ctx, x, y, r, dir, t, speedFactor) {
-    const bx = Math.cos(dir + Math.PI), by = Math.sin(dir + Math.PI), nx = -by, ny = bx, len = r * 4.2 * (speedFactor || 1);
-    ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    // cahaya yang menerangi sekitar
-    const gl = ctx.createRadialGradient(x, y, r * 0.5, x, y, r * 4.4); gl.addColorStop(0, 'rgba(255,150,50,0.34)'); gl.addColorStop(1, 'rgba(255,90,20,0)');
-    ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x, y, r * 4.4, 0, TAU); ctx.fill();
-    // tiga lidah ekor yang berkedip
-    [[0, 1, 'rgba(255,230,140,0.55)', 0.55], [0.55, 0.78, 'rgba(255,150,50,0.4)', 0.4], [-0.55, 0.72, 'rgba(255,90,30,0.36)', 0.4]].forEach(function (L, i) {
-      const l = len * L[1] * (0.85 + 0.15 * Math.sin(t * 40 + i * 2)), w = r * L[3], sw = Math.sin(t * 28 + i * 1.7) * r * 0.25;
-      const ex = x + bx * l + nx * (L[0] * r * 0.5 + sw), ey = y + by * l + ny * (L[0] * r * 0.5 + sw);
-      const g = ctx.createLinearGradient(x, y, ex, ey); g.addColorStop(0, L[2]); g.addColorStop(1, 'rgba(255,60,20,0)');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x + nx * w, y + ny * w); ctx.quadraticCurveTo(x + bx * l * 0.5 + nx * w * 0.9, y + by * l * 0.5 + ny * w * 0.9, ex, ey);
-      ctx.quadraticCurveTo(x + bx * l * 0.5 - nx * w * 0.9, y + by * l * 0.5 - ny * w * 0.9, x - nx * w, y - ny * w); ctx.closePath(); ctx.fill();
-    });
-    ctx.restore();
-  }
-
-  GA.Fire = { drawBall: drawBall, drawTrail: drawTrail };
+  GA.Fire = { drawBall: drawBall, drawTrail: function () { } };
 })(window.GA = window.GA || {});

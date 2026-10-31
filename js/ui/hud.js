@@ -125,8 +125,19 @@
     if (last.chips !== chips) { last.chips = chips; E.chips.innerHTML = chips; }
   }
 
-  function hide() { if (root) { root.hidden = true; last = {}; } }
-  function destroy() { if (root && root.parentNode) root.parentNode.removeChild(root); root = null; E = null; last = null; fitCache = {}; }
 
-  GA.HUD = { metrics: metrics, geo: geo, layout: layout, update: update, hide: hide, destroy: destroy, draw: function (ctx, run, L) { update(run, L); }, invalidate: function () { if (last) last = {}; fitCache = {}; } };
+  /** Popup skor/combo/-1 melayang: elemen DOM kecil di koordinat logis (transform/opacity, hidup ±0,9 dtk, maks. 6). */
+  let pops = [];
+  function pop(x, y, str, col, size) {
+    build(); if (!root) return;
+    if (pops.length >= 6) { const o = pops.shift(); if (o.parentNode) o.parentNode.removeChild(o); }
+    const n = document.createElement('span'); n.className = 'hud-pop'; n.textContent = str; n.style.left = x + 'px'; n.style.top = y + 'px'; n.style.color = col || '#fff'; n.style.fontSize = (size || 28) + 'px';
+    n.addEventListener('animationend', function () { if (n.parentNode) n.parentNode.removeChild(n); const i = pops.indexOf(n); if (i >= 0) pops.splice(i, 1); });
+    root.appendChild(n); pops.push(n);
+  }
+  function clearPops() { pops.forEach(function (n) { if (n.parentNode) n.parentNode.removeChild(n); }); pops = []; }
+  function hide() { if (root) { root.hidden = true; last = {}; } }
+  function destroy() { clearPops(); if (root && root.parentNode) root.parentNode.removeChild(root); root = null; E = null; last = null; fitCache = {}; }
+
+  GA.HUD = { pop: pop, popCount: function () { return pops.length; }, clearPops: clearPops, metrics: metrics, geo: geo, layout: layout, update: update, hide: hide, destroy: destroy, draw: function (ctx, run, L) { update(run, L); }, invalidate: function () { if (last) last = {}; fitCache = {}; } };
 })(window.GA = window.GA || {});

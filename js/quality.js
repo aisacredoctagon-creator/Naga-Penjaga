@@ -13,7 +13,7 @@
   const PRESETS = {
     tinggi: { fx: 2, dens: 1, dpr: 2, glow: true },
     sedang: { fx: 1, dens: 0.6, dpr: 1.5, glow: true },
-    rendah: { fx: 0, dens: 0.3, dpr: 1, glow: false }
+    rendah: { fx: 0, dens: 0, dpr: 1, glow: false }
   };
   const NAMES = { auto: 'Otomatis', tinggi: 'Tinggi', sedang: 'Sedang', rendah: 'Rendah' };
 

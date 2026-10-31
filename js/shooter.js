@@ -121,7 +121,7 @@
             const tx = b.tgt ? b.tgt.x : b.tx, ty = b.tgt ? b.tgt.y : b.ty;
             b.x = b.sx + (tx - b.sx) * b.u; b.y = b.sy + (ty - b.sy) * b.u;
             const k = Math.sin(Math.PI * b.u); b.hgt = b.peak * k; b.scl = 1 + b.grow * k;
-            if ((b.trail = (b.trail || 0) + sd) > 0.012) { b.trail = 0; GA.FX.embers(b.x, b.y - b.hgt, (b.sx - b.x) * 0.1, (b.sy - b.y) * 0.1 - 20, 1, this.chainR * 0.5); }
+            if ((b.trail = (b.trail || 0) + sd) > 0.04) { b.trail = 0; GA.FX.embers(b.x, b.y - b.hgt, (b.sx - b.x) * 0.1, (b.sy - b.y) * 0.1 - 20, 1, this.chainR * 0.5); }
             if (onLobStep && onLobStep(b, sd)) { b.on = false; break; }
             if (b.u >= 1) { if (onLand) onLand(b); b.on = false; break; }
           }
@@ -131,7 +131,7 @@
         for (let s = 0; s < steps; s++) {
           b.px = b.x; b.py = b.y;
           b.x += b.vx * sd; b.y += b.vy * sd;
-          if ((b.trail = (b.trail || 0) + sd) > 0.012) { b.trail = 0; GA.FX.embers(b.x - b.vx * 0.012, b.y - b.vy * 0.012, -b.vx * 0.1, -b.vy * 0.1, 1, this.chainR * 0.55); }
+          if ((b.trail = (b.trail || 0) + sd) > 0.04) { b.trail = 0; GA.FX.embers(b.x - b.vx * 0.012, b.y - b.vy * 0.012, -b.vx * 0.1, -b.vy * 0.1, 1, this.chainR * 0.55); }
           if (onStep(b, sd)) { b.on = false; break; }
           if (b.x < -60 || b.x > W + 60 || b.y < -60 || b.y > H + 60) { b.on = false; break; }
         }

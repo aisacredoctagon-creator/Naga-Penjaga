@@ -76,7 +76,6 @@
     }
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.lineJoin = 'round';
-    ctx.lineWidth = size * 0.52; ctx.strokeStyle = 'rgba(190,150,255,0.2)'; ctx.strokeText(text, x, y + size * 0.04);      // pendar tipis
     ctx.lineWidth = Math.max(3, size * 0.22);
     ctx.strokeStyle = edge;
     ctx.strokeText(text, x, y + size * 0.04);
@@ -99,15 +98,11 @@
     if (sx !== undefined && sx !== 1) ctx.restore();
   }
 
-  /** Kabut sihir di atas bola: angka tersamarkan. amt 0..1 = kepekatan. */
+  /** Kabut sihir di atas bola (mantra boss): angka tersamarkan — cakram ungu datar + "?". amt 0..1 = kepekatan. */
   function drawFog(ctx, x, y, r, t, amt) {
-    ctx.save(); ctx.globalAlpha = Math.min(1, amt);
-    const g = ctx.createRadialGradient(x, y, r * 0.1, x, y, r * 1.1); g.addColorStop(0, 'rgba(120,90,190,0.95)'); g.addColorStop(0.75, 'rgba(90,60,160,0.9)'); g.addColorStop(1, 'rgba(70,40,130,0)');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 1.08, 0, 6.283); ctx.fill();
-    ctx.fillStyle = 'rgba(210,190,255,0.55)';
-    for (let i = 0; i < 4; i++) { const a = t * 1.4 + i * 1.57; ctx.beginPath(); ctx.arc(x + Math.cos(a) * r * 0.35, y + Math.sin(a * 1.3) * r * 0.3, r * 0.34, 0, 6.283); ctx.fill(); }
-    ctx.font = '800 ' + (r * 0.9).toFixed(1) + 'px ' + Theme.fonts.ui; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillText('?', x, y + r * 0.04);
-    ctx.restore();
+    ctx.save(); ctx.globalAlpha = Math.min(1, amt); ctx.fillStyle = '#4a3a8a'; ctx.beginPath(); ctx.arc(x, y, r * 1.02, 0, 6.283); ctx.fill();
+    ctx.fillStyle = '#6f5cc0'; ctx.beginPath(); ctx.arc(x - r * 0.1, y - r * 0.12, r * 0.8, 0, 6.283); ctx.fill();
+    ctx.font = '800 ' + (r * 0.9).toFixed(1) + 'px ' + Theme.fonts.ui; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.fillText('?', x, y + r * 0.04); ctx.restore();
   }
 
   function eggPath(ctx, x, y, w, h) {
@@ -116,30 +111,7 @@
     ctx.bezierCurveTo(x - w * 1.05, y + h * 0.7, x - w * 0.95, y - h * 0.95, x, y - h); ctx.closePath();
   }
 
-  /** Bola khusus: 'frost' (beku, rantai melambat) | 'egg' (telur emas, pulihkan telur) */
-  function drawSpecial(ctx, kind, x, y, r, t) {
-    const lw = Math.max(1.5, r * 0.06);
-    GA.Balls.layer(ctx, 'shadow', x, y, r);
-    const gr = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r * 1.05);
-    if (kind === 'frost') {
-      gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.5, '#a8e6ff'); gr.addColorStop(1, '#3aa0d8');
-      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.283); ctx.fill(); ctx.lineWidth = lw; ctx.strokeStyle = 'rgba(20,80,130,0.6)'; ctx.stroke();
-      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(2, r * 0.09); ctx.lineCap = 'round';
-      for (let i = 0; i < 3; i++) { const a = i * 1.0472 + 0.2, cx = Math.cos(a) * r * 0.66, cy = Math.sin(a) * r * 0.66; ctx.beginPath(); ctx.moveTo(x - cx, y - cy); ctx.lineTo(x + cx, y + cy); ctx.stroke(); }
-      ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.beginPath(); ctx.ellipse(x - r * 0.3, y - r * 0.5, r * 0.3, r * 0.14, -0.6, 0, 6.283); ctx.fill();
-    } else { // egg
-      const gl = ctx.createRadialGradient(x, y, r * 0.7, x, y, r * 1.35); gl.addColorStop(0, 'rgba(255,225,110,' + (0.5 + 0.2 * Math.sin(t * 6)).toFixed(2) + ')'); gl.addColorStop(1, 'rgba(255,225,110,0)');
-      ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x, y, r * 1.35, 0, 6.283); ctx.fill();
-      gr.addColorStop(0, '#fff6c8'); gr.addColorStop(0.5, '#f6c445'); gr.addColorStop(1, '#a8741a');
-      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.283); ctx.fill(); ctx.lineWidth = lw; ctx.strokeStyle = 'rgba(120,70,0,0.6)'; ctx.stroke();
-      const eg = ctx.createRadialGradient(x - r * 0.12, y - r * 0.25, r * 0.05, x, y, r * 0.65); eg.addColorStop(0, '#ffffff'); eg.addColorStop(0.4, '#ffe48a'); eg.addColorStop(1, '#d9961e');
-      ctx.fillStyle = eg; ctx.strokeStyle = 'rgba(130,80,0,0.7)'; ctx.lineWidth = Math.max(1.5, r * 0.05); eggPath(ctx, x, y + r * 0.02, r * 0.44, r * 0.6); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = 'rgba(190,120,20,0.45)'; ctx.beginPath(); ctx.arc(x + r * 0.1, y + r * 0.12, r * 0.06, 0, 6.283); ctx.arc(x - r * 0.12, y + r * 0.28, r * 0.05, 0, 6.283); ctx.arc(x + r * 0.05, y - r * 0.18, r * 0.045, 0, 6.283); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,' + (0.5 + 0.5 * Math.sin(t * 7)).toFixed(2) + ')'; const sx = x + r * 0.55, sy = y - r * 0.5;
-      ctx.beginPath(); ctx.moveTo(sx, sy - r * 0.2); ctx.lineTo(sx + r * 0.06, sy - r * 0.06); ctx.lineTo(sx + r * 0.2, sy); ctx.lineTo(sx + r * 0.06, sy + r * 0.06); ctx.lineTo(sx, sy + r * 0.2); ctx.lineTo(sx - r * 0.06, sy + r * 0.06); ctx.lineTo(sx - r * 0.2, sy); ctx.lineTo(sx - r * 0.06, sy - r * 0.06); ctx.closePath(); ctx.fill();
-    }
-    GA.Balls.layer(ctx, 'gloss', x, y, r);   // kilau, rim light, dan sisi gelap yang sama dengan orb
-  }
+/** Bola khusus 'frost' | 'egg': sprite datar dari atlas (js/render/balls.js). */  function drawSpecial(ctx, kind, x, y, r, t) { GA.Balls.drawSpecial(ctx, kind, x, y, r); }
 
   /* ---------- rantai ---------- */
   const tmp = { x: 0, y: 0, a: 0 }, tA = { x: 0, y: 0, a: 0 }, tB = { x: 0, y: 0, a: 0 };
@@ -458,12 +430,6 @@
 
     draw(ctx, t, px, pass) {
       const r = this.r, bs = this.balls, len = this.path.length, emA = Math.max(0.03, this.gp.EMERGE_ANIM_TIME);
-      if (pass !== 1 && GA.Quality && GA.Quality.level !== 'rendah' && GA.Balls.drawTrail) {   // jejak kabut gelap di belakang bola terakhir rantai
-        for (let i = 0; i < bs.length; i++) {
-          const b = bs[i], nx = bs[i + 1];
-          if (b.out && b.d < len - r * 2 && (!nx || nx.d < b.d - this.D * 1.8) && !this.paused) GA.Balls.drawTrail(ctx, b.x, b.y, r, b.a, t);
-        }
-      }
       const bump = this.gp.LOCK_BUMP == null ? 0.06 : this.gp.LOCK_BUMP, aura = this.slowT > 0 ? 'rgba(120,210,255,0.55)' : (this.fastT > 0 ? 'rgba(255,150,50,0.55)' : null);
       const one = function (b) {
         let x = b.x, y = b.y, rr = r, alpha = 1;
@@ -474,12 +440,10 @@
         if (b.lockK > 0.01) rr *= 1 + bump * b.lockK;      // bola yang terkunci sedikit menonjol
         if (aura) { ctx.fillStyle = aura; ctx.beginPath(); ctx.arc(x, y, rr + 5, 0, 6.283); ctx.fill(); }
         if (em < 1) {
-          const gl = ctx.createRadialGradient(x, y, 0, x, y, rr * 2.1); gl.addColorStop(0, 'rgba(255,235,255,' + (0.85 * (1 - em)).toFixed(2) + ')'); gl.addColorStop(1, 'rgba(180,120,255,0)');
-          ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x, y, rr * 2.1, 0, 6.283); ctx.fill(); ctx.globalCompositeOperation = 'source-over';
+ctx.fillStyle = 'rgba(240,225,255,' + (0.5 * (1 - em)).toFixed(2) + ')'; ctx.beginPath(); ctx.arc(x, y, rr * 1.5, 0, 6.283); ctx.fill();
         }
         if (b.sw) {      // sedang bertukar tempat: cahaya ungu + percikan di sepanjang lintasan
-          const gl = ctx.createRadialGradient(x, y, 0, x, y, rr * 1.9); gl.addColorStop(0, 'rgba(230,200,255,0.55)'); gl.addColorStop(1, 'rgba(160,100,255,0)');
-          ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x, y, rr * 1.9, 0, 6.283); ctx.fill(); ctx.globalCompositeOperation = 'source-over';
+ctx.fillStyle = 'rgba(200,160,255,0.32)'; ctx.beginPath(); ctx.arc(x, y, rr * 1.5, 0, 6.283); ctx.fill();
         }
         if (alpha < 1) ctx.globalAlpha = alpha;
         if (b.kind === 'num') {
