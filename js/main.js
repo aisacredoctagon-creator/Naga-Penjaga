@@ -9,13 +9,16 @@
   'use strict';
   const T = GA.T, Theme = GA.Theme, FX = GA.FX, Path = GA.Path, Chain = GA.Chain, Shooter = GA.Shooter, Bullets = GA.Shooter.Bullets,
     Questions = GA.Questions, Levels = GA.Levels, Bosses = GA.Bosses, UI = GA.UI, Audio = GA.Audio, Storage = GA.Storage, Story = GA.Story, Gameplay = GA.Gameplay;
-  let canvas = null, ctx = null;      // dibuat oleh boot() dan dilepas oleh destroy() (mesin tidak berjalan di halaman awal)
+  let canvas = null, ctx = null, bgCv = null;      // dibuat oleh boot() dan dilepas oleh destroy() (mesin tidak berjalan di halaman awal)
 
   let L = null;                // layout logis
   let state = 'menu';
+  /** Loop HANYA berjalan di keadaan yang bergerak; di layar lain (cerita, pembuka stage, hasil, Jeda, tab tersembunyi) satu frame dirender lalu loop berhenti. */
+  const LOOPING = { countdown: 1, playing: 1, cine: 1, clearing: 1, dying: 1 };
+  function setState(s) { state = s; kick(); }
+  function kick() { if (running && !rafId) { last = performance.now(); rafId = requestAnimationFrame(frame); } }
   let run = null;              // data stage yang sedang dimainkan
   let adv = null;              // data petualangan (3 stage)
-  let attract = null;          // adegan dekoratif di menu
   let t = 0, last = 0, hudShown = false, frameDt = 0;
   const keys = {};
   const ptr = { down: false, id: null, type: 'mouse' };      // type: 'mouse' | 'touch' | 'key' (radius target-lock dan offset titik bidik)
@@ -82,12 +85,13 @@
     });
   }
 
-  function sceneRef() { return run || attract; }
+  function sceneRef() { return run; }
 
-  /** Latar tiap stage (js/scenery.js): id adegan mengikuti stage yang sedang dimainkan. */
+  /** Latar STATIS (kanvas #bg, js/render/flatmap.js): dibangun ulang hanya bila stage/varian/layout/ukuran berubah. Portal: sprite ringan di kanvas dinamis. */
   function renderBg() {
+    if (!bgCv) return;
     const sc = sceneRef(), id = run ? run.cfg.scene : 'menu';
-    GA.Scenery.build(canvas, L, id, sc ? sc.path : null, sc ? sc.R : 0);
+    GA.FlatMap.build(bgCv, L, GA.Maps[id] || GA.Maps.forest, sc ? sc.path : null, sc ? sc.R : 0);
     GA.Effects.setPath(L, sc ? sc.path : null, sc ? sc.R : 0, id);
     if (sc && sc.chain) sc.chain.entryD = GA.Effects.entryD();
   }
@@ -101,9 +105,8 @@
     computeLayout();
     if (wasPortrait !== null && wasPortrait !== L.portrait) {
       if (run) { rebuildForOrientation(run); if (state === 'playing') pauseGame(); }   // layar berputar: jeda otomatis, jalur dibangun ulang, posisi bola dipetakan menurut jarak relatif
-      if (attract) buildAttract();
     }
-    renderBg();
+    renderBg(); kick();
   }
 
   /** Orientasi berubah di tengah permainan: bangun ulang jalur, pertahankan posisi relatif rantai. Antrean soal, telur, dan progres tidak disentuh. */
@@ -116,23 +119,6 @@
     if (r.boss) { r.boss.x = np.boss.x; r.boss.y = np.boss.y; r.boss.R = np.boss.R || Math.round(2.45 * L.ballR); }
     Bullets.setSize(newR); Bullets.clear();
     r.shooter.setAngle(-Math.PI / 2);
-  }
-
-  /* ================= adegan menu (dekoratif) ================= */
-  function buildAttract() {
-    const R = L.ballR, path = Path.forLayout('ular1', L, R);
-    const chain = new Chain.Chain(path, { r: R, speed: 34, maxBalls: 26 });
-    chain.fill(Math.min(24, Math.ceil(path.length * 0.55 / chain.D) + 1), path.length * 0.55, 0);
-    const sh = new Shooter.Shooter(); fitShooter(sh, path, R);
-    attract = { path: path, chain: chain, shooter: sh, R: R, boss: null };
-  }
-
-  function updateAttract(dt) {
-    const a = attract;
-    a.chain.update(dt);
-    a.shooter.setAngle(-Math.PI / 2 + Math.sin(t * 0.6) * 1.1);
-    a.shooter.update(dt);
-    if (a.chain.holeReached()) a.chain.fill(Math.min(24, Math.ceil(a.path.length * 0.2 / a.chain.D) + 1), a.path.length * 0.2, 0);   // rantai dekoratif menu memakai kecepatan piksel tetap (34 px/dtk)
   }
 
   /* ================= soal, dek & bola target ================= */
@@ -378,9 +364,9 @@
     const picks = []; for (let i = 0; i < n; i++) picks.push(Levels.pick(i));
     adv = { picks: picks, sel: sel, cats: cats, first: first, step: first, score: 0, best0: Storage.highScore, announced: 0,
       seed: (Math.random() * 4294967296) >>> 0, attempts: {}, stars: new Array(n).fill(0), results: new Array(n).fill(null), correct: 0, wrong: 0, maxCombo: 0, snap: { score: 0 } };
-    run = null; if (!attract) buildAttract();
+    run = null;
     if (!skipStory && !Storage.introSeen) {
-      state = 'story'; renderBg();
+      setState('story'); renderBg();
       UI.showStory(Story.intro, { onDone: function () { Storage.introSeen = true; startStep(first, false); } });
     } else startStep(first, false);
   }
@@ -393,8 +379,8 @@
     buildRun(cfg);
     GA.Balls.warm(run.R, L.px);      // siapkan tekstur & bingkai rotasi bola selama layar pembuka
     { const zone = Levels.zoneOf(cfg.scene); Audio.music(zone); Audio.ambient(zone); Audio.intensity(0); }      // musik + ambient mengikuti zona
-    if (skipIntro) { state = 'countdown'; GA.Effects.openPortal(); Audio.play('portal'); UI.countdown(beginPlay); }
-    else { state = 'intro'; UI.showIntro(introInfo(cfg)); }
+    if (skipIntro) { setState('countdown'); GA.Effects.openPortal(); Audio.play('portal'); UI.countdown(beginPlay); }
+    else { setState('intro'); UI.showIntro(introInfo(cfg)); }
   }
 
   function beginPlay() {
@@ -417,7 +403,7 @@
     run.qTime = run.qTimeMax;
     run.qm.advance(run.attempt > 1 ? 'STEP_RESTART' : 'STEP_START');      // soal pertama aktif sejak portal terbuka
     run.shooter.reset();
-    state = 'playing';
+    setState('playing');
     if (!Storage.coachSeen) { Storage.coachSeen = true; run.coach = [['target', 'coach.1'], ['flame', 'coach.2'], ['target', 'coach.3']]; run.coachT = 0.6; }      // coachmark pendek di zona informasi, hanya pertama kali
   }
 
@@ -440,7 +426,7 @@
   }
 
   function gameOver() {
-    state = 'dying'; run.dyingT = 0; run.swap = null; Bullets.clear(); run.shooter.react('sad');
+    setState('dying'); run.dyingT = 0; run.swap = null; Bullets.clear(); run.shooter.react('sad');
     Audio.play('lose');
     syncAdv();
   }
@@ -448,7 +434,7 @@
   /* ================= sinematik pindah fase boss (bisa dilewati) ================= */
   const CINE_LEN = 2.4, CINE_MIN = 0.3;
   function startCine() {
-    state = 'cine'; run.cineT = 0; Bullets.clear(); ptr.down = false;
+    setState('cine'); run.cineT = 0; Bullets.clear(); ptr.down = false;
     FX.flash(0.4, '255,60,140'); FX.shake(12); Audio.play('cine');
   }
   function updateCine(dt) {
@@ -457,7 +443,7 @@
   }
   function endCine() {
     if (state !== 'cine') return;
-    state = 'playing'; run.boss.wrathT = Math.min(run.boss.wrathT, 0.5); last = performance.now();
+    setState('playing'); run.boss.wrathT = Math.min(run.boss.wrathT, 0.5); last = performance.now();
   }
   function skipCine() { if (state === 'cine' && run.cineT > CINE_MIN) endCine(); }
   /** 0..1 naik lalu turun selama sinematik: dasar zoom kamera ke boss dan pita sinema. */
@@ -584,7 +570,7 @@
 
   /* ================= selesai stage ================= */
   function startClearing(boss) {
-    state = 'clearing'; run.clearT = 0; run.bossDone = !!boss; GA.Effects.closePortal();
+    setState('clearing'); run.clearT = 0; run.bossDone = !!boss; GA.Effects.closePortal();
     run.swap = null; run.chain.paused = true; run.chain.ff = false; run.chain.spawnQ.length = 0; Bullets.clear(); run.haz.clearAll(); run.shooter.react('cheer');
     run.clearQ = allBalls().filter(function (b) { return b.ch.visible(b); });
     run.score += run.lives * 100; // bonus telur tersisa
@@ -625,7 +611,7 @@
     const cfg = run.cfg, res = stageResult(true);
     adv.stars[cfg.step] = res.stars; adv.results[cfg.step] = res;
     syncAdv(); Storage.noteScore(adv.score);
-    state = 'stepdone';
+    setState('stepdone');
     UI.showOverview(res, { next: true });      // Stage 3: Lanjut = cerita akhir + ringkasan petualangan
   }
 
@@ -644,8 +630,8 @@
       win: win, steps: Levels.STAGES.map(function (s, i) { return { name: (i + 1) + " · " + s.place, stars: adv.stars[i], i: i }; }).filter(function (s) { return s.i >= (adv.first || 0); }),
       score: adv.score, newBest: nb, high: Storage.highScore, correct: adv.correct, wrong: adv.wrong, combo: adv.maxCombo
     };
-    state = 'story';
-    UI.showStory([Story.win], { skippable: false, onDone: function () { state = 'result'; UI.showResult(res); } });
+    setState('story');
+    UI.showStory([Story.win], { skippable: false, onDone: function () { setState('result'); UI.showResult(res); } });
   }
 
   /** Game Over: cerita singkat lalu overview jawaban stage ini. */
@@ -653,8 +639,8 @@
     const res = stageResult(false);
     res.newBest = recordEnd();
     adv.results[run.cfg.step] = res;
-    state = 'story';
-    UI.showStory([Story.lose], { skippable: false, onDone: function () { state = 'stepdone'; UI.showOverview(res, { next: false }); } });
+    setState('story');
+    UI.showStory([Story.lose], { skippable: false, onDone: function () { setState('stepdone'); UI.showOverview(res, { next: false }); } });
   }
 
   /* ================= update ================= */
@@ -827,7 +813,7 @@
   function drawScene(sc, showGuide, phase) {
     const R = sc.R;
     const center = { x: L.play.x + L.play.w / 2, y: L.play.y + L.play.h / 2 };
-    // Urutan lapisan TETAP (bawah → atas): 1 latar, 2 alur jalur, 3 dekorasi/objek depan (Scenery.drawFront, dijauhkan dari jalur), 4 dasar/glow portal,
+    // Urutan lapisan TETAP (bawah → atas): 1 latar, 2 alur jalur, 3 dekorasi/objek depan (tidak ada lagi: peta datar tanpa objek depan), 4 dasar/glow portal,
     // 5 BOLA (tidak ada yang digambar di atasnya kecuali bola api/efek tembakan dan overlay penukaran), 6 bola api + efek, 7 overlay penukaran, 8 HUD/popup.
     if (phase === 2) {
       if (Gameplay.debug.chain && sc === run && sc.chain) sc.chain.drawDebug(ctx);      // ?debug=chain: celah merah
@@ -839,8 +825,6 @@
       if (GA.LayersDebug && sc === run) GA.LayersDebug.draw(ctx, sc, L, t);
       return;
     }
-    GA.Scenery.drawAmbient(ctx, t, frameDt);
-    GA.Effects.drawBirds(ctx, t, frameDt);
     FX.drawDecals(ctx, frameDt);
     GA.Effects.drawPortal(ctx, t, frameDt);
     if (showGuide && sc.guide && sc.guide.length) drawGuide(sc.shooter, t, sc.guide);      // garis bidik putus-putus tipis: DI BAWAH bola
@@ -865,33 +849,22 @@
 
   function baseTransform() { ctx.setTransform(L.px, 0, 0, L.px, L.dpr * L.ox, L.dpr * L.oy); }
 
+  /** Kanvas DINAMIS (transparan di atas #bg): hanya yang bergerak — sarang/telur, portal, rantai bola, naga, peluru, efek, indikator penukaran, rintangan, boss. Latar statis digambar sekali oleh FlatMap. */
   function render() {
-    GA.Scenery.drawBack(ctx, t);
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height);
     const sc = sceneRef();
-    if (!sc) return;
-    FX.shakeOffset(shk);
-    GA.Scenery.drawFront(ctx, shk.x * L.px, shk.y * L.px, t);      // lapisan 3: dekorasi / objek depan DI BAWAH bola
-    ctx.setTransform(L.px, 0, 0, L.px, L.dpr * (L.ox + shk.x * L.scale), L.dpr * (L.oy + shk.y * L.scale));
-    // klip ke area logis supaya bola yang masuk dari luar tidak terlihat di pinggir letterbox
-    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, L.W, L.H); ctx.clip();
+    if (!sc) { UI.hideHUD(); return; }
+    ctx.setTransform(L.px, 0, 0, L.px, L.dpr * L.ox, L.dpr * L.oy);
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, L.W, L.H); ctx.clip();      // klip ke area logis supaya bola yang masuk dari luar tidak terlihat di pinggir letterbox
     cineZoom();
     drawScene(sc, run && state === 'playing', 1);
-    ctx.restore();
-    ctx.save(); ctx.setTransform(L.px, 0, 0, L.px, L.dpr * (L.ox + shk.x * L.scale), L.dpr * (L.oy + shk.y * L.scale));
-    ctx.beginPath(); ctx.rect(0, 0, L.W, L.H); ctx.clip();
-    cineZoom();
     drawScene(sc, run && state === 'playing', 2);
     if (GA.debug && sc.path) GA.Paths.drawDebug(ctx, sc.path, sc.R, t);
     ctx.restore();
     baseTransform();
     if (run) UI.drawHUD(ctx, run, L, t);
     drawCine();
-    if (GA.debug) { ctx.save(); ctx.font = '12px monospace'; ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = 3; const dt2 = 'fps ' + GA.Quality.fps.toFixed(0) + ' 00b7 grafik ' + GA.Quality.label() + ' 00b7 dpr ' + L.dpr; ctx.strokeText(dt2, 8, L.H - 8); ctx.fillText(dt2, 8, L.H - 8); ctx.restore(); }
-    if (FX.flashA > 0.01) {
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.fillStyle = 'rgba(' + FX.flashCol + ',' + Math.min(0.6, FX.flashA).toFixed(3) + ')';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
+    if (GA.debug) { ctx.save(); ctx.font = '12px monospace'; ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = 3; const dt2 = 'fps ' + GA.Quality.fps.toFixed(0) + ' \u00b7 efek ' + GA.Quality.label() + ' \u00b7 dpr ' + L.dpr; ctx.strokeText(dt2, 8, L.H - 8); ctx.fillText(dt2, 8, L.H - 8); ctx.restore(); }
   }
 
   /** Satu langkah permainan: dt detik. Dipisah dari requestAnimationFrame agar bisa dijalankan manual (uji coba). */
@@ -905,16 +878,16 @@
     if (run && (state === 'playing' || state === 'clearing' || state === 'dying')) updateRun(dt);
     else if (run && state === 'cine') updateCine(dt);
     else if (run) { if (run.boss) run.boss.update(dt); run.shooter.update(dt); }
-    else if (attract) updateAttract(dt);
     FX.update(dt);
     if (!noRender) render();
   }
 
   function frame(now) {
+    rafId = 0; if (!running) return;
     const raw = (now - last) / 1000, dt = Math.min(0.05, raw || 0.016); last = now;
     GA.Quality.sample(raw, state === 'playing' && !document.hidden);
     tick(dt);
-    if (running) rafId = requestAnimationFrame(frame);
+    if (running && LOOPING[state] && !document.hidden) rafId = requestAnimationFrame(frame);
   }
 
   /* ================= input ================= */
@@ -970,7 +943,7 @@
   });
   on(window, 'keyup', function (e) { keys[e.key] = false; });
   on(window, 'blur', function () { for (const k in keys) keys[k] = false; if (state === 'playing') pauseGame(); });
-  on(document, 'visibilitychange', function () { if (document.hidden && state === 'playing') pauseGame(); });
+  on(document, 'visibilitychange', function () { if (document.hidden && state === 'playing') pauseGame(); else if (!document.hidden) kick(); });
   let rz = 0;
   function onResize() { cancelAnimationFrame(rz); rz = requestAnimationFrame(relayout); }
   on(window, 'resize', onResize);
@@ -989,19 +962,19 @@
 
   function pauseGame() {
     if (state !== 'playing') return;
-    state = 'paused'; ptr.down = false; for (const k in keys) keys[k] = false;
+    setState('paused'); ptr.down = false; for (const k in keys) keys[k] = false;
     Audio.suspend();
     UI.showPause({ badge: pauseBadge() });
   }
   function resumeGame() {
     if (state !== 'paused') return;
-    Audio.resume(); state = 'playing'; last = performance.now();
+    Audio.resume(); setState('playing'); last = performance.now();
     UI.hidePause();
   }
 
   const handlers = {
     start: function (sel, first) { startAdventure(sel, false, first || 0); },
-    introGo: function () { state = 'countdown'; GA.Effects.openPortal(); Audio.play('portal'); UI.countdown(beginPlay); },
+    introGo: function () { setState('countdown'); GA.Effects.openPortal(); Audio.play('portal'); UI.countdown(beginPlay); },
     resume: resumeGame,
     pause: pauseGame,
     hasProgress: hasProgress,
@@ -1023,26 +996,27 @@
   async function boot(progress) {
     if (booted) return; progress = progress || function () {};
     const cv = document.createElement('canvas'); cv.id = 'game'; cv.setAttribute('aria-label', 'Area permainan Naga Penjaga');
-    document.getElementById('app').insertBefore(cv, document.getElementById('ui')); canvas = cv; ctx = cv.getContext('2d');
+    const bg = document.createElement('canvas'); bg.id = 'bg'; bg.setAttribute('aria-hidden', 'true');      // latar STATIS (dirender sekali), di bawah kanvas dinamis transparan
+    document.getElementById('app').insertBefore(bg, document.getElementById('ui')); document.getElementById('app').insertBefore(cv, document.getElementById('ui')); bgCv = bg; canvas = cv; ctx = cv.getContext('2d');
     GA.Dragon.Dragon.onFlap = function () { if (state === 'playing') Audio.play('flap'); };     // bunyi kepakan sinkron dengan animasi sayap
     Theme.loadSprites();
-    GA.Assets.onReady = function () { GA.Background.invalidate(); renderBg(); };
-    GA.Background.onArtReady = function () { renderBg(); };
+    GA.Assets.onReady = function () { GA.FlatMap.invalidate(); renderBg(); kick(); };
+    GA.FlatMap.onArtReady = function () { renderBg(); kick(); };
     GA.Assets.load();
     // prefers-reduced-motion: kurangi getar, kilatan, goyangan dedaunan, dan efek atmosfer berat
     rmq = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
-    rmFn = function () { const on2 = !!(rmq && rmq.matches); FX.reduce = on2; GA.Background.reduceMotion = on2; if (on2) GA.Effects.setQuality(Math.min(GA.Effects.quality, 1)); };
+    rmFn = function () { const on2 = !!(rmq && rmq.matches); FX.reduce = on2; GA.FlatMap.reduceMotion = on2; if (on2) GA.Effects.setQuality(Math.min(GA.Effects.quality, 1)); };
     rmFn(); if (rmq && rmq.addEventListener) rmq.addEventListener('change', rmFn);
     Audio.setEnabled(Storage.sound); Audio.setMusic(Storage.music); Audio.setVolumes(Storage.volSfx, Storage.volMus);
     progress(0.2); await slice();
     UI.init(handlers); bindInput();
-    GA.Quality.init(Storage.fx ? 'auto' : 'rendah', function () { if (booted) { computeLayout(); GA.Background.invalidate(); renderBg(); } });
+    GA.Quality.init(Storage.fx ? 'auto' : 'rendah', function () { if (booted) { computeLayout(); GA.FlatMap.invalidate(); renderBg(); kick(); } });
     progress(0.45); await slice();
-    Theme.setScene('menu'); computeLayout(); state = 'menu'; t = 0; hudShown = false; booted = true;
+    Theme.setScene('menu'); computeLayout(); setState('menu'); t = 0; hudShown = false; booted = true;
     progress(0.65); await slice();
-    buildAttract(); renderBg(); GA.Effects.resetPortal(true);      // adegan latar untuk cerita pembuka (bukan di halaman awal)
+    renderBg(); GA.Effects.resetPortal(false);      // latar statis untuk cerita pembuka (tanah + vignette; bukan di halaman awal)
     progress(0.95); await slice();
-    running = true; rafId = requestAnimationFrame(function (n) { last = n; frame(n); });
+    running = true; kick();
     progress(1);
   }
 
@@ -1052,18 +1026,19 @@
     booted = running = false; cancelAnimationFrame(rafId); rafId = 0;
     listeners.forEach(function (l) { try { l[0].removeEventListener(l[1], l[2], l[3]); } catch (e) { /* abaikan */ } }); listeners = [];
     if (rmq && rmFn && rmq.removeEventListener) rmq.removeEventListener('change', rmFn); rmq = rmFn = null;
-    GA.Quality.onChange = null; GA.Assets.onReady = null; GA.Background.onArtReady = null; GA.Dragon.Dragon.onFlap = null;
+    GA.Quality.onChange = null; GA.Assets.onReady = null; GA.FlatMap.onArtReady = null; GA.Dragon.Dragon.onFlap = null;
     UI.destroy(); Audio.shutdown(); Bullets.clear(); FX.reset();
-    run = null; adv = null; attract = null; L = null; state = 'menu'; hudShown = false; ptr.down = false; for (const k in keys) keys[k] = false;
+    run = null; adv = null; L = null; state = 'menu'; hudShown = false; ptr.down = false; for (const k in keys) keys[k] = false;
     if (canvas) { canvas.width = canvas.height = 1; if (canvas.parentNode) canvas.parentNode.removeChild(canvas); }
-    canvas = ctx = null;
+    if (bgCv && bgCv.parentNode) bgCv.parentNode.removeChild(bgCv);
+    canvas = ctx = bgCv = null;
   }
 
   /** Kembali ke halaman awal (Menu di Jeda / Game Over / hasil akhir). Mode dev (?test, ?debug, ?resp) mempertahankan mesin supaya alat uji tetap bisa memakainya. */
   function exit() {
     if (GA.keepEngine) {
-      UI.cancelCountdown(); Audio.resume(); run = null; adv = null; state = 'menu'; Bullets.clear(); FX.reset();
-      Theme.setScene('menu'); buildAttract(); renderBg(); GA.Effects.resetPortal(true); UI.hide(); GA.Start.show(); return;
+      UI.cancelCountdown(); Audio.resume(); run = null; adv = null; setState('menu'); Bullets.clear(); FX.reset();
+      Theme.setScene('menu'); renderBg(); GA.Effects.resetPortal(false); UI.hide(); GA.Start.show(); kick(); return;
     }
     destroy(); GA.Start.show();
   }

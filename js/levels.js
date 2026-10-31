@@ -50,7 +50,7 @@
     },
     {
       id: 's2', place: 'Gunung & Gua Kristal', tag: 'Stage 2', icon: 'flame', format: 'missing', story: 'story.s2', specials: { frost: 1, egg: 1 },
-      pool: { paths: ['teluk1', 'teluk2', 'teluk3'], maps: ['volcano', 'ashfield', 'magma', 'crystal', 'iceCave', 'amethyst'] }
+      pool: { paths: ['teluk1', 'teluk2', 'teluk3'], maps: ['volcano', 'magma', 'crystal'] }
     },
     {
       id: 's3', place: 'Menara Penyihir', tag: 'Stage 3', icon: 'wizard', format: 'mixed', story: 'story.s3', boss: true, specials: { frost: 2, egg: 1 },

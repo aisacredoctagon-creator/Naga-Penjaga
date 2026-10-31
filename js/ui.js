@@ -62,8 +62,8 @@
       root.appendChild(el('<div id="countdown" class="countdown" aria-live="assertive"></div>'));
       GA.Kit.mount(root);      // sudah dipasang halaman awal (idempoten)
       // tombol jeda sungguhan (fokus & papan ketik) di atas tombol yang digambar di canvas HUD
-      hudBtn = el('<button type="button" id="pause-hud" aria-label="Jeda permainan"></button>');
-      root.appendChild(hudBtn);
+      hudBtn = el(GA.Kit.button({ id: 'pause-hud', icon: 'pause', variant: 'secondary', aria: 'Jeda permainan' }));
+      root.insertBefore(hudBtn, root.firstChild);      // di bawah layar/popup (urutan DOM): popup Jeda menutup HUD dan tombolnya
       hudBtn.addEventListener('click', function (e) {
         // klik sintetis dari tombol Spasi/Enter (tombol tembak) jangan membuka jeda
         if (e.detail === 0 && performance.now() - (GA.lastFireKey || 0) < 800) return;
@@ -97,7 +97,7 @@
       if (root && rootClick) root.removeEventListener('click', rootClick); rootClick = null;
       Object.keys(screens).forEach(function (k) { if (screens[k].parentNode) screens[k].parentNode.removeChild(screens[k]); delete screens[k]; });
       const cd = document.getElementById('countdown'); if (cd && cd.parentNode) cd.parentNode.removeChild(cd);
-      if (hudBtn && hudBtn.parentNode) hudBtn.parentNode.removeChild(hudBtn); hudBtn = null; H = null;
+      if (hudBtn && hudBtn.parentNode) hudBtn.parentNode.removeChild(hudBtn); hudBtn = null; H = null; GA.HUD.destroy();
     },
 
     act: function (a, b) {
@@ -286,6 +286,7 @@
     /** Tombol jeda HUD (DOM) mengikuti posisi tombol yang digambar di canvas. */
     placeHudButton: function (L) {
       const m = this.hudMetrics(L).pause, pad = 6;
+      GA.HUD.layout(L);
       hudBtn.style.left = (L.ox + (m.x - pad) * L.scale) + 'px'; hudBtn.style.top = (L.oy + (m.y - pad) * L.scale) + 'px';
       hudBtn.style.width = ((m.w + 2 * pad) * L.scale) + 'px'; hudBtn.style.height = ((m.h + 2 * pad) * L.scale) + 'px';
     },
@@ -349,7 +350,9 @@
     },
 
     /** HUD canvas: lihat js/ui/hud.js */
-    drawHUD: function (ctx, run, L, t) { GA.HUD.draw(ctx, run, L, t); }
+    /** HUD (DOM): perbarui isi hanya bila berubah (js/ui/hud.js). */
+    drawHUD: function (ctx, run, L, t) { GA.HUD.update(run, L); },
+    hideHUD: function () { GA.HUD.hide(); }
   };
 
   /** Bunyi UI menurut jenis tindakan: pilih (kartu/slot/kesulitan), kembali, konfirmasi (mulai/lanjut), klik biasa. */
