@@ -13,6 +13,9 @@
     unit: 1,   // skala efek relatif terhadap bola (radius bola / 25)
     shakeAmp: 0, flashA: 0, flashCol: '255,60,80',
 
+    /** Jumlah partikel dan teks melayang yang aktif (untuk profil ?debug=perf). */
+    count: function () { let n = 0, m = 0; for (let i = 0; i < parts.length; i++) if (parts[i].on) n++; for (let i = 0; i < texts.length; i++) if (texts[i].on) m++; return { parts: n, texts: m, decals: decals.length }; },
+
     reset: function () {
       parts.forEach(function (p) { p.on = false; });
       texts.forEach(function (t) { t.on = false; });

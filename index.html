@@ -46,7 +46,7 @@
       var q = location.search, t = /[?&]test(=|&|$)/.test(q), o = /[?&]debug=orbs/.test(q), rs = /[?&]resp(=|&|$)/.test(q);
       var dbg = (/[?&]debug=([^&#]*)/.exec(q) || [0, ""])[1].split(","), tune = dbg.indexOf("tune") >= 0, sim = dbg.indexOf("sim") >= 0, qdbg = dbg.indexOf("question") >= 0, lay = dbg.indexOf("layers") >= 0, swp = dbg.indexOf("swap") >= 0;
       var spl = dbg.indexOf("splash") >= 0;
-      var dev = t || o || rs || tune || sim || qdbg || lay || swp || spl || dbg.indexOf("aim") >= 0 || dbg.indexOf("pace") >= 0 || dbg.indexOf("pathprev") >= 0 || dbg.indexOf("route") >= 0 || dbg.indexOf("chain") >= 0;
+      var dev = t || o || rs || tune || sim || qdbg || lay || swp || spl || dbg.indexOf("aim") >= 0 || dbg.indexOf("pace") >= 0 || dbg.indexOf("pathprev") >= 0 || dbg.indexOf("route") >= 0 || dbg.indexOf("chain") >= 0 || dbg.indexOf("perf") >= 0;
       if (!dev) return;
       GA.keepEngine = true;      // alat dev memakai mesin terus-menerus: "Menu" tidak membongkarnya
       function load(src, next) { var s = document.createElement("script"); s.src = src; if (next) s.onload = next; document.body.appendChild(s); }
@@ -61,6 +61,7 @@
         if (dbg.indexOf("aim") >= 0 || t) load("js/dev/aimsweep.js");
         if (dbg.indexOf("pace") >= 0 || t) load("js/dev/pacing.js");
         if (dbg.indexOf("pathprev") >= 0) load("js/dev/pathprev.js");
+        if (dbg.indexOf("perf") >= 0) load("js/dev/perf.js");
         if (dbg.indexOf("route") >= 0) load("js/dev/routesearch.js");
         if (spl) load("js/splash-art.js", function () { load("js/dev/splashgen.js"); });
       }
