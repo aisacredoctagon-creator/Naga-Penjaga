@@ -1010,7 +1010,7 @@
     Audio.setEnabled(Storage.sound); Audio.setMusic(Storage.music); Audio.setVolumes(Storage.volSfx, Storage.volMus);
     progress(0.2); await slice();
     UI.init(handlers); bindInput();
-    GA.Quality.init(Storage.fx ? 'auto' : 'rendah', function () { if (booted) { computeLayout(); GA.FlatMap.invalidate(); renderBg(); kick(); } });
+    GA.Quality.init(Storage.fx !== false, function () { if (booted) { computeLayout(); GA.FlatMap.invalidate(); renderBg(); kick(); } });
     progress(0.45); await slice();
     Theme.setScene('menu'); computeLayout(); setState('menu'); t = 0; hudShown = false; booted = true;
     progress(0.65); await slice();

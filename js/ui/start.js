@@ -73,8 +73,8 @@ K.slider({ act: 'st-vol-sfx', id: 'sl-sfx', icon: 'sound', label: T('set.sound')
   }
 
   /** Tandai pilihan di DOM tanpa membangun ulang (fokus papan ketik tidak hilang). */
-  /** Efek Hidup/Mati (menggantikan tingkat kualitas): Mati = tingkat terendah (efek atmosfer, partikel, dan animasi non-esensial dimatikan). */
-  function applyFx() { GA.Quality.setMode(Storage.fx ? 'auto' : 'rendah', true); }
+  /** Efek Hidup/Mati (satu-satunya pengaturan grafis): Mati = nol partikel, tanpa animasi sprite non-esensial, DPR kanvas ≤ 1. */
+  function applyFx() { GA.Quality.setFx(Storage.fx !== false, true); }
 
   function applyPick() {
     root.querySelectorAll('#st-cats .k-cat').forEach(function (c) { const on = c.dataset.id === pick.cat; c.classList.toggle('on', on); c.setAttribute('aria-checked', on ? 'true' : 'false'); c.tabIndex = on ? 0 : -1; });

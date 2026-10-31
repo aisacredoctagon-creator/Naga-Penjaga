@@ -10,7 +10,7 @@
 (function (GA) {
   'use strict';
   const ENGINE = [
-    'js/config/gameplay.js', 'js/render/noise.js', 'js/render/textures.js', 'js/audio.js', 'js/assets.js', 'js/fx.js',
+    'js/config/gameplay.js', 'js/render/noise.js', 'js/audio.js', 'js/assets.js', 'js/fx.js',
 'js/render/eggs.js', 'js/maps/themes.js', 'js/render/flatmap.js', 'js/render/portal.js', 'js/path.js', 'js/maps/paths.js', 'js/render/balls.js',
     'js/chain.js', 'js/render/fire.js', 'js/dragon.js', 'js/shooter.js', 'js/questions.js', 'js/qmanager.js', 'js/hazards.js', 'js/levels.js',
     'js/render/wizard.js', 'js/boss.js', 'js/swap.js', 'js/story.js', 'js/ui/hud.js', 'js/ui.js', 'js/main.js'

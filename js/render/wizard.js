@@ -107,7 +107,7 @@
     let alpha = 1, sink = 0, dk = 0;
     if (b.defeated) { dk = clamp((b.defeatT - 0.25) / 1.9, 0, 1); if (dk >= 1) return; alpha = 1 - dk; sink = dk * 0.35 * U2; }
     const dtf = clamp(t - (b._pt == null ? t : b._pt), 0, 0.1); b._pt = t; if (b.castT > (b._pc || 0) + 0.05) b._fl = 0.3; b._pc = b.castT; if (b._fl > 0) b._fl -= dtf;
-    const float = Math.sin(t * 2.1) * 0.05 * U2, hf = Math.sin(t * 2.1 - 0.7) * 0.02 * U2;
+    const calm = GA.Quality && GA.Quality.calm(), float = calm ? 0 : Math.sin(t * 2.1) * 0.05 * U2, hf = calm ? 0 : Math.sin(t * 2.1 - 0.7) * 0.02 * U2;
     const laugh = !b.defeated && b.laughT > 0, castUp = b.castT > 0 || b.wrathT > 0, mood = b.defeated || b.hurt > 0 ? 'hurt' : (b.wrathT > 0 ? 'wrath' : (b.castT > 0 ? 'cast' : (laugh ? 'laugh' : 'idle')));
     const bounce = laugh ? Math.sin(t * 28) * 0.03 * U2 : 0, y = float + sink;
     ctx.save(); ctx.translate(b.x, b.y); ctx.scale(0.86, 1); ctx.globalAlpha = alpha;

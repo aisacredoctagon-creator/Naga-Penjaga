@@ -5,59 +5,6 @@
 
   /* ---------- gambar bola ---------- */
 
-  function drawBallBody(g, x, y, r, ci) {
-    const pad = 4;
-    if (ci < 0) { // bola api (peluru / bola siap tembak)
-      const F = Theme.colors.fire, lw = Math.max(1.5, r * 0.06);
-      const gl = g.createRadialGradient(x, y, r * 0.8, x, y, r + pad); gl.addColorStop(0, 'rgba(255,140,40,0.55)'); gl.addColorStop(1, 'rgba(255,80,20,0)');
-      g.fillStyle = gl; g.beginPath(); g.arc(x, y, r + pad, 0, 6.283); g.fill();
-      const gr = g.createRadialGradient(x - r * 0.2, y - r * 0.25, r * 0.05, x, y, r * 1.02);
-      gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.25, F[0]); gr.addColorStop(0.65, F[1]); gr.addColorStop(1, F[2]);
-      g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 6.283); g.fill();
-      g.lineWidth = lw; g.strokeStyle = 'rgba(120,20,0,0.65)'; g.stroke();
-      g.fillStyle = 'rgba(255,255,255,0.4)'; g.beginPath(); g.ellipse(x - r * 0.32, y - r * 0.46, r * 0.3, r * 0.15, -0.6, 0, 6.283); g.fill();
-      return;
-    }
-    // orb sihir: cahaya luar, badan bergradien, cakram dalam, rune halus, kilau
-    const c = Theme.ballColors[ci % Theme.ballColors.length], lw = Math.max(1.5, r * 0.06);
-    const gl = g.createRadialGradient(x, y, r * 0.85, x, y, r + pad); gl.addColorStop(0, c[1]); gl.addColorStop(1, 'rgba(120,90,255,0)');
-    g.globalAlpha = 0.5; g.fillStyle = gl; g.beginPath(); g.arc(x, y, r + pad, 0, 6.283); g.fill(); g.globalAlpha = 1;
-    g.fillStyle = 'rgba(0,0,20,0.28)';
-    g.beginPath(); g.ellipse(x + r * 0.05, y + r * 0.2, r * 0.98, r * 0.92, 0, 0, 6.283); g.fill();     // bayangan relatif terhadap radius
-    const gr = g.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r * 1.05);
-    gr.addColorStop(0, c[0]); gr.addColorStop(0.5, c[1]); gr.addColorStop(1, c[2]);
-    g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 6.283); g.fill();
-    g.lineWidth = lw; g.strokeStyle = 'rgba(10,5,40,0.55)'; g.stroke();
-    const inner = g.createRadialGradient(x, y, r * 0.1, x, y, r * 0.74); inner.addColorStop(0, 'rgba(255,255,255,0.28)'); inner.addColorStop(1, 'rgba(255,255,255,0.02)');
-    g.fillStyle = inner; g.beginPath(); g.arc(x, y, r * 0.74, 0, 6.283); g.fill();
-    g.strokeStyle = 'rgba(255,255,255,0.3)'; g.lineWidth = Math.max(1, r * 0.04); g.lineCap = 'round';   // rune halus melingkar
-    for (let i = 0; i < 8; i++) {
-      const a = i * 0.7854 + 0.2, a2 = a + 0.32;
-      g.beginPath(); g.arc(x, y, r * 0.84, a, a2); g.stroke();
-      if (i % 2 === 0) { g.beginPath(); g.moveTo(x + Math.cos(a + 0.5) * r * 0.76, y + Math.sin(a + 0.5) * r * 0.76); g.lineTo(x + Math.cos(a + 0.5) * r * 0.9, y + Math.sin(a + 0.5) * r * 0.9); g.stroke(); }
-    }
-    g.fillStyle = 'rgba(255,255,255,0.5)'; g.beginPath(); g.ellipse(x - r * 0.3, y - r * 0.46, r * 0.3, r * 0.15, -0.6, 0, 6.283); g.fill();
-  }
-
-  /* Cache sprite bola per (radius terkuantisasi, warna). Radius berbeda (bola rantai, bola siap tembak,
-   * bola preview) memakai sprite terdekat lalu diskalakan, jadi cache tidak ter-reset. */
-  const spriteCache = { px: 0, map: Object.create(null), n: 0 };
-
-  function getSprite(ci, r, px) {
-    if (spriteCache.px !== px || spriteCache.n > 300) { spriteCache.px = px; spriteCache.map = Object.create(null); spriteCache.n = 0; }
-    const qr = Math.max(2, Math.round(r / 2) * 2), key = qr + '|' + ci;
-    let s = spriteCache.map[key];
-    if (s) return s;
-    const size = Math.ceil((qr * 2 + 8) * px);
-    const cv = document.createElement('canvas');
-    cv.width = cv.height = size;
-    const g = cv.getContext('2d');
-    g.scale(px, px);
-    drawBallBody(g, qr + 4, qr + 4, qr, ci);
-    s = spriteCache.map[key] = { cv: cv, qr: qr }; spriteCache.n++;
-    return s;
-  }
-
   /** Angka di dalam bola. Pecahan ("3/4") digambar bersusun; teks panjang otomatis diperkecil agar tidak keluar bola. */
   const LABEL_FILL = '#fff4d6', LABEL_EDGE = 'rgba(10,4,26,0.96)';
   function drawLabel(ctx, text, x, y, r, color) {
@@ -89,11 +36,7 @@
     if (sx !== undefined && sx !== 1) { ctx.save(); ctx.translate(x, y); ctx.scale(sx, 1); x = 0; y = 0; }
     if (img) ctx.drawImage(img, x - r, y - r, r * 2, r * 2);
     else if (ci >= 0 && GA.Balls) GA.Balls.drawOrb(ctx, x, y, r, ci, rot || 0, px || 1, !!text, t, heading || 0, base);
-    else {
-      const s = getSprite(ci, r, px || 1);
-      const k = r / s.qr, d = (s.qr * 2 + 8) * k;   // sprite terdekat diskalakan ke radius sebenarnya
-      ctx.drawImage(s.cv, x - (s.qr + 4) * k, y - (s.qr + 4) * k, d, d);
-    }
+    else if (GA.Fire) GA.Fire.drawBall(ctx, x, y, r, { mult: 1, ci: ci }, px || 1, t || 0, heading == null ? null : heading);
     if (text) drawLabel(ctx, text, x, y, r);
     if (sx !== undefined && sx !== 1) ctx.restore();
   }

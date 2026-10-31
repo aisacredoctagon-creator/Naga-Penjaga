@@ -142,7 +142,7 @@ Setelah stage selesai (menang) maupun Game Over: telur tersisa, persentase benar
 
 ### Final boss (`js/boss.js` + rig `js/render/wizard.js`)
 
-Darah **proporsional**: 20 soal = 20 HP, tiap jawaban benar −1. `Gameplay.BOSS_HP_BARS` (1 atau 2, bawaan 2): **2 bar** → bar 1 habis di soal ke-10 dan memicu **fase 2** (sinematik singkat yang bisa dilewati; pola terberat = gabungan fase 2+3 lama: mantra lebih sering, rintangan zona, soal berbatas waktu dengan TIMEOUT yang sah; penukaran dua pasangan); **1 bar** → satu bar, pola meningkat bertahap tanpa sinematik. Jawaban salah → boss menyerang (telur berkurang). Bar darah tebal dan jelas di dekat boss. Penyihir digambar penuh dengan kode: jubah compang-camping (kain verlet), lengan dua ruas (IK), tongkat berkristal, tekstur prosedural; animasi melayang, gestur mantra, tawa jahat, perisai saat terkena, aura amarah, dan **hancur menjadi abu** saat kalah. Mengganti dengan sprite: `Theme.sprites.boss`.
+Darah **proporsional**: 20 soal = 20 HP, tiap jawaban benar −1. `Gameplay.BOSS_HP_BARS` (1 atau 2, bawaan 2): **2 bar** → bar 1 habis di soal ke-10 dan memicu **fase 2** (sinematik singkat yang bisa dilewati; pola terberat = gabungan fase 2+3 lama: mantra lebih sering, rintangan zona, soal berbatas waktu dengan TIMEOUT yang sah; penukaran dua pasangan); **1 bar** → satu bar, pola meningkat bertahap tanpa sinematik. Jawaban salah → boss menyerang (telur berkurang). Bar darah tebal dan jelas di dekat boss. Penyihir = sprite berlapis datar (jubah, lengan, kepala 5 ekspresi, tongkat berkristal): melayang, kilat putih saat terkena, ganti sprite + kilat ungu saat merapal, cincin amarah saat pergantian fase, dan **memudar** saat kalah (tanpa simulasi kain/IK). Mengganti dengan sprite: `Theme.sprites.boss`.
 
 ### Tata letak: naga di tengah, lapisan render, penukaran, posisi bola
 
@@ -228,18 +228,18 @@ Juga diuji: arketipe jalur (semua radius, dua orientasi), rintangan zona, fase b
 ```
 index.html          halaman tunggal
 css/base.css + kit.css + start.css  dasar halaman + komponen UI kit + halaman awal   css/pause.css   popup Jeda (desain Figma; dimuat bersama mesin)
-js/theme.js         warna, ukuran bola, naga, latar tiap stage (satu-satunya tempat untuk ganti tampilan)
+js/theme.js         token tema gelap (Theme.ui), ukuran bola, naga, latar tiap stage (satu-satunya tempat untuk ganti tampilan)
 js/storage.js       localStorage v3 (pilihan kategori + kesulitan, rekor, pengaturan; data lama dibawa tapi diabaikan)
 js/boot.js          pemuat malas: unduh + jalankan mesin saat Mulai Main, pra-muat senyap
 js/ui/start.js      halaman awal      js/config/categories.js  kategori + pilihan awal      css/start.css  tata letak halaman awal
 js/splash-art.js    splash art cadangan (Canvas, sekali)   assets/splash/  splash art statis (.webp)
 js/audio.js         efek suara, ambient & musik per zona (Web Audio, tanpa berkas)
 js/qmanager.js      QuestionManager: soal aktif, urutan, pemicu sah (lihat bagian Soal aktif)
-js/fx.js            partikel, getar layar          js/scenery.js   latar parallax + partikel ambient
+js/fx.js            pool partikel (maks. 80) + cincin kilas (tanpa getar layar)   js/quality.js  saklar Efek Hidup/Mati
 js/path.js          jalur (spline) & preset: arc, wave, hook, zigzag, ring, bossU; sarang & penanda
 js/mathtext.js      teks matematika dengan pecahan bersusun (canvas & HTML)
 js/chain.js         rantai bola sihir, bola khusus (beku, telur emas), kabut, tukar tempat (swapPositions)
-js/dragon.js        Naga Penjaga (kepala/leher mengikuti bidikan, ekspresi, animasi)
+js/dragon.js        Naga Penjaga: sprite berlapis (kepala/leher mengikuti bidikan, ekspresi, kepak sayap)
 js/shooter.js       naga + bola api + peluru
 js/questions.js     generator soal, kategori & tabel kesulitan
 js/swap.js          penukaran bola: indikator ⇄, eksekusi melengkung, pasangan acak ber-seed, kelelawar
@@ -247,9 +247,9 @@ js/hazards.js       rintangan zona sementara (peringatan ±1 dtk)
 js/config/gameplay.js  semua angka gameplay (diameter/dtk), telur, boss, penukaran
 js/levels.js        3 stage + tabel kesulitan (data)
 js/boss.js          Penyihir Jahat (modul terpisah, bisa diganti)
-js/render/wizard.js rig & gambar Penyihir (kain verlet, IK lengan, tekstur prosedural, hancur jadi abu)
+js/render/wizard.js Penyihir: sprite berlapis (melayang, kilat putih/ungu, memudar saat kalah)
 js/story.js         cerita & akhir (nama tokoh bisa diatur)
-js/ui.js            layar permainan (cerita, pembuka stage, Jeda, hasil) + HUD (canvas)
+js/ui.js            layar permainan (cerita, pembuka stage, Jeda, hasil)   js/ui/hud.js  HUD DOM (diperbarui saat berubah)
 js/main.js          loop, layout responsif, input, alur petualangan
 ```
 
@@ -290,31 +290,27 @@ Aksesibilitas: `role="dialog"`, fokus terkunci, Esc menutup konfirmasi dulu lalu
 `GA.game.startStep(n, true)` (n = 0..2), `GA.game.skipCountdown()`, dan `GA.game.tick(dt, noRender)` untuk menjalankan waktu game secara manual
 (berguna di panel yang tidak menjalankan `requestAnimationFrame`).
 
-### UI kit tunggal
+### UI kit tunggal (tema gelap, revisi 11)
 
-Semua layar (halaman awal, pengaturan, cara main, cerita, pembuka stage, hasil, konfirmasi) dibangun dari **satu UI kit**; popup Jeda tetap desain Figma (`css/pause.css`) dengan warna selaras.
+Semua layar (halaman awal, Atur, Cara Main, cerita, pembuka stage, HUD, hasil/overview, konfirmasi) dibangun dari **satu UI kit**; popup Jeda memakai kit yang sama (`css/pause.css`).
 
-- `js/ui/kit.js`: komponen yang menghasilkan HTML — `Kit.panel` (papan kayu + perkamen, paku emas, kepala naga ORIGINAL yang mengintip), `button` (hijau utama / oranye sekunder / merah bahaya / kayu; mengilap, tebal, beroutline; keadaan tekan & nonaktif), `badge`, `chip`, `toggle`, `segmented`, `progress` (api/energi), `card` (kategori berwarna & step), `stars`, `eggs`, `resbar` (bilah sumber daya berikon), `tip` (tooltip), plus `toast`, `confirm` (modal), `coach` (coachmark ≤ 6 kata, hanya pertama kali). Ikon di `js/ui/icons.js` (satu gaya SVG).
-- `css/kit.css` (komponen), `css/base.css` (reset, lapisan layar, hitung mundur). Token warna/tekstur: `Theme.ui` (`js/theme.js`) → CSS variables (`js/ui/skin.js`); tekstur prosedural kayu/batu/perkamen dari `js/render/textures.js`. Bevel/bayangan sama di semua elemen. Target sentuh ≥ 44 px, fokus keyboard terlihat, `prefers-reduced-motion` dihormati.
-- **Kebijakan teks** (`js/strings.js`): semua teks UI di satu tempat (`GA.T('kunci')`); label ≤ 2 kata, keterangan ≤ ~5 kata; "Cara Main" = 3 kartu bergambar; cerita 4 panel satu kalimat. Lint: tes "teks UI ringkas" di `?test=1` atau `powershell -File tools/lint-strings.ps1`.
-- Cara menambah layar permainan: bangun HTML dengan `GA.Kit.*` di `TPL` (`js/ui.js`), tombol memakai `data-act` yang ditangani `UI.act`; layar halaman awal di `js/ui/start.js` (`data-act="st-…"`).
+- **Token tema = satu sumber**: `Theme.ui` di `js/theme.js` (slate `#2a2840–#3a3656`, plakat, bingkai batu, krem `#f6ecd3`, emas, hijau/amber/merah/biru untuk tombol, ungu `rune` untuk sihir). `js/ui/skin.js` menyalinnya ke CSS variables (`--slate-1..3`, `--plaque-*`, `--frame-*`, `--gold-*`, `--green-*`, `--amber-*`, `--red-*`, `--blue-*`, `--cream`, `--edge`, `--rune`, `--r-s/m/l`, `--font-*`) dan membuat satu tile noise 128 px. Mengubah `Theme.ui` mengubah seluruh UI. Warna peta/entitas ada di `Theme.scenes`, `Theme.colors`, `Theme.dragon`, dan `js/maps/themes.js`.
+- **Komponen** (`js/ui/kit.js`, gaya `css/kit.css`): `Kit.panel` (panel batu + plakat judul), `button` (oktagon: hijau utama / amber sekunder / merah bahaya / batu), `badge`, `chip`, `toggle`, `segmented`, `slider`, `progress`, `card`, `stars`, `eggs`, `toast`, `confirm`. Panel dan tombol dibuat dengan border-bevel, `clip-path` oktagon, dan bayangan *inset* statis — **tanpa** `backdrop-filter`, blur, atau animasi `box-shadow`; animasi UI hanya `transform`/`opacity`. Fokus papan ketik digambar di dalam elemen (`::after`) karena `clip-path` memotong outline. Ikon SVG satu gaya di `js/ui/icons.js`.
+- **Kebijakan teks** (`js/strings.js`): semua teks UI di satu tempat (`GA.T('kunci')`), ikon dulu baru teks; label ≤ 2 kata, keterangan ≤ ~5 kata. Lint: tes "teks UI ringkas" di `?test=1`.
+- **Kontras**: tes otomatis `?test=1` (teks UI ≥ 4,5:1; angka bola ≥ 4,5:1 di atas plakat; tombol besar ≥ 3:1).
+- **Responsif**: target sentuh ≥ 44 px, tanpa hover-only, tanpa scroll horizontal; ponsel potret = HUD ringkas + plakat soal di bawahnya, popup lebar penuh dengan margin 16 px; lanskap = HUD di sisi; desktop = menu maks ~960 px, popup ~480 px. `?resp=1` memeriksa kliping teks/target sentuh/scroll. Popup Jeda, konfirmasi, dan overlay stage memakai `role="dialog"`, fokus terkunci, Esc.
+- Menambah layar: bangun HTML dengan `GA.Kit.*` di `TPL` (`js/ui.js`), tombol memakai `data-act` yang ditangani `UI.act`; layar halaman awal di `js/ui/start.js`.
 
-## UI & tema visual
+## Efek Hidup / Mati dan performa
 
-- **Token desain** di `Theme.ui` (js/theme.js): material kayu, emas, perkamen, batu, api, warna status, radius. `js/ui/skin.js` menerjemahkannya menjadi CSS variables (`--wood-*`, `--gold-*`, `--parch-*`, `--stone-*`, `--r-*`, `--font-*`) dan tekstur material prosedural (`--tex-wood`, `--tex-stone`, `--tex-parch`). HUD canvas memakai token yang sama, jadi mengubah `Theme.ui` mengubah seluruh UI. Opsi aset gambar: letakkan `assets/ui/wood.webp`, `stone.webp`, `parchment.webp` untuk menggantikan tekstur prosedural.
-- **Font**: judul `Cinzel Decorative` dan UI `Baloo 2` dimuat dari Google Fonts (`display=swap`); bila gagal dimuat, tumpukan cadangan (Palatino/Georgia dan Trebuchet/sistem) dipakai. Angka di bola tidak bergantung pada font eksternal untuk sprite.
-- `js/ui/icons.js`: ikon SVG inline (garis 2,3 bulat) untuk tombol, kategori, dan status. `js/ui/hud.js`: HUD canvas (bingkai kayu bertrim emas di-cache; plakat skor odometer, plakat step permata, plakat soal perkamen dengan animasi ganti soal, bilah progres api, telur bercahaya, tombol Jeda).
-- Popup melayang bergaya `FX.pop(x, y, teks, 'score|combo|good|bad|info')`. Bunyi UI: ketuk (klik), denting (pilih), gema (kembali), fanfare kecil (konfirmasi) lewat Web Audio.
-
-## Kualitas grafis & performa
-
-- `js/quality.js`: tiga tingkat (**Tinggi / Sedang / Rendah**) dan mode **Otomatis** (Pengaturan → Grafik). Otomatis mengukur FPS saat bermain (bukan saat jeda/menu) dan menurunkan tingkat bila rata-rata di bawah ~50 FPS selama dua jendela 2 detik berturut-turut; ia hanya menurunkan, tidak menaikkan lagi. Pilihan disimpan di `localStorage`.
-- Yang diatur: efek atmosfer (kabut, berkas cahaya, riak, cahaya obor/lava, burung, goyangan dedaunan, partikel portal), kepadatan partikel pendek, batas `devicePixelRatio`, dan lapisan menyala (retakan lava, rune). `?debug=1` menampilkan FPS dan tingkat aktif di pojok kiri bawah.
-- Lapisan statis peta, sprite bola, dan bingkai HUD di-cache dan dibangun ulang hanya saat ukuran/orientasi/kualitas berubah (sekali, bisa terasa sebagai jeda singkat). Partikel memakai pool; tidak ada alokasi per frame di jalur panas.
+- `js/quality.js`: **satu saklar "Efek: Hidup/Mati"** di Atur (menggantikan Tinggi/Sedang/Rendah + Otomatis; tersimpan di `Storage.fx`). **Mati** = nol partikel, tanpa animasi sprite non-esensial (kepak sayap, kedip, napas, melayang penyihir, denyut), DPR kanvas ≤ 1. `prefers-reduced-motion` diperlakukan sama dengan Mati (`FX.reduce`, `GA.FlatMap.reduceMotion`). Gerak inti (bola, tembakan, indikator tukar, peringatan rintangan) selalu berjalan.
+- **Arsitektur render dua lapisan**: `#bg` = kanvas STATIS (peta datar 2–3 nada dari `render/flatmap.js` + `maps/themes.js`, dibangun sekali per stage/varian/layout dan di-cache), di atasnya `#game` = kanvas transparan DINAMIS yang dibersihkan tiap frame (portal, jalur bola, naga, bola, rintangan, indikator, boss, partikel). HUD, popup skor/kombo, menu, dan teks = DOM/CSS yang diperbarui hanya saat nilai berubah (`js/ui/hud.js`). Loop `requestAnimationFrame` hanya berjalan saat dibutuhkan (`LOOPING = countdown|playing|cine|clearing|dying`); halaman awal tidak punya loop animasi.
+- **Semua sprite diprarender** ke kanvas kecil (per radius terkuantisasi × piksel perangkat) lalu hanya `drawImage`: bola (8 warna × motif rune + plakat angka, `render/balls.js`), bola api (inti bara + 3 lidah api, `render/fire.js`), naga (badan/sayap/kepala 4 ekspresi, `dragon.js`), penyihir (jubah, lengan, kepala 5 ekspresi, tongkat, siluet kilat putih/ungu, `render/wizard.js`), telur/sarang (`render/eggs.js`), portal (`render/portal.js`). Pool partikel `FX` maks 80, ≤ 8 pecahan per bola. Tidak ada gradien/`shadowBlur`/`lighter`/WebGL/pustaka baru di jalur panas.
+- Profil: `?debug=perf` lalu `await GA.Perf.run({ stage: 0|1|2, secs: 40 })` (waktu JS per frame, jumlah operasi kanvas, partikel, heap). Hasil sebelum/sesudah ada di `docs/rev11-laporan.md`. `?debug=1` menampilkan FPS.
 
 ## Aset gambar opsional
 
-Gambar bawaan semuanya prosedural. Untuk memakai ilustrasi sendiri, daftarkan berkas di `assets/manifest.json` (sprite boss/rintangan/portal/sarang, latar peta per orientasi, tekstur UI). Lihat **`docs/ASSET_GUIDE.md`** untuk ukuran, format, arah cahaya, contoh deskripsi untuk generator gambar, dan daftar aset yang belum tersambung.
+Semua gambar bawaan prosedural/datar dari kode; game jalan tanpa satu pun berkas gambar. Untuk memakai ilustrasi sendiri, daftarkan di `assets/manifest.json` — peta per tema (`maps.<idPeta>.landscape|portrait`, mis. `maps/forest-landscape.webp`; hanya peta stage yang sedang dimainkan yang diunduh, ≤ ~300 KB per berkas), sprite (`boss`, `ball`, `portal`, `nest`), dan tekstur panel. Lihat **`docs/ASSET_GUIDE.md`** untuk daftar aset, ukuran, format, anggaran berat, dan perintah untuk generator gambar (gaya datar gelap, tanpa merek).
 
 ## Jalur & peta (js/maps/)
 
@@ -322,30 +318,16 @@ Gambar bawaan semuanya prosedural. Untuk memakai ilustrasi sendiri, daftarkan be
 - Spline Catmull-Rom sentripetal, tabel panjang busur (`path.js`), jumlah bola mengikuti panjang jalur dan `BALL_RADIUS`.
 - **Validator** (otomatis tiap jalur dibangun, `analyze` + `analyzeStar`): INV-2 (naga di tengah, sayap, HUD, portal), INV-3 (pitch ≥ 2,6R − 0,5), INV-4 (panjang ≥ 95% serpentin lama terpendek), INV-5 (kunci target tak ambigu); hasilnya di `path.report`.
 - **Mode debug** `index.html?debug=1`: menampilkan jalur (cyan), titik kontrol, sinar uji INV-1 (hijau/merah), bola tertutup (merah), pelanggaran jarak, ruang penembak/boss, titik portal, dan laporan validator.
-- Peta (`GA.Maps`): `forest`, `grove` (Step 1); `volcano`, `crystal` (Step 2); `tower`, `tower2` (Step 3). Satu file data per tema berisi palet, jenis dasar (`moss|basalt|cave|flags`), komposisi dekorasi (`mix`), elemen depan (`front`: `leaf|stone|hall`), dan opsi efek. Untuk menambah peta: salin salah satu file, ubah palet/`mix`, lalu daftarkan idnya di `Levels` (`POOL`) dan `Theme.scenes`.
-- Zona kecepatan: `zones` pada arketipe (tidak dipakai jalur baru) mempercepat rantai di bagian jalur tertentu.
+- **Peta datar** (`GA.Maps`, `js/maps/themes.js`): 3 varian per stage — hutan malam (`forest`, `grove`, `bloom`), gunung api (`volcano`, `magma`, `crystal`), menara penyihir (`tower`, `tower2`, `library`). Tiap tema = palet 2–3 nada + dekorasi statis (lumut, kristal, retakan lava, lingkaran rune, obor, pilar, panji) yang ditaruh ≥ 1,5 × `BALL_RADIUS` dari jalur; jalur = alur tebal berkontras dengan bingkai batu. Menambah peta: tambahkan entri di `themes.js`, daftarkan id di `Levels` (`POOL`) dan `Theme.scenes`.
 
-## Bola sihir, bola api, portal, telur & sarang
+## Bola, bola api, portal, telur, sarang, naga, penyihir
 
-- **Bola sihir (`js/render/balls.js`)**: obsidian gelap berurat energi (urat dari noise punggungan, warna per bola + ungu/hijau), retakan dan rune bercahaya. Permukaan dibangkitkan sekali per warna sebagai peta ekuirektangular lalu dirender sebagai bola SUNGGUHAN (proyeksi per piksel) menjadi **24 bingkai rotasi** (16 sedang, 12 rendah), di-cache dan dibuat malas, dipanaskan saat layar pembuka (`Balls.warm`). Bola menggelinding (sudut = jarak ÷ radius, sumbu tegak lurus arah jalur). Pencahayaan tetap (sisi gelap, pantulan lingkungan, rim light, spekular) di lapisan terpisah; asap tipis dari permukaan; jejak kabut gelap di belakang bola terakhir tiap kelompok. **8 motif rune berbeda** per warna (aman buta warna). Pecah = pecahan obsidian + asap + riak energi.
-- **Angka** berada di segel gelap hampir opak: isi krem `#fff4d6`, outline gelap, pendar tipis; mendukung negatif, pecahan bersusun, desimal. Kontras diuji otomatis (≥ 4,5:1; terukur ±15:1 untuk bola sihir dan ±5:1 untuk bola api) dan bisa dilihat di **`?debug=orbs`** (semua warna × jenis angka × ukuran rantai/preview + bola api ×1–×3).
-- **Bola api (`js/render/fire.js`)**: api berlapis (lidah turbulen, 8 bingkai, ekor, bara mengorbit, cahaya aditif) mengelilingi **cakram bara gelap** (arang menyala + retakan, tepi panas) di tengah; angka ×N hanya di atas cakram, tidak pernah di atas api terang. Preview bola berikutnya ada di **soket rune** di sisi naga (jangkauan jempol, digambar di atas naga), ukuran = 0,9 × bola siap tembak (`NEXT_BALL_SCALE`), jadi font ≥ 0,85 ×.
-- **Portal (`js/render/effects.js`)**: tanah gosong dengan retakan bercahaya, bayangan cincin, tiga lapis pusaran + dua lapis fBm berlawanan arah, lorong kedalaman (cincin menyusut ke pusat), cincin rune MELAYANG (bayangan di tanah), efek lensa kromatik di tepi, busur petir, partikel tersedot/terlontar, denyut tiap bola keluar, buka/tutup. Lapisan berat dimatikan di kualitas rendah.
-- **Telur & sarang (`js/render/eggs.js`)**: telur bersisik (relief sisik, bintik, urat, cahaya dalam, rim light) dengan 3 elemen (api/es/hutan) dan keadaan ok/terancam (bergetar, merah)/retak/kosong; pecah dengan pecahan cangkang saat hilang (`FX.eggBreak`). Sarang: bayangan kontak, cincin batu (lumut / basal / es / rune menurut tema), ranting, tulang, sisik, abu & bara; cahaya telur menyinari sarang. Telur HUD memakai sprite yang sama. Gambar sarang sendiri: `sprites.nest` di manifest.
-
-## Naga top-down & burung
-
-- **Naga (`js/dragon.js`)**: dilihat dari ATAS dan melayang. Badan bersisik dengan pelat punggung, kaki belakang bercakar, leher dan ekor bersegmen (simulasi pegas), dua sayap bertulang (lengan, pergelangan, empat jari, selaput bergerigi tembus cahaya dengan urat & tekstur kulit) yang mengepak berirama (pelan saat melayang, cepat saat menembak/bersorak, lesu saat sedih; foreshortening saat terangkat). **Kepala tampak atas**: moncong memanjang dengan lubang hidung di ujung, dua mata di sisi atas, tanduk & jumbai ke belakang; saat menyembur rongga mulut terbuka tampak gelap dengan gigi di tepi, lidah dan tenggorokan jingga; bola api muncul tepat di depan ujung moncong (`mouthDist`) dan digambar di atas kepala agar angka ×N terbaca. Animasi: napas, ekor bergoyang, kedip, recoil, mengaum (kombo), kaget (salah), sayap membentang (menang), lesu (kalah). **Bayangan terbang** di tanah (offset menurut ketinggian, 3 lapis lembut). Setiap ayunan turun: `Dragon.onFlap` (bunyi `flap`), hembusan debu/daun dari ujung sayap, dan denyut `Dragon.pulse` yang membuat telur di sarang bergetar sedikit. Footprint sayap dibatasi `Theme.dragon.wingSpan` (setengah bentang ≈ 1,85 × radius badan).
-- **Burung (`js/render/birds.js`)**: tampak atas; sayap berbulu (bulu primer & sekunder bergerak, melipat, meluncur) atau selaput kelelawar; spesies per zona (gagak & elang di hutan, kelelawar di gua & menara); kawanan longgar (boids: kohesi, keselarasan, pemisahan), goyangan angin, bayangan yang berubah menurut ketinggian, dan sesekali hinggap di tepi peta. Digambar DI BAWAH bola (tidak pernah menutupi bola/angka), tidak menerima input, dikurangi di kualitas rendah (mati) / sedang (satu kawanan).
-
-## Render berlapis (js/render/, js/maps/)
-
-- `render/noise.js` + `render/textures.js`: RNG berbenih, noise fBm, Voronoi (retak batu), sisik, kayu, logam. Hasilnya di-cache sebagai kanvas kecil / CanvasPattern dan dipakai peta, bola, naga, dan portal.
-- `render/background.js`: peta statis dirender sekali per layout ke kanvas luar layar: dasar bertekstur → parit jalur terukir → kolam & altar → dekorasi → `front` (daun penutup depan + vignette, digambar setelah rantai). Data peta di `maps/*.js` (`GA.Maps`); peta tanpa data memakai `scenery.js` lama.
-- `render/effects.js`: efek dinamis. **Portal dimensi** di titik masuk (`Effects.openPortal()/closePortal()/pulse()`), riak kolam, berkas cahaya, kabut, kunang-kunang, burung. Kualitas: `GA.Effects.setQuality(0|1|2)`.
-- `render/balls.js`: bola sihir 3D (badan berputar + nebula + 8 motif rune, kilau tetap tegak, plakat angka, bayangan), sprite di-cache per radius × warna. Bola muncul dari portal: kecil, transparan, bercahaya, lalu membesar (`chain.entryD`).
-- `render/fire.js`: bola api (8 frame turbulensi, ekor, cahaya dinamis). `fx.js`: pecahan kristal, ledakan api, gelombang kejut, jelaga, muzzle flash.
-- `dragon.js`: naga bersegmen (leher dan ekor berpegas, sayap bertulang, sisik bertekstur).
+- **Bola sihir** (`render/balls.js`): bola datar dengan motif rune berbeda per warna (aman buta warna), tepi gelap, kilau kecil, **plakat gelap** berisi angka krem (kontras ≥ 4,5:1, diuji otomatis; lihat `?debug=orbs`). Pecah = ≤ 8 pecahan sprite + satu cincin. Bola desimal/pecahan boleh sedikit lebih besar (`ballScale`).
+- **Bola api** (`render/fire.js`): inti bara gelap bercincin oranye-kuning + 3 lidah api sprite (bergantian ±12×/dtk) di belakang arah gerak; ekor ≤ 6 partikel. Satu `BALL_RADIUS` untuk semua bola.
+- **Portal** (`render/portal.js`): cincin batu + sprite pusaran ringan; hanya beranimasi saat bola keluar. **Telur & sarang** (`render/eggs.js`): sprite statis dengan keadaan ok/terancam/retak/kosong; sarang bertema per stage.
+- **Naga** (`dragon.js`): tampak ATAS, sprite berlapis (badan+ekor, dua sayap, leher+kepala yang berputar mengikuti bidikan, mulut, hidung, mata di atas kepala), napas, kedip, 2–3 pose kepak sayap saat menembak/menang, recoil, ekspresi (senang/kaget/sedih/sorak), bayangan datar. `drawSleeping` = maskot Jeda statis.
+- **Penyihir** (`render/wizard.js`): lapisan sprite — bayangan, jubah, lengan, kepala (normal/kena/tertawa/sihir/marah), tongkat berkristal; melayang naik-turun, kilat putih saat kena, ganti sprite lengan + cincin dan kilat ungu saat merapal, memudar sambil turun saat kalah. Tanpa simulasi kain/IK. Bar darah boss digambar ke kanvas kecil hanya saat HP/fase berubah (`boss.js`).
+- **FX** (`fx.js`): pool 80 partikel, cincin kilas, popup skor/kombo = elemen DOM (`GA.HUD.pop`). Tanpa getar layar atau kilatan layar penuh.
 
 ## Deploy (GitHub Pages)
 

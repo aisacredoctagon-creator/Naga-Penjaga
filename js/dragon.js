@@ -5,6 +5,7 @@
 (function (GA) {
   'use strict';
   const Theme = GA.Theme, PI2 = Math.PI * 2;
+/** Pengganti gradien untuk gambar tidur statis (revisi 11): satu warna datar = stop kedua (nada tengah) bila ada. */  const FG = function () { let first = null, mid = null, n = 0; return { addColorStop: function (o, c) { if (n++ === 1) mid = c; if (first === null) first = c; }, toString: function () { return mid || first; } }; };
   function angDiff(a, b) { let d = a - b; while (d > Math.PI) d -= PI2; while (d < -Math.PI) d += PI2; return d; }
   function rand(a, b) { return a + Math.random() * (b - a); }
   function mk(w, h) { const c = document.createElement('canvas'); c.width = Math.max(1, Math.ceil(w)); c.height = Math.max(1, Math.ceil(h || w)); return c; }
@@ -124,12 +125,12 @@
     draw(ctx, x, y, R) {
       const tpx = (ctx.getTransform ? ctx.getTransform().a : 1) || 1, p = Math.max(0.5, Math.round(tpx * 4) / 4), S = sprites(R, p);
       const E = this.expr, sad = E === 'sad', hurt = E === 'hurt', mouthO = this.mouth > 0.45 ? 'o' : 'c';
-      const eyes = this.blink > 0 || this.frozen > 0 ? 'blink' : (E === 'happy' || E === 'cheer' ? 'happy' : (hurt ? 'hurt' : (sad ? 'sad' : 'open')));
-      const breathe = 1 + Theme.dragon.breath * Math.sin(this.t * 2.2), shiver = this.hurtT > 0 ? Math.sin(this.t * 55) * R * 0.03 * this.hurtT : 0;
+      const eyes = (this.blink > 0 && !(GA.Quality && GA.Quality.calm())) || this.frozen > 0 ? 'blink' : (E === 'happy' || E === 'cheer' ? 'happy' : (hurt ? 'hurt' : (sad ? 'sad' : 'open')));
+      const calm = GA.Quality && GA.Quality.calm(), breathe = calm ? 1 : 1 + Theme.dragon.breath * Math.sin(this.t * 2.2), shiver = this.hurtT > 0 ? Math.sin(this.t * 55) * R * 0.03 * this.hurtT : 0;
       ctx.save(); ctx.translate(x + shiver, y);
       ctx.fillStyle = 'rgba(2,3,10,0.30)'; ctx.beginPath(); ctx.ellipse(R * 0.18, R * 0.3, R * 1.0, R * 0.9, 0, 0, PI2); ctx.fill();      // bayangan datar di bawah naga
       ctx.scale(breathe, breathe);
-      const f = this.frozen > 0 ? 0 : Math.cos(this.fph) * (E === 'cheer' ? 0.7 : 0.55) + (sad ? 0.25 : 0), rest = sad ? 0.5 : 0.12;
+      const f = this.frozen > 0 || calm ? 0 : Math.cos(this.fph) * (E === 'cheer' ? 0.7 : 0.55) + (sad ? 0.25 : 0), rest = sad ? 0.5 : 0.12;
       ctx.drawImage(S.body, -1.6 * R, -1.5 * R, 3.2 * R, 3.6 * R);      // tubuh + ekor + kaki
       for (let s = -1; s <= 1; s += 2) {      // sayap kiri / kanan: putar di bahu
         ctx.save(); ctx.translate(s * R * 0.42, -R * 0.1); ctx.scale(s, 1); ctx.rotate(-(rest + f * 0.5)); ctx.scale(1 - Math.abs(f) * 0.12, 1);
@@ -148,28 +149,28 @@
     static drawSleeping(ctx, w, h, t) {
       const C = Theme.dragon, u = Math.min(w, h) / 136;
       ctx.save(); ctx.scale(u, u);
-      const sky = ctx.createLinearGradient(0, 0, 0, 136); sky.addColorStop(0, '#1a1550'); sky.addColorStop(1, '#4a3a96');
+      const sky = FG(0, 0, 0, 136); sky.addColorStop(0, '#1a1550'); sky.addColorStop(1, '#4a3a96');
       ctx.fillStyle = sky; ctx.fillRect(0, 0, 136, 136);
       ctx.fillStyle = 'rgba(255,255,255,0.85)'; [[18, 22, 1.4], [44, 12, 1], [96, 20, 1.2], [118, 40, 1], [26, 52, 0.9], [78, 8, 0.9]].forEach(function (s) { ctx.beginPath(); ctx.arc(s[0], s[1], s[2], 0, PI2); ctx.fill(); });
       ctx.fillStyle = '#ffe9a8'; ctx.beginPath(); ctx.arc(104, 28, 14, 0, PI2); ctx.fill(); ctx.fillStyle = '#4a3a96'; ctx.beginPath(); ctx.arc(110, 24, 12, 0, PI2); ctx.fill();
       ctx.fillStyle = '#2d6a4a'; ctx.beginPath(); ctx.ellipse(68, 140, 100, 34, 0, 0, PI2); ctx.fill();
-      const ng = ctx.createRadialGradient(68, 104, 6, 68, 104, 56); ng.addColorStop(0, C.nest[0]); ng.addColorStop(1, C.nest[1]);
+      const ng = FG(68, 104, 6, 68, 104, 56); ng.addColorStop(0, C.nest[0]); ng.addColorStop(1, C.nest[1]);
       ctx.fillStyle = ng; ctx.beginPath(); ctx.ellipse(68, 104, 56, 22, 0, 0, PI2); ctx.fill();
       ctx.strokeStyle = 'rgba(90,55,10,0.6)'; ctx.lineWidth = 1.6; for (let i = 0; i < 18; i++) { const a = i * 0.35; ctx.beginPath(); ctx.moveTo(68 + Math.cos(a) * 46, 104 + Math.sin(a) * 15); ctx.lineTo(68 + Math.cos(a + 0.4) * 54, 104 + Math.sin(a + 0.4) * 19); ctx.stroke(); }
       // telur
       [[26, 98, '#ffe9a8'], [44, 106, '#ffd2e8'], [104, 100, '#c9f0ff']].forEach(function (e, i) {
-        const g = ctx.createRadialGradient(e[0] - 3, e[1] - 5, 1, e[0], e[1], 12); g.addColorStop(0, '#fff'); g.addColorStop(1, e[2]);
+        const g = FG(e[0] - 3, e[1] - 5, 1, e[0], e[1], 12); g.addColorStop(0, '#fff'); g.addColorStop(1, e[2]);
         ctx.fillStyle = g; ctx.strokeStyle = 'rgba(70,40,10,0.5)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.ellipse(e[0], e[1], 8.5, 11, 0, 0, PI2); ctx.fill(); ctx.stroke();
       });
       // tubuh melingkar
-      const bg = ctx.createRadialGradient(60, 80, 6, 68, 92, 44); bg.addColorStop(0, C.body[0]); bg.addColorStop(0.6, C.body[1]); bg.addColorStop(1, C.body[2]);
+      const bg = FG(60, 80, 6, 68, 92, 44); bg.addColorStop(0, C.body[0]); bg.addColorStop(0.6, C.body[1]); bg.addColorStop(1, C.body[2]);
       const br = 1 + 0.02 * Math.sin((t || 0) * 2);
       ctx.save(); ctx.translate(68, 92); ctx.scale(br, br); ctx.translate(-68, -92);
       ctx.fillStyle = bg; ctx.strokeStyle = C.outline; ctx.lineWidth = 2.2;
       ctx.beginPath(); ctx.ellipse(68, 90, 40, 26, 0, 0, PI2); ctx.fill(); ctx.stroke();
       ctx.strokeStyle = C.body[1]; ctx.lineWidth = 11; ctx.beginPath(); ctx.moveTo(104, 96); ctx.bezierCurveTo(124, 100, 126, 80, 112, 76); ctx.stroke();
       ctx.fillStyle = C.spike; ctx.beginPath(); ctx.moveTo(110, 70); ctx.lineTo(118, 72); ctx.lineTo(112, 80); ctx.fill();
-      const wg = ctx.createLinearGradient(40, 60, 80, 90); wg.addColorStop(0, C.wing[0]); wg.addColorStop(1, C.wing[1]);
+      const wg = FG(40, 60, 80, 90); wg.addColorStop(0, C.wing[0]); wg.addColorStop(1, C.wing[1]);
       ctx.fillStyle = wg; ctx.strokeStyle = C.outline; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(52, 78); ctx.quadraticCurveTo(54, 54, 80, 58); ctx.quadraticCurveTo(76, 70, 84, 82); ctx.quadraticCurveTo(66, 78, 52, 78); ctx.closePath(); ctx.fill(); ctx.stroke();
       // kepala bertumpu di kaki
       ctx.fillStyle = bg; ctx.strokeStyle = C.outline; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.ellipse(40, 90, 20, 15, -0.15, 0, PI2); ctx.fill(); ctx.stroke();

@@ -219,11 +219,11 @@
   const o2 = { bad: 0 };
 
   async function scQuality() {
-    const modes = ['rendah', 'sedang', 'tinggi', 'auto', 'rendah', 'tinggi']; let k = 0, bad = 0;
+    const modes = ['rendah', 'tinggi', 'rendah', 'tinggi']; let k = 0, bad = 0;
     const o = await drive({ step: 2, mode: 'bot', secs: 120, immortal: true, think: 4,
       before: function (t, r) { if (k < modes.length && t > 4 + k * 3) { const q = r.q; GA.Quality.setMode(modes[k++]); if (r.q !== q) bad++; } },
       stop: function (t, r) { return k >= modes.length && r.correct >= 3; } });
-    GA.Quality.setMode('auto');
+    GA.Quality.setMode('tinggi');
     clean(o, ['STEP_START', 'ANSWERED_CORRECT'], 'ganti kualitas grafis berulang');
     ok('ganti kualitas: soal aktif tidak berubah', bad === 0 && k === modes.length, k + ' pergantian');
     G().handlers.quit();
