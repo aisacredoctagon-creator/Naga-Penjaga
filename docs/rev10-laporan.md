@@ -19,14 +19,16 @@ Lihat tabel di `rev10-c-checkpoint.md`: panjang baru 97–101% dari lama di semu
 - FPS: 60 fps (penghitung `GA.Quality.fps`) di potret dan lanskap untuk Stage 1–3, sama dengan sebelum revisi.
 - Rotasi di tengah permainan (potret → lanskap, Stage 2): jeda otomatis, jumlah bola, soal aktif, telur, dan progres tidak berubah, tanpa celah (`spacing.gaps = 0`), kecepatan rantai mengikuti orientasi baru.
 
-## Bot kecepatan (Sedang; 300 seed per sel; jawab N(6, 2) dtk; akurasi 90%)
+## Bot kecepatan (Sedang; jawab N(6, 2) dtk; akurasi 90%)
+Sebelum (revisi 9, 300 seed per sel) → sesudah (rute grid + penyetelan, **1000 seed per sel**, seed 1000–1999):
+
 | | Stage 1 | Stage 2 | Stage 3 |
 |---|---|---|---|
-| Potret sebelum → sesudah | 87,3 → 90,7 | 88,7 → 90,3 | 92,0 → 89,0 |
-| Lanskap sebelum → sesudah | 90,7 → 90,3 | 91,0 → 87,3 | 86,3 → 88,7 |
-| Desktop sebelum → sesudah | 91,0 → 90,3 | 88,3 → 86,7 | 85,0 → 88,3 |
+| Potret | 87,3 → 88,9 | 88,7 → 88,8 | 92,0 → 88,7 |
+| Lanskap | 90,7 → 88,9 | 91,0 → 89,3 | 86,3 → 88,8 |
+| Desktop | 91,0 → 89,5 | 88,3 → 89,1 | 85,0 → 88,6 |
 
-Selisih terbesar 3,7 poin (galat baku selisih ≈ 2,4 poin pada 300 seed). Sebelum penyetelan, Stage 3 lanskap/desktop naik ke 92,7% (+6,4/+7,7). Penyetelan: `STAGE_SPEED_MULT_LANDSCAPE[2]` = 0,55 (potret tetap 0,75). Catatan: kemenangan Stage 3 ternyata hanya lemah bergantung pada kecepatan kepala rantai (0,4 → 90,5%; 0,55 → 88%; 0,75 → 92%; 1,0 → 92,5%; 1,3 → 91,5%), karena kekalahan datang dari jawaban salah dan soal berbatas waktu; selisih awal berasal dari berkurangnya waktu menunggu bola jawaban (diagnostik bot: "bola belum terlihat" 27 ribu → 0,6 ribu frame per 40 putaran, durasi stage 163 → 135 dtk). Pengali 0,55 hanya memangkas sebagian selisihnya, dan berada di batas ±3 poin. Mudah dan Sulit tidak diukur ulang.
+Selisih terbesar 3,7 poin (potret Stage 3; galat baku pembanding ±2 poin pada 300 seed); semua sel baru 88,6–89,5%. Sebelum penyetelan (300 seed), Stage 3 lanskap/desktop naik ke 92,7% (+6,4/+7,7). Penyetelan: `STAGE_SPEED_MULT_LANDSCAPE[2]` = 0,55 (potret tetap 0,75). Catatan: kemenangan Stage 3 ternyata hanya lemah bergantung pada kecepatan kepala rantai (0,4 → 90,5%; 0,55 → 88%; 0,75 → 92%; 1,0 → 92,5%; 1,3 → 91,5%), karena kekalahan datang dari jawaban salah dan soal berbatas waktu; selisih awal berasal dari berkurangnya waktu menunggu bola jawaban (diagnostik bot: "bola belum terlihat" 27 ribu → 0,6 ribu frame per 40 putaran, durasi stage 163 → 135 dtk). Mudah dan Sulit tidak diukur ulang.
 
 ## Keputusan / hal yang perlu Anda putuskan
 1. **INV-4**: 95% dari yang lebih panjang antara panjang saat ini (revisi 8) dan serpentin lama terpendek.
@@ -34,4 +36,4 @@ Selisih terbesar 3,7 poin (galat baku selisih ≈ 2,4 poin pada 300 seed). Sebel
 3. **Tiga perubahan konfigurasi**: `GAP_CLOSE_SPEED` 7,5 → 8; `STAGE_SPEED_MULT_LANDSCAPE[2]` = 0,55 (baru; potret tidak berubah); `stageR` dapat mengecilkan radius bola kategori besar di layar kecil. Tidak ada mekanik lain yang diubah.
 4. **Bola 1,12× (pecahan/desimal) dan 1,08× (campuran)**: rute cadangan valid tetapi lebih pendek (lanskap 23–24,5 d, potret ±19,5 d) → pacing lebih mudah di kategori itu; belum disetel (tidak diminta; INV-4 hanya pada R ≈ 32, seperti revisi 8).
 5. **Label SARANG** dianggap melekat pada sprite sarang (bukan "label lain"); bar darah boss digeser agar tidak menimpa sprite.
-6. Bot Mudah/Sulit dan jumlah seed "ribuan" belum dijalankan (300 seed per sel Sedang).
+6. Bot hanya untuk kesulitan Sedang (1000 seed per sel); Mudah dan Sulit belum diukur.
