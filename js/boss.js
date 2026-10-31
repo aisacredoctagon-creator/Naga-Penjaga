@@ -138,33 +138,36 @@
       const x = Math.min(Math.max(wide ? this.x + R * 1.0 : this.x - w / 2, 6), VW - w - 6);
       const tx = wide ? x + 22 : Math.min(Math.max(this.x - 10, x + 14), x + w - 54);
       ctx.globalAlpha = Math.min(1, this.speechT * 3);
-      ctx.fillStyle = '#fff'; GA.Path.roundRect(ctx, x, by, w, h, 14); ctx.fill();
-      ctx.lineWidth = 3; ctx.strokeStyle = '#1b2a49'; ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(tx + 8, by + h - 1); ctx.lineTo(wide ? tx - 14 : tx + 20, by + h + 16); ctx.lineTo(tx + 34, by + h - 1); ctx.closePath(); ctx.fillStyle = '#fff'; ctx.fill();
-      ctx.fillStyle = '#1b2a49'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#f6ecd0'; GA.Path.roundRect(ctx, x, by, w, h, 14); ctx.fill();
+      ctx.lineWidth = 3; ctx.strokeStyle = '#12101f'; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(tx + 8, by + h - 1); ctx.lineTo(wide ? tx - 14 : tx + 20, by + h + 16); ctx.lineTo(tx + 34, by + h - 1); ctx.closePath(); ctx.fillStyle = '#f6ecd0'; ctx.fill();
+      ctx.fillStyle = '#12101f'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       lines.forEach(function (l, i) { ctx.fillText(l, x + w / 2, by + 9 + lh * (i + 0.5)); });
       ctx.globalAlpha = 1;
     }
-    /** Bar darah: 1 atau 2 bar tebal yang jelas (bar kedua = fase 2). cx,cy = tengah atas; compact = tipis (tanpa nama). */
+    /** Bar darah datar (revisi 11): 1 atau 2 bar tebal (bar kedua = fase 2). Digambar ke kanvas kecil HANYA saat darah/fase berubah, lalu di-blit tiap frame.
+     * cx,cy = tengah atas; compact = tipis (tanpa nama). */
     drawHP(ctx, cx, cy, w, compact) {
-      const n = this.bars, h = compact ? 14 : 22, gap = 6, sw = (w - gap * (n - 1)) / n;
-      let x = cx - w / 2;
-      if (!compact) {
-        ctx.font = '800 15px ' + Theme.fonts.ui; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
-        ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(20,30,70,0.9)';
-        const label = this.def.name + (this.bars === 2 ? ' · ' + (this.defeated ? 'Kalah!' : (this.tier + 1) + '/2') : (this.defeated ? ' · Kalah!' : ''));
-        ctx.strokeText(label, x, cy - 3); ctx.fillStyle = '#fff'; ctx.fillText(label, x, cy - 3);
-      }
-      for (let i = 0; i < n; i++) {
-        const f = this.barFrac(i), cur = !this.defeated && i === this.tier;
-        ctx.fillStyle = 'rgba(20,30,70,0.88)'; GA.Path.roundRect(ctx, x, cy, sw, h, h / 2.4); ctx.fill();
-        if (f > 0) {
-          const g = ctx.createLinearGradient(0, cy, 0, cy + h); g.addColorStop(0, i ? '#ff9ad0' : '#d9a8ff'); g.addColorStop(1, i ? '#d02a7a' : '#7c3aed');
-          ctx.fillStyle = g; GA.Path.roundRect(ctx, x + 3, cy + 3, Math.max(8, (sw - 6) * f), h - 6, 7); ctx.fill();
+      const px = Math.round((ctx.getTransform().a || 1) * 2) / 2, n = this.bars, h = compact ? 14 : 22, gap = 6, sw = (w - gap * (n - 1)) / n, lab = compact ? 0 : 22, pad = 4;
+      const key = [this.hp, this.tier, this.defeated ? 1 : 0, Math.round(w), compact ? 1 : 0, px].join('|'), c = this._hp || (this._hp = { key: '', cv: document.createElement('canvas') });
+      if (c.key !== key) {
+        c.key = key; const cv = c.cv; cv.width = Math.ceil((w + pad * 2) * px); cv.height = Math.ceil((h + lab + pad * 2) * px);
+        const g = cv.getContext('2d'); g.setTransform(px, 0, 0, px, 0, 0); g.clearRect(0, 0, cv.width, cv.height); g.translate(pad, pad + lab);
+        if (!compact) {
+          g.font = '800 15px ' + Theme.fonts.ui; g.textAlign = 'left'; g.textBaseline = 'bottom';
+          const label = this.def.name + (this.bars === 2 ? ' · ' + (this.defeated ? 'Kalah!' : (this.tier + 1) + '/2') : (this.defeated ? ' · Kalah!' : ''));
+          g.lineWidth = 4; g.strokeStyle = '#12101f'; g.strokeText(label, 0, -3); g.fillStyle = '#f6ecd0'; g.fillText(label, 0, -3);
         }
-        ctx.lineWidth = cur ? 3.5 : 2.5; ctx.strokeStyle = cur ? '#ffe27a' : '#fff'; GA.Path.roundRect(ctx, x, cy, sw, h, h / 2.4); ctx.stroke();
-        x += sw + gap;
+        let x = 0;
+        for (let i = 0; i < n; i++) {
+          const f = this.barFrac(i), cur = !this.defeated && i === this.tier;
+          g.fillStyle = '#1c1233'; GA.Path.roundRect(g, x, 0, sw, h, h / 2.4); g.fill();
+          if (f > 0) { g.fillStyle = i ? '#e0568f' : '#a468ff'; GA.Path.roundRect(g, x + 3, 3, Math.max(8, (sw - 6) * f), h - 6, 7); g.fill(); }
+          g.lineWidth = cur ? 3.5 : 2.5; g.strokeStyle = cur ? '#ffd23f' : '#6a6290'; GA.Path.roundRect(g, x, 0, sw, h, h / 2.4); g.stroke();
+          x += sw + gap;
+        }
       }
+      ctx.drawImage(c.cv, cx - w / 2 - pad, cy - lab - pad, w + pad * 2, h + lab + pad * 2);
     }
   }
 

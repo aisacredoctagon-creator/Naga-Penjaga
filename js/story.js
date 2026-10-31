@@ -20,16 +20,15 @@
   function fmt(s) { s = GA.T(s); return String(s).replace(/\{(\w+)\}/g, function (m, k) { return names[k] != null ? names[k] : m; }); }
 
   function sky(ctx, w, h, a, b) {
-    const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, a); g.addColorStop(1, b);
-    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = a; ctx.fillRect(0, 0, w, h * 0.58); ctx.fillStyle = b; ctx.fillRect(0, h * 0.58, w, h * 0.42);      // datar 2 nada (revisi 11)
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
     [[0.14, 0.16, 1.4], [0.33, 0.09, 1], [0.7, 0.14, 1.2], [0.88, 0.3, 1], [0.2, 0.38, 0.9], [0.56, 0.06, 0.9]].forEach(function (s) { ctx.beginPath(); ctx.arc(s[0] * w, s[1] * h, s[2], 0, PI2); ctx.fill(); });
   }
   function ground(ctx, w, h) { ctx.fillStyle = '#2d6a4a'; ctx.beginPath(); ctx.ellipse(w / 2, h * 1.02, w * 0.75, h * 0.22, 0, 0, PI2); ctx.fill(); }
   function orb(ctx, x, y, r, ci) { GA.Chain.drawBall(ctx, x, y, r, ci, '', 1); }
   function egg(ctx, x, y, w, h, tint) {
-    const g = ctx.createRadialGradient(x - w * 0.3, y - h * 0.4, 1, x, y, h * 1.1); g.addColorStop(0, '#fff'); g.addColorStop(1, tint);
-    ctx.fillStyle = g; ctx.strokeStyle = 'rgba(70,40,10,0.5)'; ctx.lineWidth = 1.5; GA.Chain.eggPath(ctx, x, y, w, h); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = tint; ctx.strokeStyle = '#12101f'; ctx.lineWidth = 1.5; GA.Chain.eggPath(ctx, x, y, w, h); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.beginPath(); ctx.ellipse(x - w * 0.3, y - h * 0.4, w * 0.2, h * 0.14, -0.5, 0, PI2); ctx.fill();
   }
   function wizard(ctx, x, y, R, t, mood) { if (GA.Bosses && GA.Bosses.drawFigure) GA.Bosses.drawFigure(ctx, x, y, R, t, mood); }
   function dragon(ctx, x, y, R, t, mood, aim) {
