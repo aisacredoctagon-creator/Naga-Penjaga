@@ -466,6 +466,65 @@
     ok('telegraf penukaran: dua pasangan (Stage 3 fase 2) berwarna dan berikon beda; prefers-reduced-motion = cincin statis tanpa galat dengan jeda sama', pairsOk && motionOk, 'pasangan ' + pairsOk + ', reduced-motion ' + motionOk);
   }
 
+  /** Revisi 10: layar kecil (360×640, 320×568, 568×320, 667×375 dst. memakai bola dasar 33–36) dengan kategori berbola besar (1,08× / 1,12×): radius stage dikecilkan bertahap (tidak di bawah bola dasar)
+   *  sampai rute valid; semua 9 arketipe harus lulus INV-2..8 (panjang hanya diperiksa pada R ≈ 32). */
+  function testSmallPhones() {
+    const G = GA.game, bad = []; let n = 0, shrunk = 0;
+    [[360, 640], [320, 568], [568, 320], [667, 375], [390, 844], [844, 390], [1440, 900], [1024, 768], [768, 1024]].forEach(function (sz) {
+      GA.devViewport = { w: sz[0], h: sz[1] }; G.relayout(); const L = G.layout;
+      [1, 1.08, 1.12].forEach(function (k) {
+        GA.Paths.ids.forEach(function (id) {
+          const R = G.stageR({ ballScale: k, pathId: id }), rep = GA.Path.forLayout(id, L, R).report; n++; if (R < Math.min(L.ballR * k, L.ballR * 1.2) - 0.01) shrunk++;
+          const iss = rep.issues.filter(function (i) { return i.kind !== 'length'; });
+          if (iss.length || R < L.ballR) bad.push(id + '@' + sz.join('×') + ' ×' + k + ' R' + R.toFixed(1) + ': ' + iss.map(function (i) { return i.kind; }).join(','));
+        });
+      });
+    });
+    GA.devViewport = null; G.relayout();
+    ok('layar kecil dan kategori berbola besar: radius stage dikecilkan sampai rute valid (' + n + ' kombinasi, ' + shrunk + ' dikecilkan, tidak pernah di bawah bola dasar)', bad.length === 0, bad.slice(0, 4).join(' | '));
+  }
+
+  /** Revisi 10 tahap d (INV-8): di sekitar portal dan sarang (radius sprite + 2R) tidak ada dekorasi dasar, objek depan, rintangan, atau label lain; label SARANG tidak menutupi bola (jarak persegi label ke garis tengah
+   *  jalur >= R) dan di dalam area bermain; bar darah boss tidak menimpa sprite portal/sarang. 9 arketipe × 3 ukuran layar, peta berganti-ganti. */
+  async function testClearZones() {
+    const G = GA.game, bad = [], LV = GA.Levels; let combos = 0, decorN = 0, labelMin = 1e9, coverMax = 0;
+    const rectDist = function (path, x, y, w, h) { let m = 1e9; for (let i = 0; i < path.xs.length; i += 3) { const dx = Math.max(Math.abs(path.xs[i] - x) - w / 2, 0), dy = Math.max(Math.abs(path.ys[i] - y) - h / 2, 0); m = Math.min(m, Math.hypot(dx, dy)); } return m; };
+    for (const sz of [[390, 844], [844, 390], [1440, 900]]) {
+      GA.devViewport = { w: sz[0], h: sz[1] }; G.relayout();
+      for (let step = 0; step < 3; step++) {
+        const pool = LV.STAGES[step].pool;
+        for (let v = 0; v < pool.paths.length; v++) {
+          G.startAdventure({ cat: 'add', diff: 'sedang' }, true, step); G.adv.picks[step].path = pool.paths[v]; G.adv.picks[step].map = pool.maps[v % pool.maps.length]; G.startStep(step, true);
+          await sleep(60); G.skipCountdown(); for (let i = 0; i < 20; i++) G.tick(1 / 30, true);
+          const r = G.run, p = r.path, R = r.R, L = G.layout, tag = pool.paths[v] + '/' + r.cfg.scene + '@' + sz.join('×'); combos++;
+          const P = GA.Paths, n = p.xs.length, zones = [{ x: p.xs[0], y: p.ys[0], r: (P.SPR_PORTAL + P.CLEAR8) * R, k: 'portal' }, { x: p.xs[n - 1], y: p.ys[n - 1], r: (P.SPR_NEST + P.CLEAR8) * R, k: 'sarang' }];
+          const items = GA.Background.decorItems(); decorN += items.length;
+          zones.forEach(function (z) {
+            items.forEach(function (it) { if (Math.hypot(it.x - z.x, it.y - z.y) < z.r) bad.push(tag + ' dekorasi ' + it.t + ' di zona ' + z.k); });
+            for (let rr = 0; rr <= z.r - R * 0.5; rr += R * 0.5) for (let a = 0; a < (rr ? 12 : 1); a++) {
+              const x = z.x + Math.cos(a * Math.PI / 6) * rr, y = z.y + Math.sin(a * Math.PI / 6) * rr; if (x < L.play.x || x > L.play.x + L.play.w || y < L.play.y || y > L.play.y + L.play.h) continue;      // di luar layar: tak terlihat
+              const c = GA.Background.frontCover(x, y, R * 0.6); coverMax = Math.max(coverMax, c);
+              if (c > 0.08) { bad.push(tag + ' objek depan menutupi zona ' + z.k + ' (alpha ' + c.toFixed(2) + ')'); rr = 1e9; break; }
+            }
+          });
+          // label SARANG
+          const cv = document.createElement('canvas').getContext('2d'), size = L.portrait ? 16 : 15, f = GA.Path.nestLabelSpot(cv, p, R, size); cv.font = '800 ' + size + 'px ' + GA.Theme.fonts.ui;
+          const w = cv.measureText('🥚 SARANG').width + 22, h = size + 12, d = rectDist(p, f[0], f[1], w, h); labelMin = Math.min(labelMin, d / R);
+          if (d < R - 0.5) bad.push(tag + ' label SARANG ' + (d / R).toFixed(2) + 'R dari jalur (menutupi bola)');
+          if (f[0] - w / 2 < L.play.x || f[0] + w / 2 > L.play.x + L.play.w || f[1] - h / 2 < L.play.y || f[1] + h / 2 > L.play.y + L.play.h) bad.push(tag + ' label di luar area bermain');
+          // bar darah boss (Stage 3): tidak menimpa sprite portal / sarang
+          if (r.boss) {
+            const bw = L.portrait ? Math.min(L.W * 0.6, 340) : Math.min(L.W * 0.36, 300), cy = L.portrait ? L.play.y + 26 : L.play.y + 4, top = L.portrait ? 22 : 4, bot = L.portrait ? 24 : 18, bx = G.bossBarX({ path: p, R: R }, bw, cy, top, bot);
+            [[zones[0], P.SPR_PORTAL], [zones[1], P.SPR_NEST]].forEach(function (z) { const px = Math.max(bx - bw / 2, Math.min(z[0].x, bx + bw / 2)), py = Math.max(cy - top, Math.min(z[0].y, cy + bot)); if (Math.hypot(z[0].x - px, z[0].y - py) < z[1] * R) bad.push(tag + ' bar boss menimpa ' + z[0].k); });
+          }
+          G.handlers.quit();
+        }
+      }
+    }
+    GA.devViewport = null; G.relayout();
+    ok('INV-8: tanpa dekorasi dasar / objek depan di zona bersih portal dan sarang (sprite + 2R), label SARANG tidak menutupi bola, bar boss tidak menimpa sprite (' + combos + ' kombinasi, ' + decorN + ' dekorasi; alpha depan maks. ' + coverMax.toFixed(2) + '; label min. ' + labelMin.toFixed(2) + 'R dari jalur)', bad.length === 0 && combos > 0, bad.slice(0, 4).join(' | '));
+  }
+
   /** Revisi 8 tahap e: penempatan rintangan di tata letak spiral — tiap rintangan yang muncul ada di dalam batas, tidak menimpa jalur / bola (jarak ke garis tengah ≥ r + R + margin), tidak menimpa mulut naga,
    *  lajur rune sepenuhnya di ruang bebas, radius ≥ 60% dasar; tiap jenis berhasil muncul di tiap stage × 3 layar; bola jawaban soal aktif tetap punya garis terbuka sesudah rintangan pemblokir muncul. */
   async function testHazardPlacement() {
@@ -486,9 +545,11 @@
             const e = r.haz.list[0], need = e.r + 6 + r.R + margin - 0.5;
             if (e.lane) {
               const L = Math.hypot(e.x1 - e.x0, e.y1 - e.y0); for (let u = 0; u <= 1.0001; u += 0.1) { const px = e.x0 + (e.x1 - e.x0) * u, py = e.y0 + (e.y1 - e.y0) * u; if (u > 0.05 && c.clear(px, py) + r.R + margin < e.r + 6 + r.R + margin - 0.5) { bad.push(tag + ' ' + k + ': lajur menimpa jalur'); break; } }
+              for (let u = 0; u <= 1.0001; u += 0.1) { const px = e.x0 + (e.x1 - e.x0) * u, py = e.y0 + (e.y1 - e.y0) * u; if ((c.zones || []).some(function (z) { return Math.hypot(px - z.x, py - z.y) < z.r + e.r - 0.5; })) { bad.push(tag + ' ' + k + ': lajur di zona bersih'); break; } }
               if (L < r.R - 0.5) bad.push(tag + ' ' + k + ': lajur terlalu pendek');
             } else {
               if (c.clear(e.x, e.y) + r.R + margin < need) bad.push(tag + ' ' + k + ': menimpa jalur/bola (jarak ' + (c.clear(e.x, e.y) + r.R + margin).toFixed(0) + ' < ' + need.toFixed(0) + ')');
+              if ((c.zones || []).some(function (z) { return Math.hypot(e.x - z.x, e.y - z.y) < z.r + e.r - 0.5; })) bad.push(tag + " " + k + ": di zona bersih portal/sarang");
               if (Math.hypot(e.x - s.x, e.y - s.y) - e.r < c.muzzleR + 12 - 0.5) bad.push(tag + ' ' + k + ': menimpa mulut naga');
               if (e.x < c.bounds.x0 + e.r || e.x > c.bounds.x1 - e.r || e.y < c.bounds.y0 + e.r || e.y > c.bounds.y1 - e.r) bad.push(tag + ' ' + k + ': di luar area');
             }
@@ -609,9 +670,9 @@
 
 
     const t0 = performance.now();
-    testDecks(); testFormats(); testHud(); testWaves(); testStorage(); testMigrate(); testStrings(); testContrast(); testPaths(); testInvariants();
+    testDecks(); testFormats(); testHud(); testWaves(); testStorage(); testMigrate(); testStrings(); testContrast(); testPaths(); testInvariants(); testSmallPhones();
     await testStages();
-    await testHazardPlacement();
+    await testHazardPlacement(); await testClearZones();
     await testSteal();
     await testAudio();
     await testStart();
@@ -649,7 +710,8 @@
   }
 
   GA.Tests = { results: results, done: false, run: runAll, swapTiming: testSwapTiming };
-  if (/[?&]only=swap/.test(location.search)) setTimeout(function () { testSwapTiming().then(function () { GA.Tests.done = true; }).catch(function (e) { results.push('ERROR ' + e.message + ' - ' + e.stack); GA.Tests.done = true; }); }, 600);      // ?test=1&only=swap: hanya telegraf penukaran
-  else if (/[?&]only=paths/.test(location.search)) setTimeout(function () { try { testPaths(); testInvariants(); } catch (e) { results.push('ERROR ' + e.message + ' - ' + e.stack); } GA.Tests.done = true; }, 600);      // ?test=1&only=paths: hanya uji jalur
+  if (/[?&]only=zones/.test(location.search)) setTimeout(function () { testClearZones().then(function () { GA.Tests.done = true; }).catch(function (e) { results.push('ERROR ' + e.message + ' - ' + e.stack); GA.Tests.done = true; }); }, 600);
+  else if (/[?&]only=swap/.test(location.search)) setTimeout(function () { testSwapTiming().then(function () { GA.Tests.done = true; }).catch(function (e) { results.push('ERROR ' + e.message + ' - ' + e.stack); GA.Tests.done = true; }); }, 600);      // ?test=1&only=swap: hanya telegraf penukaran
+  else if (/[?&]only=paths/.test(location.search)) setTimeout(function () { try { testPaths(); testInvariants(); testSmallPhones(); } catch (e) { results.push('ERROR ' + e.message + ' - ' + e.stack); } GA.Tests.done = true; }, 600);      // ?test=1&only=paths: hanya uji jalur
   else setTimeout(function () { runAll().catch(function (e) { results.push('ERROR ' + e.message + '\n' + e.stack); GA.Tests.done = true; console.error(e); }); }, 600);
 })(window.GA = window.GA || {});

@@ -98,6 +98,8 @@
   /** Pengali CHAIN_BASE_SPEED tiap stage (indeks 0..2). Stage 1 = nilai step lama 1, Stage 2 = step lama 3, Stage 3 (boss) = step lama 5: jalur boss pendek (±22 d), jadi lebih pelan. */
   const SWAP_TELEGRAPH_MIN_MS = 2000;
   const STAGE_SPEED_MULT = [1, 1, 0.75];      // revisi 8 tahap e: 0,5 → 0,75 (jalur spiral ±25 d, bukan ±15 d); dengan 0,5 bola jawaban lambat keluar portal dan Sedang lanskap Stage 3 hanya 77%
+  /** Revisi 10: pengali untuk layout LANSKAP/desktop (potret memakai STAGE_SPEED_MULT). Stage 3 lanskap 0,75 → 0,55: pada rute baru, Sedang lanskap Stage 3 naik ke 92% (bot, 300 seed) dari 86%; kecepatan kepala rantai di Stage 3 hanya menggeser sedikit (0,4–1,3 → 88–92%), jadi 0,55 yang paling mendekati. */
+  const STAGE_SPEED_MULT_LANDSCAPE = [1, 1, 0.55];
 
   /** Model nominal bola yang sudah keluar saat soal ke-k aktif (QM.arrange), diukur dengan bot ?debug=pace: SHUFFLE_EMIT/LEAD = batas bawah konservatif (jawaban hanya di bola yang pasti sudah keluar), SHUFFLE_TEMIT/TLEAD = rata-rata terukur (untuk menyeimbangkan sepertiga rantai); nilai k awal lalu k + lead. Stage 3 (rantai 0,5x) keluar lebih lambat. */
   const STAGE_SHUFFLE = [
@@ -149,24 +151,24 @@
   function saveOverrides() { if (debug.tune) { try { localStorage.setItem(OVR_KEY, JSON.stringify(overrides)); } catch (e) { /* abaikan */ } } }
 
   /** Isi `out` (objek yang dipegang run) dengan nilai terselesaikan untuk kesulitan & step. */
-  function fill(out, diff, step) {
+  function fill(out, diff, step, portrait) {
     Object.assign(out, DEFAULTS, PER_DIFF[diff] || PER_DIFF.sedang);
     const si = Math.max(0, Math.min(STAGE_SPEED_MULT.length - 1, step | 0));
-    out.CHAIN_BASE_SPEED *= STAGE_SPEED_MULT[si]; out.SHUFFLE_EMIT = STAGE_SHUFFLE[si].emit; out.SHUFFLE_LEAD = STAGE_SHUFFLE[si].lead; out.SHUFFLE_TEMIT = STAGE_SHUFFLE[si].tEmit; out.SHUFFLE_TLEAD = STAGE_SHUFFLE[si].tLead;
+    out.CHAIN_BASE_SPEED *= (portrait === false ? STAGE_SPEED_MULT_LANDSCAPE : STAGE_SPEED_MULT)[si]; out.SHUFFLE_EMIT = STAGE_SHUFFLE[si].emit; out.SHUFFLE_LEAD = STAGE_SHUFFLE[si].lead; out.SHUFFLE_TEMIT = STAGE_SHUFFLE[si].tEmit; out.SHUFFLE_TLEAD = STAGE_SHUFFLE[si].tLead;
     for (const k in overrides) if (k in DEFAULTS) out[k] = overrides[k];
     out.SWAP_TELEGRAPH_MS = Math.max(SWAP_TELEGRAPH_MIN_MS, out.SWAP_TELEGRAPH_MS);      // penukaran tidak boleh mendadak: peringatan → penukaran >= 2 dtk
     out.SWAP_TELEGRAPH = out.SWAP_TELEGRAPH_MS / 1000; out.SWAP_WARN = Math.min(out.SWAP_WARN_MS, out.SWAP_TELEGRAPH_MS * 0.5) / 1000;
     return out;
   }
-  function resolve(diff, step) { return fill({}, diff, step); }
+  function resolve(diff, step, portrait) { return fill({}, diff, step, portrait); }
 
   /* objek hidup yang perlu disegarkan saat slider digeser: { gp, diff, step } */
   let tracked = null;
-  function track(gp, diff, step) { tracked = { gp: gp, diff: diff, step: step }; }
-  function refresh() { if (tracked) fill(tracked.gp, tracked.diff, tracked.step); }
+  function track(gp, diff, step, portrait) { tracked = { gp: gp, diff: diff, step: step, portrait: portrait }; }
+  function refresh() { if (tracked) fill(tracked.gp, tracked.diff, tracked.step, tracked.portrait); }
 
   const Gameplay = {
-    DEFAULTS: DEFAULTS, PER_DIFF: PER_DIFF, STAGE_SPEED_MULT: STAGE_SPEED_MULT, STAGE_SHUFFLE: STAGE_SHUFFLE, SWAP_TELEGRAPH_MIN_MS: SWAP_TELEGRAPH_MIN_MS, SWAP_EVERY: SWAP_EVERY, HAZ_MAX: HAZ_MAX, META: META, TUNABLE: TUNABLE,
+    DEFAULTS: DEFAULTS, PER_DIFF: PER_DIFF, STAGE_SPEED_MULT: STAGE_SPEED_MULT, STAGE_SPEED_MULT_LANDSCAPE: STAGE_SPEED_MULT_LANDSCAPE, STAGE_SHUFFLE: STAGE_SHUFFLE, SWAP_TELEGRAPH_MIN_MS: SWAP_TELEGRAPH_MIN_MS, SWAP_EVERY: SWAP_EVERY, HAZ_MAX: HAZ_MAX, META: META, TUNABLE: TUNABLE,
     debug: debug, overrides: overrides,
     resolve: resolve, fill: fill, track: track,
     /** Panel: atur satu nilai (berlaku langsung). */

@@ -215,5 +215,5 @@
     pill(ctx, '🥚 SARANG', f[0], f[1], '#e0932a', '#fff', size);
   }
 
-  GA.Path = { Path: Path, forLayout: forLayout, STEP: STEP, drawTrack: drawTrack, drawHole: drawHole, drawNest: drawNest, drawMarkers: drawMarkers, roundRect: roundRect, pill: pill, holeXY: holeXY };
+  GA.Path = { Path: Path, forLayout: forLayout, STEP: STEP, drawTrack: drawTrack, drawHole: drawHole, drawNest: drawNest, drawMarkers: drawMarkers, nestLabelSpot: nestLabelSpot, roundRect: roundRect, pill: pill, holeXY: holeXY };
 })(window.GA = window.GA || {});

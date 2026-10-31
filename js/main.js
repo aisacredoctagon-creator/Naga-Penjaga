@@ -109,7 +109,7 @@
   /** Orientasi berubah di tengah permainan: bangun ulang jalur, pertahankan posisi relatif rantai. Antrean soal, telur, dan progres tidak disentuh. */
   function rebuildForOrientation(r) {
     const newR = stageR(r.cfg), np = Path.forLayout(r.cfg.pathId, L, newR);
-    r.path = np; r.baseR = L.ballR; r.R = newR;
+    r.path = np; r.baseR = L.ballR; r.R = newR; Gameplay.fill(r.gp, r.cfg.diff, r.cfg.step, L.portrait); Gameplay.track(r.gp, r.cfg.diff, r.cfg.step, L.portrait);      // kecepatan rantai mengikuti orientasi baru
     if (r.chain) { r.chain.zones = chainZones(np); r.chain.overWindows = np.overWindows; r.chain.setPath(np, newR); }   // posisi relatif sepanjang jalur dipertahankan; bola yang rapat dirapatkan ulang (tanpa celah)
     fitShooter(r.shooter, np, newR);
     { const hon = r.haz.on; r.haz = makeHaz(r); r.haz.setOn(hon); }
@@ -321,13 +321,18 @@
 
   /* ================= petualangan & stage ================= */
   /** Radius bola rantai untuk stage ini (bola desimal/pecahan boleh sedikit lebih besar). */
-  function stageR(cfg) { return Math.min(L.ballR * cfg.ballScale, L.ballR * 1.2); }
+  function stageR(cfg) {
+    let R = Math.min(L.ballR * cfg.ballScale, L.ballR * 1.2);
+    // revisi 10: bola kategori besar (1,08–1,12×) di layar kecil (bola dasar >= 33) bisa membuat rute grid tidak muat; kecilkan bertahap (tidak pernah di bawah radius bola dasar) sampai jalur valid (INV-2..8)
+    for (; R > L.ballR + 0.01; R -= 0.5) { const rep = Path.forLayout(cfg.pathId, L, R).report; if (!rep.issues.some(function (i) { return i.kind !== "length"; })) return R; }
+    return Math.max(L.ballR, R);
+  }
 
   function buildRun(cfg) {
     const R = stageR(cfg);
     Theme.setScene(cfg.scene);
     const path = Path.forLayout(cfg.pathId, L, R);
-    const gp = Gameplay.resolve(cfg.diff, cfg.step); Gameplay.track(gp, cfg.diff, cfg.step);      // parameter gameplay hidup (config/gameplay.js; panel ?debug=tune mengubahnya langsung)
+    const gp = Gameplay.resolve(cfg.diff, cfg.step, L.portrait); Gameplay.track(gp, cfg.diff, cfg.step, L.portrait);      // parameter gameplay hidup (config/gameplay.js; panel ?debug=tune mengubahnya langsung)
     const shooter = new Shooter.Shooter(); fitShooter(shooter, path, R);
     const attempt = adv.attempts[cfg.step] = (adv.attempts[cfg.step] || 0) + 1;      // percobaan ke-n untuk stage ini (seed soal berbeda tiap percobaan)
     const qm = new GA.QM.Manager({ topics: cfg.topics, total: cfg.total, seed: GA.QM.seedFor(adv.seed, cfg.step, attempt), format: cfg.format, onChange: onQuestionChange });
@@ -1067,5 +1072,5 @@
 
 
   // untuk uji coba / debugging
-  GA.game = { lockTarget: function () { return run ? run.lock : null; }, pickTarget: function (x, y, m) { return pickTarget(x, y, m == null ? lockMult() : m); }, aimAtBall: function (b) { run.shooter.aimAt(b.x, b.y); updateLock(run, 0); return run.lock; }, aimAtPoint: function (x, y) { run.shooter.aimAt(x, y); updateLock(run, 0); return run.lock; }, setPointerType: function (k) { ptr.type = k; }, skipCountdown: function () { if (state === 'countdown' || state === 'intro') { UI.cancelCountdown(); UI.hide(); GA.Effects.openPortal(); beginPlay(); } }, get state() { return state; }, relayout: function () { relayout(); }, get run() { return run; }, get adv() { return adv; }, get layout() { return L; }, tick: tick, startAdventure: startAdventure, startStep: startStep, fire: fire, handlers: handlers, validateActive: validateActive, openLine: openLine, pendingVisible: pendingVisible, buildStream: buildStream, allBalls: allBalls, anySettling: anySettling, loseEgg: loseEgg, healEgg: healEgg, winStage: function () { if (state === 'playing') startClearing(!!run.cfg.isBoss); } };
+  GA.game = { bossBarX: bossBarX, stageR: stageR, lockTarget: function () { return run ? run.lock : null; }, pickTarget: function (x, y, m) { return pickTarget(x, y, m == null ? lockMult() : m); }, aimAtBall: function (b) { run.shooter.aimAt(b.x, b.y); updateLock(run, 0); return run.lock; }, aimAtPoint: function (x, y) { run.shooter.aimAt(x, y); updateLock(run, 0); return run.lock; }, setPointerType: function (k) { ptr.type = k; }, skipCountdown: function () { if (state === 'countdown' || state === 'intro') { UI.cancelCountdown(); UI.hide(); GA.Effects.openPortal(); beginPlay(); } }, get state() { return state; }, relayout: function () { relayout(); }, get run() { return run; }, get adv() { return adv; }, get layout() { return L; }, tick: tick, startAdventure: startAdventure, startStep: startStep, fire: fire, handlers: handlers, validateActive: validateActive, openLine: openLine, pendingVisible: pendingVisible, buildStream: buildStream, allBalls: allBalls, anySettling: anySettling, loseEgg: loseEgg, healEgg: healEgg, winStage: function () { if (state === 'playing') startClearing(!!run.cfg.isBoss); } };
 })(window.GA = window.GA || {});

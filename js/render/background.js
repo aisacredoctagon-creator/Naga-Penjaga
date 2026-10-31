@@ -246,6 +246,7 @@
       const r = N.rng(it.seed || 7), L2 = DRAW[it.t](g, it, pal, r, map);
       if (L2) { lights.push(L2); const hg = gl.createRadialGradient(L2.x, L2.y, 0, L2.x, L2.y, L2.r * 0.6); hg.addColorStop(0, 'rgba(' + L2.col + ',0.45)'); hg.addColorStop(1, 'rgba(' + L2.col + ',0)'); gl.fillStyle = hg; gl.beginPath(); gl.arc(L2.x, L2.y, L2.r * 0.6, 0, TAU); gl.fill(); }
     });
+    S.items = items;      // untuk tes zona bersih (revisi 10)
     return lights;
   }
 
@@ -387,6 +388,8 @@
     },
     has: function (id) { return !!(GA.Maps && GA.Maps[id]); },
     info: function () { return S.info; },
+    /** Dekorasi dasar yang ditebar (x, y, s, t): dipakai tes INV-8. */
+    decorItems: function () { return S.items || []; },
     invalidate: function () { S.key = ''; }
   };
 
