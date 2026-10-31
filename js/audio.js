@@ -8,7 +8,7 @@
  */
 (function (GA) {
   'use strict';
-  let ctx = null, master = null, sfxBus = null, ambBus = null, musBus = null, revSend = null, noiseBuf = null, enabled = true, active = 0;
+  let ctx = null, master = null, sfxBus = null, ambBus = null, musBus = null, revSend = null, noiseBuf = null, enabled = true, active = 0, vSfx = 1, vMus = 1;
   let curPan = 0, curWet = 0, curBus = null;           // diatur sementara oleh play()/ambient saat satu suara dibunyikan
   const errs = [], lastAt = {};
   const clamp = function (v, a, b) { return Math.max(a, Math.min(b, v)); };
@@ -25,9 +25,9 @@
           const cp = ctx.createDynamicsCompressor(); cp.threshold.value = -18; cp.knee.value = 14; cp.ratio.value = 4; cp.attack.value = 0.004; cp.release.value = 0.2;
           master.connect(cp); cp.connect(ctx.destination);
         } else master.connect(ctx.destination);
-        sfxBus = ctx.createGain(); sfxBus.connect(master);
-        ambBus = ctx.createGain(); ambBus.gain.value = enabled ? 1 : 0; ambBus.connect(master);
-        musBus = ctx.createGain(); musBus.gain.value = 0.1; musBus.connect(master);
+        sfxBus = ctx.createGain(); sfxBus.gain.value = vSfx; sfxBus.connect(master);
+        ambBus = ctx.createGain(); ambBus.gain.value = enabled ? vSfx : 0; ambBus.connect(master);
+        musBus = ctx.createGain(); musBus.gain.value = 0.1 * vMus; musBus.connect(master);
         curBus = sfxBus;
         // gema: impuls sintetis (noise yang meluruh) → ruang batu
         const len = Math.floor(ctx.sampleRate * 1.6), ir = ctx.createBuffer(2, len, ctx.sampleRate);
@@ -288,7 +288,9 @@
     /** Tahan semua suara (jeda) / lanjutkan. */
     suspend: function () { if (ctx && ctx.state === 'running') ctx.suspend(); },
     resume: function () { if (ctx && ctx.state === 'suspended') ctx.resume(); },
-    setEnabled: function (v) { enabled = !!v; if (ambBus) ambBus.gain.value = enabled ? 1 : 0; },
+    setEnabled: function (v) { enabled = !!v; if (ambBus) ambBus.gain.value = enabled ? vSfx : 0; },
+    /** Volume 0..1: suara (efek + ambient) dan musik (penggeser di Atur). */
+    setVolumes: function (sfx, mus) { vSfx = Math.max(0, Math.min(1, sfx)); vMus = Math.max(0, Math.min(1, mus)); if (sfxBus) sfxBus.gain.value = vSfx; if (ambBus) ambBus.gain.value = enabled ? vSfx : 0; if (musBus) musBus.gain.value = 0.1 * vMus; },
     isEnabled: function () { return enabled; },
     setMusic: function (v) { musicOn = !!v; if (musicOn && song && ctx) { nextT = ctx.currentTime + 0.05; } },
     isMusic: function () { return musicOn; },

@@ -13,7 +13,7 @@
 
   /** Bersihkan data mentah dari versi mana pun menjadi skema sekarang (tidak pernah melempar). */
   function migrate(d) {
-    const out = { v: SCHEMA, pick: null, sel: null, prog: {}, last: {}, highScore: 0, introSeen: false, coachSeen: false, swapSeen: false, settings: { sound: true, music: true, quality: 'auto' } };
+    const out = { v: SCHEMA, pick: null, sel: null, prog: {}, last: {}, highScore: 0, introSeen: false, coachSeen: false, swapSeen: false, settings: { sound: true, music: true, quality: 'auto', volSfx: 1, volMus: 1, fx: true } };
     if (!obj(d)) return out;
     if (obj(d.pick)) out.pick = goodPick(d.pick);
     else if (obj(d.sel)) {      // v1/v2: ambil kategori stage 1 dan kesulitan terakhir sebagai pilihan awal
@@ -65,6 +65,13 @@
     get quality() { return this.data.settings.quality || 'auto'; },
     set quality(v) { this.data.settings.quality = v; this.save(); },
     get music() { return this.data.settings.music !== false; },
+    /** Volume suara (efek + ambient) dan musik, 0..1 (penggeser di Atur), dan sakelar Efek Hidup/Mati. */
+    get volSfx() { const v = this.data.settings.volSfx; return typeof v === 'number' && isFinite(v) ? Math.max(0, Math.min(1, v)) : 1; },
+    set volSfx(v) { this.data.settings.volSfx = Math.max(0, Math.min(1, +v || 0)); this.save(); },
+    get volMus() { const v = this.data.settings.volMus; return typeof v === 'number' && isFinite(v) ? Math.max(0, Math.min(1, v)) : 1; },
+    set volMus(v) { this.data.settings.volMus = Math.max(0, Math.min(1, +v || 0)); this.save(); },
+    get fx() { return this.data.settings.fx !== false; },
+    set fx(v) { this.data.settings.fx = !!v; this.save(); },
     set music(v) { this.data.settings.music = !!v; this.save(); },
 
     /** Hapus Data (tombol di Atur): rekor, tanda cerita/petunjuk, dan data lama. Pengaturan suara/grafik dipertahankan. */

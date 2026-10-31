@@ -1033,10 +1033,10 @@
     rmq = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
     rmFn = function () { const on2 = !!(rmq && rmq.matches); FX.reduce = on2; GA.Background.reduceMotion = on2; if (on2) GA.Effects.setQuality(Math.min(GA.Effects.quality, 1)); };
     rmFn(); if (rmq && rmq.addEventListener) rmq.addEventListener('change', rmFn);
-    Audio.setEnabled(Storage.sound); Audio.setMusic(Storage.music);
+    Audio.setEnabled(Storage.sound); Audio.setMusic(Storage.music); Audio.setVolumes(Storage.volSfx, Storage.volMus);
     progress(0.2); await slice();
     UI.init(handlers); bindInput();
-    GA.Quality.init(Storage.quality, function () { if (booted) { computeLayout(); GA.Background.invalidate(); renderBg(); } });
+    GA.Quality.init(Storage.fx ? 'auto' : 'rendah', function () { if (booted) { computeLayout(); GA.Background.invalidate(); renderBg(); } });
     progress(0.45); await slice();
     Theme.setScene('menu'); computeLayout(); state = 'menu'; t = 0; hudShown = false; booted = true;
     progress(0.65); await slice();

@@ -121,6 +121,16 @@
     ok('kontras angka >= 4,5:1 (8 warna bola sihir)', c.min >= 4.5, 'terburuk ' + c.min.toFixed(1) + ':1');
   }
 
+  /** Kontras UI (tema gelap, revisi 11): teks krem di atas slate/plakat >= 4,5:1; teks tombol: putih di isi hijau/merah/biru >= 3:1 (teks besar tebal, + outline gelap) dan teks gelap di amber >= 4,5:1. */
+  function testUiContrast() {
+    const U = GA.Theme.ui, lum = function (hex) { const c = [1, 3, 5].map(function (i) { const v = parseInt(hex.slice(i, i + 2), 16) / 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+    const cr = function (a, b) { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    const rows = [['krem/slate-1', U.cream, U.slate[0], 4.5], ['krem/slate-2', U.cream, U.slate[1], 4.5], ['krem/slate-3', U.cream, U.slate[2], 4.5], ['krem/plakat', U.cream, U.plaque[1], 4.5], ['krem-redup/slate-3', U.creamDim, U.slate[2], 4.5], ['emas/plakat', U.gold[1], U.plaque[1], 4.5],
+      ['ok/slate-3', U.ok, U.slate[2], 4.5], ['bad/slate-3', U.bad, U.slate[2], 4.5], ['putih/hijau', '#ffffff', U.green[1], 3], ['putih/merah', '#ffffff', U.red[1], 3], ['putih/biru', '#ffffff', U.blue[1], 3], ['gelap/amber', '#2e1a04', U.amber[1], 4.5], ['gelap/amber-terang', '#2e1a04', U.amber[0], 4.5], ['gelap/amber-gelap', '#2e1a04', U.amber[2], 3]];
+    const bad = rows.filter(function (r) { return cr(r[1], r[2]) < r[3]; }).map(function (r) { return r[0] + ' ' + cr(r[1], r[2]).toFixed(2) + '<' + r[3]; });
+    ok('kontras UI gelap: teks krem >= 4,5:1 di panel/plakat, teks tombol >= 3:1 (besar) / 4,5:1 (amber gelap)', bad.length === 0, bad.length ? bad.join(', ') : 'terburuk ' + Math.min.apply(null, rows.map(function (r) { return cr(r[1], r[2]) / r[3]; })).toFixed(2) + '× batas');
+  }
+
   /** Pustaka arketipe jalur: semua valid (jarak antar-segmen, radius tikungan, batas layar, ruang penembak/boss; dua jalur: jarak antar-jalur) di landscape DAN portrait. */
   function testPaths() {
     const mk = function (portrait) { const W = portrait ? 540 : 960, H = portrait ? 960 : 540, h = GA.HUD.metrics({ portrait: portrait, W: W, scale: 1 }).h; return { portrait: portrait, W: W, H: H, play: { x: 0, y: h, w: W, h: H - h - (portrait ? 12 : 0) } }; };
@@ -603,8 +613,8 @@
     ok('halaman awal: tanpa simpanan → Penjumlahan + Sedang (selalu ada pilihan aktif), rekor 0', $('st-cats').querySelector('.on').dataset.id === C.DEFAULT_CAT && $('st-diff').querySelector('.on').dataset.id === C.DEFAULT_DIFF && /^0$/.test($('st-rec').textContent.trim()), $('st-cats').querySelector('.on').dataset.id + '/' + $('st-diff').querySelector('.on').dataset.id);
     // Cara Main + Atur
     $('st-howto').click(); await sleep(40); const how = $('s-howto').classList.contains('show') && $('s-howto').querySelectorAll('.k-howc').length === 3; $('s-howto').querySelector('[data-act="st-back"]').click(); await sleep(40);
-    $('st-settings').click(); await sleep(40); const set = $('s-settings').classList.contains('show') && !!$('q-seg').querySelector('[role="radio"]') && $('s-settings').querySelectorAll('[data-sync]').length === 2; dispatchKey($('s-settings'), 'Escape'); await sleep(40);
-    ok('halaman awal: ? membuka Cara Main (3 kartu bergambar), gerigi membuka Atur (suara, musik, grafik); Esc kembali ke halaman awal', how && set && $('s-start').classList.contains('show'), how + ',' + set);
+    $('st-settings').click(); await sleep(40); const set = $('s-settings').classList.contains('show') && $('s-settings').querySelectorAll('input[type=range]').length === 2 && $('s-settings').querySelectorAll('[data-sync="fx"]').length === 1; dispatchKey($('s-settings'), 'Escape'); await sleep(40);
+    ok('halaman awal: ? membuka Cara Main (3 kartu bergambar), gerigi membuka Atur (penggeser suara + musik, sakelar efek); Esc kembali ke halaman awal', how && set && $('s-start').classList.contains('show'), how + ',' + set);
     S.data = JSON.parse(saved); S.save(); GA.Start.show();
   }
 
@@ -670,7 +680,7 @@
 
 
     const t0 = performance.now();
-    testDecks(); testFormats(); testHud(); testWaves(); testStorage(); testMigrate(); testStrings(); testContrast(); testPaths(); testInvariants(); testSmallPhones();
+    testDecks(); testFormats(); testHud(); testWaves(); testStorage(); testMigrate(); testStrings(); testContrast(); testUiContrast(); testPaths(); testInvariants(); testSmallPhones();
     await testStages();
     await testHazardPlacement(); await testClearZones();
     await testSteal();

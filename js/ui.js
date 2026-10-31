@@ -5,7 +5,7 @@
   const Theme = GA.Theme, MT = GA.MathText, T = GA.T;
 
   const I = function (n, c) { return GA.Icons.html(n, c); };
-  let root = null, H = null, rootClick = null, countdownTimer = null, hudBtn = null, pauseOpen = false, toastTimer = 0, mascotRaf = 0;
+  let root = null, H = null, rootClick = null, countdownTimer = null, hudBtn = null, pauseOpen = false, toastTimer = 0;
   const screens = {};
 
   function el(html) { const d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstChild; }
@@ -21,50 +21,17 @@
   ];
 
   function pauseHTML() {
-    const play = '<span class="pz-ico play" aria-hidden="true"><img src="assets/icon-play.svg" alt=""></span>';
-    const restart = '<span class="pz-ico restart" aria-hidden="true"><img src="assets/icon-restart.svg" alt=""></span>';
-    const home = '<span class="pz-ico home" aria-hidden="true"><img src="assets/icon-home.svg" alt=""></span>';
-    const spk = '<svg class="on" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6h3l4-3.5v11L5 10H2z" fill="#451a03"/><path d="M11 5.2a4 4 0 0 1 0 5.6M12.8 3.4a6.6 6.6 0 0 1 0 9.2" fill="none" stroke="#451a03" stroke-width="1.5" stroke-linecap="round"/></svg>' +
-      '<svg class="off" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6h3l4-3.5v11L5 10H2z" fill="#451a03"/><path d="M11 6l4 4M15 6l-4 4" fill="none" stroke="#451a03" stroke-width="1.6" stroke-linecap="round"/></svg>';
-    return '<section class="screen pz" id="s-pause" role="dialog" aria-modal="true" aria-labelledby="pz-title" aria-describedby="pz-sub">' +
-      '<header class="pz-top">' +
-        '<button type="button" class="pz-status" data-act="p-resume" aria-label="Permainan dijeda. Tekan untuk lanjut"><span class="pz-bars" aria-hidden="true"><i></i><i></i></span></button>' +
-        '<p class="pz-badge" id="pz-badge"></p>' +
-      '</header>' +
-      '<div class="pz-body"><div class="pz-fit" id="pz-fit"><div class="pz-stage" id="pz-stage"><div class="pz-sway">' +
-        '<div class="pz-board">' +
-          '<i class="pz-bolt tl"></i><i class="pz-bolt tr"></i><i class="pz-bolt bl"></i><i class="pz-bolt br"></i>' +
-          '<div class="pz-plank">' +
-            '<div class="pz-plaque"><h2 id="pz-title">JEDA</h2><span class="pz-strip"></span></div>' +
-            '<p class="pz-sub" id="pz-sub"><span id="pz-q1"></span><span id="pz-q2"></span></p>' +
-            '<hr class="pz-divider">' +
-            '<div class="pz-buttons">' +
-              '<button type="button" class="pz-btn pz-green" id="pz-first" data-act="p-resume">' + play + '<span>LANJUT</span><i class="pz-gloss"></i></button>' +
-              '<div class="pz-row">' +
-                '<button type="button" class="pz-btn pz-orange" data-act="p-restart"><i class="pz-gloss"></i>' + restart + '<span>Ulangi</span></button>' +
-                '<button type="button" class="pz-btn pz-orange" data-act="p-quit"><i class="pz-gloss"></i>' + home + '<span>Menu</span></button>' +
-              '</div>' +
-              '<button type="button" class="pz-toggle" role="switch" aria-checked="true" aria-label="Suara Permainan" data-act="p-sound">' +
-                '<span class="pz-tl"><span class="pz-speaker">' + spk + '</span><span class="pz-tt">Suara<br>Permainan</span></span>' +
-                '<span class="pz-tr"><span class="pz-state" id="pz-state">NYALA</span><span class="pz-track"></span></span>' +
-              '</button>' +
-            '</div>' +
-          '</div>' +
-        '</div>' +
-        '<div class="pz-banner">' +
-          '<div class="pz-ropes" aria-hidden="true"><span class="pz-rope"><b></b><i></i></span><span class="pz-rope"><b></b><i></i></span></div>' +
-          '<button type="button" class="pz-booster" data-act="p-booster" aria-label="Booster gratis. Klaim sekarang. Iklan">' +
-            '<span class="pz-bicons" aria-hidden="true"><span class="pz-capsule">✚</span><span class="pz-kit"><span><em>✚</em></span></span></span>' +
-            '<span class="pz-btxt"><strong>Booster Gratis</strong><span>Klaim Sekarang</span></span>' +
-            '<span class="pz-ad" aria-hidden="true">AD</span><span class="pz-ribbon" aria-hidden="true">GRATIS</span>' +
-          '</button>' +
-        '</div>' +
-        '<div class="pz-mascot"><canvas id="pz-mascot-cv" width="272" height="272" role="img" aria-label="Naga penjaga sedang tidur nyenyak di samping sarangnya"></canvas></div>' +
-      '</div></div></div></div>' +
+    const K = GA.Kit;
+    return '<section class="screen dim pz" id="s-pause" role="dialog" aria-modal="true" aria-label="' + esc(T('pause.title')) + '" aria-describedby="pz-sub">' +
+      K.panel({ title: T('pause.title'), cls: 'k-small pz-panel', body:
+        '<canvas id="pz-mascot-cv" class="pz-mascot" width="136" height="136" role="img" aria-label="Naga penjaga tidur di samping sarangnya"></canvas>' +
+        '<p class="pz-badge" id="pz-badge"></p><p class="pz-sub" id="pz-sub"><span id="pz-q1"></span> <span id="pz-q2"></span></p>' +
+        K.button({ act: 'p-resume', id: 'pz-first', icon: 'play', label: T('pause.resume'), size: 'big' }) +
+        '<div class="k-row">' + K.button({ act: 'p-restart', icon: 'restart', label: T('common.retry'), variant: 'secondary', size: 'small' }) + K.button({ act: 'p-quit', icon: 'home', label: T('common.menu'), variant: 'secondary', size: 'small' }) + '</div>' +
+        K.toggle({ act: 'p-sound', icon: 'sound', label: T('set.sound'), sync: 'psound' }) }) +
       '<div class="pz-confirm" id="pz-confirm" role="alertdialog" aria-modal="true" aria-labelledby="pzc-title" aria-describedby="pzc-text">' +
-        '<div class="pz-ccard"><h3 id="pzc-title"></h3><p id="pzc-text"></p>' +
-          '<div class="pz-row"><button type="button" class="pz-btn pz-orange" id="pzc-no" data-act="c-no"><i class="pz-gloss"></i><span>Batal</span></button>' +
-          '<button type="button" class="pz-btn pz-green" id="pzc-yes" data-act="c-yes"><i class="pz-gloss"></i><span></span></button></div></div>' +
+        '<div class="k-panel k-small"><div class="k-body"><h3 class="k-title" id="pzc-title"></h3><p class="k-mx" id="pzc-text"></p>' +
+          '<div class="k-row">' + K.button({ id: 'pzc-no', act: 'c-no', label: T('common.no'), variant: 'secondary' }) + K.button({ id: 'pzc-yes', act: 'c-yes', label: T('common.yes'), variant: 'danger' }) + '</div></div></div>' +
       '</div>' +
       '<div class="pz-toast" id="pz-toast" role="status" aria-live="polite"></div>' +
     '</section>';
@@ -125,9 +92,8 @@
 
     /** Bongkar layar permainan (story, intro, jeda, hasil), tombol jeda HUD, hitung mundur, dan listener — dipanggil saat kembali ke halaman awal. */
     destroy: function () {
-      clearTimeout(countdownTimer); clearTimeout(toastTimer); cancelAnimationFrame(mascotRaf); this.stopStoryAnim();
+      clearTimeout(countdownTimer); clearTimeout(toastTimer); this.stopStoryAnim();
       pauseOpen = false; this._story = null; this._ov = null; this._confirmFn = null; this._opener = null; this._confirmOpener = null;
-      window.removeEventListener('resize', this._onPauseResize);
       if (root && rootClick) root.removeEventListener('click', rootClick); rootClick = null;
       Object.keys(screens).forEach(function (k) { if (screens[k].parentNode) screens[k].parentNode.removeChild(screens[k]); delete screens[k]; });
       const cd = document.getElementById('countdown'); if (cd && cd.parentNode) cd.parentNode.removeChild(cd);
@@ -141,7 +107,6 @@
         case 'go': H.introGo(); break;
         case 'p-resume': H.resume(); break;
         case 'p-sound': H.toggleSound(); break;
-        case 'p-booster': this.onBoosterClick(); break;
         case 'p-restart': this.confirmOr('Ulangi stage?', 'Progres stage hilang.', 'Ya, ulangi', H.restart, b); break;
         case 'p-quit': this.confirmOr('Ke menu?', 'Progres hilang.', 'Ya, ke menu', H.quit, b); break;
         case 'c-no': this.closeConfirm(true); break;
@@ -170,8 +135,8 @@
     isOpen: function () { return Object.keys(screens).some(function (k) { return screens[k].classList.contains('show'); }); },
     /** Sakelar suara di popup Jeda mengikuti keadaan audio. */
     syncSound: function () {
-      const on = GA.Audio.isEnabled(), sw = root.querySelector('.pz-toggle');
-      if (sw) { sw.setAttribute('aria-checked', on ? 'true' : 'false'); document.getElementById('pz-state').textContent = on ? 'NYALA' : 'MATI'; }
+      const on = GA.Audio.isEnabled();
+      root.querySelectorAll('[data-sync="psound"]').forEach(function (n) { n.classList.toggle('on', on); n.setAttribute('aria-checked', on ? 'true' : 'false'); });
     },
 
     /* ---------- cerita (panel bergambar) ---------- */
@@ -252,9 +217,6 @@
     /* ---------- popup JEDA ---------- */
     pauseQuotes: PAUSE_QUOTES,
 
-    /** Placeholder: sambungkan ke iklan/reward sungguhan nanti. Belum ada SDK iklan apa pun. */
-    onBoosterClick: function () { this.toast('Segera hadir'); },
-
     drawMascot: function (t) {
       const cv = document.getElementById('pz-mascot-cv'); if (!cv) return;
       const g = cv.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, cv.width, cv.height);
@@ -270,14 +232,8 @@
       this.syncSound();
       this._opener = document.activeElement;
       this.show('pause'); pauseOpen = true;
-      this.fitPause();
       const cvx = document.getElementById('game'); if (cvx) cvx.inert = true; hudBtn.inert = true;
-      window.addEventListener('resize', this._onPauseResize);
-      // naga tidur bernapas pelan (animasi DOM; permainan di belakang tetap beku)
-      const t0 = performance.now(), self = this;
-      cancelAnimationFrame(mascotRaf);
-      const loop = function (now) { if (!pauseOpen) return; self.drawMascot((now - t0) / 1000); mascotRaf = requestAnimationFrame(loop); };
-      mascotRaf = requestAnimationFrame(loop);
+      this.drawMascot(0);      // naga tidur: gambar statis, digambar sekali (tanpa loop rAF)
       document.getElementById('pz-first').focus({ preventScroll: true });
     },
 
@@ -285,10 +241,9 @@
     hidePause: function () { if (pauseOpen) { this.leavePause(true); screens.pause.classList.remove('show'); } },
 
     leavePause: function (focusBack) {
-      pauseOpen = false; cancelAnimationFrame(mascotRaf);
+      pauseOpen = false;
       this.closeConfirm(false);
       clearTimeout(toastTimer); document.getElementById('pz-toast').classList.remove('show');
-      window.removeEventListener('resize', this._onPauseResize);
       const cvy = document.getElementById('game'); if (cvy) cvy.inert = false; if (hudBtn) hudBtn.inert = false;
       if (focusBack) {
         const t = hudBtn.classList.contains('on') ? hudBtn : this._opener;
@@ -296,18 +251,6 @@
       }
     },
 
-    _onPauseResize: function () { UI.fitPause(); },
-
-    /** Skalakan popup (didesain 350×640) agar pas di layar; discroll bila terlalu pendek. */
-    fitPause: function () {
-      const body = screens.pause.querySelector('.pz-body'), fit = document.getElementById('pz-fit');
-      // layar pendek (HP landscape): banner booster disembunyikan, tinggi desain 530 dan skala minimum lebih kecil agar tombol Lanjut tetap terjangkau
-      const short = body.clientHeight < 440, H = short ? 530 : 640, stage = document.getElementById('pz-stage');
-      const s = Math.max(short ? 0.44 : 0.78, Math.min(1.3, (body.clientWidth - 32) / 350, (body.clientHeight - 36) / H));
-      stage.classList.toggle('pz-compact', short);
-      fit.style.width = (350 * s) + 'px'; fit.style.height = (H * s) + 'px';
-      stage.style.setProperty('--pz-s', s);
-    },
 
     confirmOpen: function () { return document.getElementById('pz-confirm').classList.contains('show'); },
 
@@ -318,7 +261,7 @@
       document.getElementById('pzc-title').textContent = title;
       document.getElementById('pzc-text').textContent = text;
       document.querySelector('#pzc-yes span').textContent = yes;
-      screens.pause.querySelector('.pz-top').inert = true; screens.pause.querySelector('.pz-body').inert = true;
+      screens.pause.querySelector('.pz-panel').inert = true;
       document.getElementById('pz-confirm').classList.add('show');
       document.getElementById('pzc-no').focus({ preventScroll: true });
     },
@@ -326,7 +269,7 @@
       const c = document.getElementById('pz-confirm');
       if (!c.classList.contains('show')) return;
       c.classList.remove('show');
-      screens.pause.querySelector('.pz-top').inert = false; screens.pause.querySelector('.pz-body').inert = false;
+      screens.pause.querySelector('.pz-panel').inert = false;
       if (focusBack && this._confirmOpener) this._confirmOpener.focus({ preventScroll: true });
       this._confirmFn = null;
     },

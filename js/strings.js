@@ -10,6 +10,7 @@
     // umum
     'common.back': 'Kembali', 'common.go': 'Mulai!', 'common.next': 'Lanjut', 'common.skip': 'Lewati', 'common.menu': 'Menu',
     'common.again': 'Main Lagi', 'common.yes': 'Ya', 'common.no': 'Batal', 'common.ok': 'Oke',
+    'pause.title': 'JEDA', 'pause.resume': 'LANJUT',
     'common.score': 'Skor', 'common.example': 'Contoh', 'common.questions': 'soal', 'common.retry': 'Ulangi',
 
     // halaman awal (satu layar: kategori + kesulitan + Mulai Main)
@@ -17,7 +18,7 @@
     'start.howto': 'Cara Main', 'start.settings': 'Atur', 'start.loading': 'Memuat…', 'start.fail': 'Gagal memuat', 'start.retry': 'Coba lagi',
 
     // pengaturan
-    'set.title': 'Atur', 'set.sound': 'Suara', 'set.music': 'Musik', 'set.quality': 'Grafik',
+    'set.title': 'Atur', 'set.sound': 'Suara', 'set.music': 'Musik', 'set.quality': 'Grafik', 'set.fx': 'Efek',
     'set.auto': 'Otomatis', 'set.high': 'Tinggi', 'set.mid': 'Sedang', 'set.low': 'Rendah',
     'set.story': 'Cerita', 'set.storyok': 'Cerita diputar saat main', 'set.reset': 'Hapus Data', 'set.resetq': 'Hapus rekor?', 'set.resetx': 'Rekor dan petunjuk akan hilang.',
     'set.resetyes': 'Hapus', 'set.resetdone': 'Data dihapus',

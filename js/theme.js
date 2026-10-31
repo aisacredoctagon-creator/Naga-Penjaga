@@ -6,16 +6,19 @@
 
   const Theme = {
     fonts: {
-      ui: '"Baloo 2","Fredoka","Trebuchet MS","Comic Sans MS",system-ui,sans-serif',
-      title: '"Cinzel Decorative","Cinzel","Palatino Linotype","Book Antiqua",Georgia,serif'   // judul fantasi; angka tetap memakai ui
+      ui: '"Baloo 2","Fredoka","Trebuchet MS","Segoe UI",system-ui,sans-serif',
+      title: '"Baloo 2","Fredoka","Trebuchet MS","Segoe UI",system-ui,sans-serif'   // judul papan: font tebal yang sama dengan isi (outline gelap lewat CSS)
     },
 
-    /* ---- token desain UI (satu sumber untuk HUD canvas dan CSS variables; lihat js/ui/skin.js) ----
-     * Material: kayu tua, batu berukir, perkamen, emas bertrim, api. Semua panel memakai bevel + inner shadow + butiran halus. */
+    /* ---- token desain UI (SATU sumber untuk CSS variables lewat js/ui/skin.js dan untuk kanvas): tema gelap malam fantasi ----
+     * Panel batu bingkai tebal dengan isi slate gelap, plakat judul slate lebih gelap, teks krem terang, aksen emas; tombol hijau (utama), amber (sekunder), merah (bahaya),
+     * biru (khusus); aksen ungu untuk sihir. Kontras teks UI >= 4,5:1 (tes otomatis di ?test=1). wood/parchment/stone di bawah = token lama, hanya dipakai HUD kanvas lama (dihapus di tahap c). */
     ui: {
-      wood: ['#8a5a2a', '#5a3418', '#2a160a'], gold: ['#fff0b0', '#e8b84a', '#9a6a14'], parchment: ['#fdf3d6', '#ecd9a6', '#c9ac6a'],
-      stone: ['#9a94c0', '#605a84', '#2a2648'], ink: '#2a1a3a', rune: '#b890ff', fire: ['#fff3a0', '#ff9a3c', '#d9361a'],
-      ok: '#3fbf6a', bad: '#e0405a', radius: { s: 10, m: 16, l: 24 }
+      slate: ['#3a3656', '#2e2b46', '#232037'], plaque: ['#2a2640', '#1a182c'], frame: ['#a7a1c8', '#6f6a96', '#403b66'], edge: '#12101f',
+      cream: '#f6ecd3', creamDim: '#cfc5ad', gold: ['#fff0b0', '#e8b84a', '#9a6a14'],
+      green: ['#7ada5a', '#2fa83c', '#1c7a2e', '#0f4a1c'], amber: ['#ffdc7a', '#f0a020', '#c06a10', '#4a2606'], red: ['#ff9a9a', '#e0405a', '#a01830', '#3a0818'], blue: ['#9ad0ff', '#3a82e0', '#1f56b0', '#0c2a5e'],
+      rune: '#b890ff', fire: ['#fff3a0', '#ff9a3c', '#d9361a'], ok: '#5fe08a', bad: '#ff6a7e', radius: { s: 8, m: 14, l: 22 },
+      wood: ['#8a5a2a', '#5a3418', '#2a160a'], parchment: ['#fdf3d6', '#ecd9a6', '#c9ac6a'], stone: ['#9a94c0', '#605a84', '#2a2648'], ink: '#2a1a3a'
     },
 
     colors: {

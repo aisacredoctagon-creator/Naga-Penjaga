@@ -1,22 +1,16 @@
 /* base.css — dasar halaman: reset, kanvas, lapisan layar, hitung mundur, pecahan bersusun.
  * Komponen UI ada di kit.css; popup Jeda di pause.css (desain Figma). Variabel warna/tekstur dipasang js/ui/skin.js dari Theme.ui. */
 :root {
-  --ink: #2a1a3a;
-  --font-title: "Cinzel Decorative", "Cinzel", "Palatino Linotype", "Book Antiqua", Georgia, serif;
-  --font-ui: "Baloo 2", "Fredoka", "Trebuchet MS", system-ui, sans-serif;
-  --r-s: 10px; --r-m: 16px; --r-l: 24px;
-  --tex-wood: linear-gradient(#8a5a2a, #5a3418);
-  --tex-wood-dark: linear-gradient(#5a3418, #2a160a);
-  --tex-stone: linear-gradient(#605a84, #2a2648);
-  --tex-parch: linear-gradient(#fdf3d6, #ecd9a6);
-  --shadow-1: 0 6px 0 rgba(20, 8, 0, .5), 0 16px 34px rgba(0, 0, 0, .5);
+  --font-title: "Baloo 2", "Fredoka", "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+  --font-ui: "Baloo 2", "Fredoka", "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+  --r-s: 8px; --r-m: 14px; --r-l: 22px;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 html, body {
   margin: 0; height: 100%; overflow: hidden;
-  background: #120a24; color: var(--ink);
+  background: #0b0716; color: #f6ecd3;
   font-family: var(--font-ui);
   overscroll-behavior: none;
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
@@ -29,21 +23,21 @@ html, body {
 /* ---------- layar ---------- */
 .screen {
   position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
-  padding: calc(max(12px, env(safe-area-inset-top)) + 36px) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  padding: calc(max(12px, env(safe-area-inset-top)) + 6px) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   pointer-events: auto; overflow: hidden;
 }
 .screen.show { display: flex; animation: scrIn .34s cubic-bezier(.2, .9, .3, 1) both; }
 .screen.scroll { overflow-y: auto; touch-action: pan-y; align-items: flex-start; }
 .screen.scroll > .k-panel { margin: auto; }
-.screen.dim { background: radial-gradient(ellipse at 50% 40%, rgba(24, 12, 56, .5), rgba(6, 2, 20, .86)); }
+.screen.dim { background: rgba(8, 6, 20, .78); }
 @keyframes scrIn { from { opacity: 0; transform: translateY(16px) scale(.97); } to { opacity: 1; transform: none; } }
 
 /* ---------- hitung mundur ---------- */
 .countdown {
   position: absolute; inset: 0; display: none; align-items: center; justify-content: center; pointer-events: none;
   font-family: var(--font-title); font-size: min(32vmin, 220px); font-weight: 700; color: #ffe27a;
-  -webkit-text-stroke: 8px rgba(40, 16, 2, .92); paint-order: stroke fill;
-  text-shadow: 0 6px 0 rgba(40, 16, 2, .5), 0 0 36px rgba(255, 170, 40, .7);
+  -webkit-text-stroke: 8px #12101f; paint-order: stroke fill;
+  text-shadow: 0 6px 0 rgba(18, 16, 31, .6);
 }
 .countdown.on { display: flex; }
 .countdown.pop { animation: cdPop .8s ease-out; }

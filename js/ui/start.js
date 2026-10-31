@@ -46,9 +46,7 @@
 
   function settingsHTML() {
     return '<section class="screen dim scroll" id="s-settings" role="dialog" aria-modal="true" aria-label="' + K.esc(T('set.title')) + '">' + K.panel({ title: T('set.title'), back: 'st-back', body:
-      K.toggle({ act: 'st-sound', icon: 'sound', label: T('set.sound'), sync: 'sound' }) +
-      K.toggle({ act: 'st-music', icon: 'music', label: T('set.music'), sync: 'music' }) +
-      '<p class="k-eyebrow">' + T('set.quality') + '</p><div id="q-seg"></div>' +
+K.slider({ act: 'st-vol-sfx', id: 'sl-sfx', icon: 'sound', label: T('set.sound'), value: Storage.volSfx * 100 }) +      K.slider({ act: 'st-vol-mus', id: 'sl-mus', icon: 'music', label: T('set.music'), value: Storage.volMus * 100 }) +      K.toggle({ act: 'st-fx', icon: 'flame', label: T('set.fx'), sync: 'fx' }) +
       K.button({ act: 'st-story', icon: 'book', label: T('set.story'), variant: 'secondary' }) +
       K.button({ act: 'st-reset', icon: 'restart', label: T('set.reset'), variant: 'danger', size: 'small' }) }) + '</section>';
   }
@@ -69,17 +67,15 @@
   }
 
   function syncSettings() {
-    const on = Storage.sound, mu = Storage.music;
-    [['sound', on], ['music', mu]].forEach(function (p) {
-      root.querySelectorAll('#s-settings [data-sync="' + p[0] + '"]').forEach(function (n) { n.classList.toggle('on', p[1]); n.setAttribute('aria-checked', p[1] ? 'true' : 'false'); });
-    });
-    const seg = $('q-seg');
-    if (seg) seg.innerHTML = K.segmented({ act: 'st-quality', label: T('set.quality'), items: ['auto', 'tinggi', 'sedang', 'rendah'].map(function (m) {
-      return { id: m, label: T({ auto: 'set.auto', tinggi: 'set.high', sedang: 'set.mid', rendah: 'set.low' }[m]), on: GA.Quality.mode === m };
-    }) });
+    const fx = Storage.fx;
+    root.querySelectorAll('#s-settings [data-sync="fx"]').forEach(function (n) { n.classList.toggle('on', fx); n.setAttribute('aria-checked', fx ? 'true' : 'false'); });
+    [['sl-sfx', Storage.volSfx], ['sl-mus', Storage.volMus]].forEach(function (p) { const s = $(p[0]); if (s) { s.value = Math.round(p[1] * 100); s.style.setProperty('--v', s.value + '%'); } });
   }
 
   /** Tandai pilihan di DOM tanpa membangun ulang (fokus papan ketik tidak hilang). */
+  /** Efek Hidup/Mati (menggantikan tingkat kualitas): Mati = tingkat terendah (efek atmosfer, partikel, dan animasi non-esensial dimatikan). */
+  function applyFx() { GA.Quality.setMode(Storage.fx ? 'auto' : 'rendah', true); }
+
   function applyPick() {
     root.querySelectorAll('#st-cats .k-cat').forEach(function (c) { const on = c.dataset.id === pick.cat; c.classList.toggle('on', on); c.setAttribute('aria-checked', on ? 'true' : 'false'); c.tabIndex = on ? 0 : -1; });
     root.querySelectorAll('#st-diff .k-seg-i').forEach(function (c) { const on = c.dataset.id === pick.diff; c.classList.toggle('on', on); c.setAttribute('aria-checked', on ? 'true' : 'false'); c.tabIndex = on ? 0 : -1; });
@@ -109,7 +105,7 @@
     e.preventDefault(); const t = items[n], id = t.dataset.id;
     if (g.id === 'st-cats') { choose('cat', id); t.focus(); }
     else if (g.closest('#st-diff')) { choose('diff', id); t.focus(); }
-    else { t.click(); const nt = $('q-seg').querySelector('[data-id="' + id + '"]'); if (nt) nt.focus(); }      // grup lain (grafik di Atur): pilihan dibangun ulang, fokus dikembalikan
+    else return;
   }
 
   /** Tombol Mulai Main: simpan pilihan, minta Boot memuat mesin game dan memulai Stage 1. Ketukan ganda diabaikan selama memuat. */
@@ -133,9 +129,7 @@
       case 'st-howto': open('howto', b); break;
       case 'st-settings': open('settings', b); break;
       case 'st-back': back(); break;
-      case 'st-sound': Storage.sound = !Storage.sound; if (GA.Audio) GA.Audio.setEnabled(Storage.sound); syncSettings(); break;
-      case 'st-music': Storage.music = !Storage.music; if (GA.Audio) GA.Audio.setMusic(Storage.music); syncSettings(); break;
-      case 'st-quality': GA.Quality.setMode(b.dataset.id); Storage.quality = GA.Quality.mode; syncSettings(); break;
+      case 'st-fx': Storage.fx = !Storage.fx; applyFx(); syncSettings(); break;
       case 'st-story': Storage.introSeen = false; K.toast(T('set.storyok')); break;
       case 'st-reset': K.confirm({ title: T('set.resetq'), text: T('set.resetx'), yes: T('set.resetyes'), onYes: function () { Storage.reset(); refreshRecord(); K.toast(T('set.resetdone')); } }); break;
     }
@@ -156,7 +150,7 @@
   const Start = {
     init: function () {
       if (inited) return; inited = true;
-      root = $('ui'); GA.Skin.apply(); GA.Quality.setMode(Storage.quality, true);
+      root = $('ui'); GA.Skin.apply(); applyFx();
       pick = Storage.pick;
       screens.start = el(startHTML()); screens.howto = el(howtoHTML()); screens.settings = el(settingsHTML()); screens.loading = el(loadingHTML());
       Object.keys(screens).forEach(function (k) { root.appendChild(screens[k]); });
@@ -164,6 +158,11 @@
       root.addEventListener('click', function (e) {
         const b = e.target.closest('[data-act^="st-"]'); if (!b || b.disabled) return;
         act(b.getAttribute('data-act'), b);
+      });
+      root.addEventListener('input', function (e) {
+        const s = e.target; if (!s || s.type !== 'range') return; const v = +s.value; s.style.setProperty('--v', v + '%');
+        if (s.id === 'sl-sfx') Storage.volSfx = v / 100; else if (s.id === 'sl-mus') Storage.volMus = v / 100; else return;
+        if (GA.Audio) GA.Audio.setVolumes(Storage.volSfx, Storage.volMus);
       });
       root.addEventListener('keydown', function (e) {
         if (e.key === 'Escape' && shown !== 'start' && shown !== null && !K.confirmOpen()) { e.preventDefault(); back(); return; }

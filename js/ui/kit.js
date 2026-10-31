@@ -1,15 +1,15 @@
-/* kit.js — UI kit tunggal. SEMUA layar (halaman awal, cerita, pembuka stage, hasil, pengaturan, konfirmasi) dibangun dari komponen ini;
- * gayanya ada di css/kit.css, token warna/tekstur di Theme.ui (js/theme.js) → CSS variables (js/ui/skin.js), tekstur di js/render/textures.js,
- * ikon SVG di js/ui/icons.js, teks di js/strings.js. Popup Jeda (Figma) tetap di css/pause.css dengan warna yang selaras.
+/* kit.js — UI kit tunggal (revisi 11: tema gelap). SEMUA layar (halaman awal, cerita, pembuka stage, hasil, pengaturan, Jeda, konfirmasi, HUD) dibangun dari komponen ini;
+ * gayanya ada di css/kit.css, token warna di Theme.ui (js/theme.js) → CSS variables (js/ui/skin.js; satu tile noise 128 px), ikon SVG di js/ui/icons.js, teks di js/strings.js.
  *
  * Komponen (mengembalikan string HTML, teks di-escape):
- *   Kit.panel({ title, back, right, body, cls, peek })   papan kayu + perkamen, paku emas, kepala naga mengintip
- *   Kit.button({ label, icon, act, variant, size, data, aria, id })   variant: primary (hijau) | secondary (oranye) | danger (merah) | wood
+ *   Kit.panel({ title, back, right, body, cls })         panel batu bingkai tebal + isi slate gelap; judul = plakat slate yang menempel di tepi atas
+ *   Kit.button({ label, icon, act, variant, size, data, aria, id, cls })   tombol bersegi delapan; variant: primary (hijau) | secondary (amber) | danger (merah) | blue | wood (slate, ikon)
  *   Kit.badge(text, { icon, tone })      Kit.chip(text, { icon, tone })      Kit.icon(name, cls)
  *   Kit.toggle({ act, label, icon, on, chip, sync })     sakelar (role=switch)
+ *   Kit.slider({ act, id, label, icon, value })          penggeser 0–100 (input range, tombol ikon di kiri)
  *   Kit.segmented({ act, label, items:[{ id, label, icon, on, tone }] })     pilihan tunggal (role=radiogroup)
- *   Kit.progress({ value, max, kind, label })            bilah api / energi
- *   Kit.card({ id, name, color, icon, ex, on, act })     kartu kategori (warna per kategori; terpilih = bingkai emas + centang)
+ *   Kit.progress({ value, max, kind, label })            bar progres pil gelap, isi datar
+ *   Kit.card({ id, name, color, icon, ex, on, act })     kartu kategori (slate; terpilih = bingkai emas + centang)
  *   Kit.stars(n, total)   Kit.eggs(have, max)   Kit.record(value, label)
  *   Kit.tip(html, text)                                  tooltip (hover/fokus; di sentuh lewat fokus)
  * DOM (satu instans): Kit.toast(text, ms)   Kit.confirm({ title, text, yes, onYes}) */
@@ -28,18 +28,6 @@
     return a;
   }
 
-  /* Kepala naga (ORIGINAL, SVG) yang mengintip dari tepi atas papan. */
-  const PEEK = '<svg viewBox="0 0 120 64" aria-hidden="true" focusable="false">' +
-    '<defs><linearGradient id="kpg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8fe06a"/><stop offset="1" stop-color="#2f8a3c"/></linearGradient></defs>' +
-    '<path d="M30 32C20 18 14 10 6 6c2 14 8 26 16 34z" fill="#e8c874" stroke="#3a1e08" stroke-width="3" stroke-linejoin="round"/>' +
-    '<path d="M90 32c10-14 16-22 24-26-2 14-8 26-16 34z" fill="#e8c874" stroke="#3a1e08" stroke-width="3" stroke-linejoin="round"/>' +
-    '<path d="M14 64C16 36 36 22 60 22s44 14 46 42z" fill="url(#kpg)" stroke="#3a1e08" stroke-width="3" stroke-linejoin="round"/>' +
-    '<ellipse cx="60" cy="48" rx="24" ry="13" fill="#b6f08a" stroke="#3a1e08" stroke-width="2.5"/>' +
-    '<circle cx="51" cy="46" r="2.6" fill="#2a4a14"/><circle cx="69" cy="46" r="2.6" fill="#2a4a14"/>' +
-    '<ellipse cx="38" cy="36" rx="8" ry="6.5" fill="#fff6b0" stroke="#3a1e08" stroke-width="2.5"/><ellipse cx="82" cy="36" rx="8" ry="6.5" fill="#fff6b0" stroke="#3a1e08" stroke-width="2.5"/>' +
-    '<ellipse cx="39" cy="36.5" rx="2.2" ry="5" fill="#2a1030"/><ellipse cx="81" cy="36.5" rx="2.2" ry="5" fill="#2a1030"/>' +
-    '<path d="M28 27q8-6 16-3M92 27q-8-6-16-3" fill="none" stroke="#3a1e08" stroke-width="3" stroke-linecap="round"/></svg>';
-
   const Kit = {
     esc: esc,
     icon: I,
@@ -48,13 +36,13 @@
       const head = o.title || o.back || o.right
         ? '<header class="k-head">' + (o.back ? Kit.button({ act: o.back, icon: 'back', variant: 'wood', size: 'small', aria: T('common.back') }) : '') +
           (o.title ? '<h2 class="k-title">' + esc(o.title) + '</h2>' : '') + (o.right || '') + '</header>' : '';
-      return '<section class="k-panel' + (o.cls ? ' ' + o.cls : '') + '"' + (o.id ? ' id="' + o.id + '"' : '') + (o.role ? ' role="' + o.role + '" aria-modal="true"' : '') + '>' +
-        (o.peek === false ? '' : '<span class="k-peek">' + PEEK + '</span>') + head + '<div class="k-body">' + (o.body || '') + '</div></section>';
+      return '<section class="k-panel' + (head ? ' k-has-head' : '') + (o.cls ? ' ' + o.cls : '') + '"' + (o.id ? ' id="' + o.id + '"' : '') + (o.role ? ' role="' + o.role + '" aria-modal="true"' : '') + '>' +
+        head + '<div class="k-body">' + (o.body || '') + '</div></section>';
     },
 
     button: function (o) {
       const v = o.variant || 'primary';
-      return '<button type="button" class="k-btn k-' + v + (o.size ? ' k-' + o.size : '') + (o.cls ? ' ' + o.cls : '') + '"' + attrs(o) + '><i class="k-gloss"></i>' +
+      return '<button type="button" class="k-btn k-' + v + (o.size ? ' k-' + o.size : '') + (o.label ? '' : ' k-iconbtn') + (o.cls ? ' ' + o.cls : '') + '"' + attrs(o) + '><i class="k-gloss"></i>' +
         (o.icon ? I(o.icon) : '') + (o.label ? '<span>' + esc(o.label) + '</span>' : '') + '</button>';
     },
 
@@ -64,6 +52,13 @@
     toggle: function (o) {
       return '<button type="button" class="k-toggle' + (o.chip ? ' k-chip-toggle' : '') + (o.on ? ' on' : '') + '" role="switch" aria-checked="' + (o.on ? 'true' : 'false') + '"' + attrs(o) + (o.sync ? ' data-sync="' + o.sync + '"' : '') + '>' +
         '<span class="k-tl">' + (o.icon ? I(o.icon) : '') + '<span>' + esc(o.label) + '</span></span>' + (o.chip ? '' : '<span class="k-track"><i></i></span>') + '</button>';
+    },
+
+    /** Penggeser 0–100 untuk Atur (suara, musik): <input type=range> bawaan (papan ketik + sentuh), diberi gaya lewat CSS. */
+    slider: function (o) {
+      const v = Math.max(0, Math.min(100, Math.round(o.value == null ? 100 : o.value)));
+      return '<label class="k-slider"><span class="k-sl-l">' + (o.icon ? I(o.icon) : '') + '<span>' + esc(o.label) + '</span></span>' +
+        '<input type="range" min="0" max="100" step="5" value="' + v + '" id="' + o.id + '" data-act="' + o.act + '" aria-label="' + esc(o.label) + '" style="--v:' + v + '%"></label>';
     },
 
     segmented: function (o) {
@@ -81,7 +76,7 @@
 
     stars: function (n, total) {
       let s = '';
-      for (let i = 0; i < (total || 3); i++) s += '<span class="star' + (i < n ? ' on' : '') + '" style="--i:' + i + '">★</span>';
+      for (let i = 0; i < (total || 3); i++) s += '<span class="star' + (i < n ? ' on' : '') + '" style="--i:' + i + '">' + I('star') + '</span>';
       return '<span class="k-stars" role="img" aria-label="' + n + '/' + (total || 3) + '">' + s + '</span>';
     },
 
@@ -112,7 +107,7 @@
       this.root = root;
       root.insertAdjacentHTML('beforeend',
         '<div class="k-toast" id="k-toast" role="status" aria-live="polite"></div>' +
-        '<div class="k-modal" id="k-modal" role="alertdialog" aria-modal="true" aria-labelledby="k-mt"><div class="k-panel k-small"><span class="k-peek">' + PEEK + '</span><div class="k-body">' +
+        '<div class="k-modal" id="k-modal" role="alertdialog" aria-modal="true" aria-labelledby="k-mt"><div class="k-panel k-small"><div class="k-body">' +
         '<h2 class="k-title" id="k-mt"></h2><p class="k-mx" id="k-mx"></p><div class="k-row">' + Kit.button({ id: 'k-mno', act: 'k-no', variant: 'secondary', label: T('common.no') }) + Kit.button({ id: 'k-myes', act: 'k-yes', variant: 'danger', label: T('common.yes') }) + '</div></div></div></div>');
       const self = this, m = document.getElementById('k-modal');
       m.addEventListener('click', function (e) {
